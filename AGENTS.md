@@ -144,7 +144,7 @@ Do NOT directly import or call `encoding/json` in business code. `json.RawMessag
 
 Before designing or implementing a local provider integration, read `docs/architecture/local-customization-governance.md`.
 
-- Keep `main` as a fast-forward mirror of `upstream/main`; merge local work into `codex/local-main`, not `main`. Do not make broad core-relay changes for one provider when configuration or an isolated extension can solve the need.
+- Keep `main` as the locally runnable integration baseline. `upstream/main` is the official read-only tracking reference; merge official updates into `main` only after review and verification. Do not make broad core-relay changes for one provider when configuration or an isolated extension can solve the need.
 - Use channel/model/group/pricing configuration for supported protocols. Provider-specific resource, asset-management, or nonstandard task APIs belong in an isolated extension boundary unless the behavior is broadly reusable upstream.
 - Create work on short-lived `codex/feature/...`, `codex/fix/...`, or `codex/chore/...` branches and delete them after merge. Do not put API keys, tokens, or other secrets in commits, fixtures, or documentation.
 

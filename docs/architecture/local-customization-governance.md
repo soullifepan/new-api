@@ -12,9 +12,8 @@
 
 | 分支 | 用途 | 生命周期 |
 | --- | --- | --- |
-| `main` | 官方基线镜像，只允许快进到 `upstream/main` | 长期保留 |
+| `main` | 本地可运行的集成基线，承载已验证的本地定制 | 长期保留 |
 | `upstream/main` | 官方仓库的只读远程跟踪分支 | 不直接提交 |
-| `codex/local-main` | 本地可运行的集成分支，承载治理文档和已验证的本地定制 | 长期保留 |
 | `codex/feature/<topic>` | 新功能，例如 `codex/feature/xfusion-extensions` | 合并后删除 |
 | `codex/fix/<topic>` | 缺陷修复 | 合并后删除 |
 | `codex/chore/<topic>` | 上游同步、构建或维护任务 | 合并后删除 |
@@ -28,11 +27,11 @@
 
 1. 先确认工作区干净：`git status --short --branch`。
 2. 拉取官方更新：`git fetch upstream main`。
-3. 更新官方镜像：切换到 `main` 后执行 `git merge --ff-only upstream/main`。`main` 不接收本地功能提交。
-4. 切换到 `codex/local-main` 并执行 `git merge main`，在这里解决本地定制与官方更新的冲突。
+3. `upstream/main` 就是官方快照，不需要额外创建本地“备份分支”。切换到 `main` 后执行 `git merge upstream/main`。
+4. 在 `main` 解决本地定制与官方更新的冲突，优先保留官方通用实现；本地定制应迁移到隔离边界，而不是直接覆盖官方代码。
 5. 运行受影响的后端/前端构建和测试，再提交集成结果。
 
-开发分支必须从 `codex/local-main` 创建，并合并回 `codex/local-main`。当同步需要较多处理时，先创建 `codex/chore/upstream-update-YYYYMMDD` 完成验证，再合并回 `codex/local-main`。
+开发分支必须从 `main` 创建，并合并回 `main`。当同步需要较多处理时，先创建 `codex/chore/upstream-update-YYYYMMDD` 完成验证，再合并回 `main`。
 
 ## 扩展边界
 
@@ -74,4 +73,4 @@
 
 ## 当前决策
 
-本地优先保持 New API 官方功能完整可更新：`main` 永远是可重建的官方镜像，`codex/local-main` 是本地集成目标。未来接入 XFusion/AZOpenAI 等聚合商的非标准视频与素材接口时，先按上述隔离扩展方案设计，不直接修改通用渠道行为；标准模型调用继续优先使用已有渠道、模型映射和价格配置。
+本地优先保持 New API 官方功能完整可更新：`main` 是本地集成目标，`upstream/main` 是可随时比较和回溯的官方快照。未来接入 XFusion/AZOpenAI 等聚合商的非标准视频与素材接口时，先按上述隔离扩展方案设计，不直接修改通用渠道行为；标准模型调用继续优先使用已有渠道、模型映射和价格配置。
