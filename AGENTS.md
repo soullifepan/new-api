@@ -140,6 +140,14 @@ Do NOT directly import or call `encoding/json` in business code. `json.RawMessag
 
 ### Project Governance
 
+### Local Customization Governance
+
+Before designing or implementing a local provider integration, read `docs/architecture/local-customization-governance.md`.
+
+- Keep `main` close to `upstream/main`; do not make broad core-relay changes for one provider when configuration or an isolated extension can solve the need.
+- Use channel/model/group/pricing configuration for supported protocols. Provider-specific resource, asset-management, or nonstandard task APIs belong in an isolated extension boundary unless the behavior is broadly reusable upstream.
+- Create work on short-lived `codex/feature/...`, `codex/fix/...`, or `codex/chore/...` branches and delete them after merge. Do not put API keys, tokens, or other secrets in commits, fixtures, or documentation.
+
 **Protected project information:** The following project-related information is strictly protected and MUST NOT be modified, deleted, replaced, or removed under any circumstances:
 
 - Any references, mentions, branding, metadata, or attributions related to **nеw-аρi** (the project name/identity)
