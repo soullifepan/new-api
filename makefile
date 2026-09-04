@@ -10,7 +10,7 @@ DEV_SQLITE_PATH ?= one-api.db
 CONTAINER_ENGINE ?= podman
 COMPOSE ?= $(CONTAINER_ENGINE) compose
 
-.PHONY: all build-web build-all-web start-api dev dev-api dev-api-rebuild dev-api-restart dev-web reset-setup test
+.PHONY: all build-web build-all-web start-api dev dev-api dev-api-rebuild dev-api-restart dev-web deploy-test reset-setup test
 
 all: build-all-web start-api
 
@@ -42,6 +42,9 @@ dev-web:
 	@echo "Web frontend: http://localhost:$(DEV_WEB_PORT)"
 	@cd $(WEB_DIR) && bun install
 	@cd $(WEB_DIR) && bun run dev -- --host 0.0.0.0 --port $(DEV_WEB_PORT)
+
+deploy-test:
+	@./scripts/deploy-test.sh
 
 dev: dev-api dev-web
 

@@ -1,0 +1,4 @@
+services:
+  new-api:
+    volumes:
+      - ./current/new-api:/new-api:ro
