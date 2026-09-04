@@ -59,7 +59,6 @@ function installApiFixtures(createdPayloads: Array<Record<string, unknown>>) {
           data: {
             success: true,
             data: {
-              auto: { desc: 'Automatic routing', ratio: 'auto' },
               default: { desc: 'Standard access', ratio: 1 },
               vip: { desc: 'Priority access', ratio: 2 },
             },
@@ -104,7 +103,6 @@ async function renderCreateDrawer(): Promise<void> {
     {
       success: true,
       data: {
-        auto: { desc: 'Automatic routing', ratio: 'auto' },
         default: { desc: 'Standard access', ratio: 1 },
         vip: { desc: 'Priority access', ratio: 2 },
       },
@@ -262,7 +260,10 @@ describe('API keys mutate drawer Auto group integration', () => {
     const groupTrigger = getControlByLabel('Group')
     selectComboboxOption(groupTrigger, 'Standard access')
     expect(document.querySelector('button[aria-label="Remove vip"]')).toBe(null)
-    selectComboboxOption(groupTrigger, 'Automatic routing')
+    selectComboboxOption(
+      groupTrigger,
+      'Automatically selects the best available group with circuit breaker mechanism'
+    )
 
     expect(
       document.querySelector('button[aria-label="Remove vip"]')

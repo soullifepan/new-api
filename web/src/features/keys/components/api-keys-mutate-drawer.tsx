@@ -156,16 +156,26 @@ export function ApiKeysMutateDrawer({
 
   const models = modelsData?.data || []
   const groups = useMemo<ApiKeyGroupOption[]>(
-    () =>
-      Object.entries(groupsData?.data || {}).map(([key, info]) => ({
-        value: key,
-        label: key,
-        desc: info.desc || key,
-        ratio: info.ratio,
-      })),
-    [groupsData]
+    () => [
+      {
+        value: 'auto',
+        label: 'auto',
+        desc: t(
+          'Automatically selects the best available group with circuit breaker mechanism'
+        ),
+        ratio: 'auto',
+      },
+      ...Object.entries(groupsData?.data || {})
+        .filter(([key]) => key !== 'auto')
+        .map(([key, info]) => ({
+          value: key,
+          label: key,
+          desc: info.desc || key,
+          ratio: info.ratio,
+        })),
+    ],
+    [groupsData, t]
   )
-  const backendHasAuto = groups.some((g) => g.value === 'auto')
   const availableAutoGroupNames = useMemo(
     () => groups.filter((group) => group.value !== 'auto').map((g) => g.value),
     [groups]
@@ -229,9 +239,7 @@ export function ApiKeysMutateDrawer({
         setInitializedTarget(target)
       }
     } else {
-      form.reset(
-        getApiKeyFormDefaultValues(defaultUseAutoGroup && backendHasAuto)
-      )
+      form.reset(getApiKeyFormDefaultValues(defaultUseAutoGroup))
       setInitializedTarget(target)
     }
   }, [
@@ -241,7 +249,6 @@ export function ApiKeysMutateDrawer({
     form,
     defaultUseAutoGroup,
     statusLoading,
-    backendHasAuto,
     groupsFetched,
     groupsFetching,
     autoGroupsFetched,
