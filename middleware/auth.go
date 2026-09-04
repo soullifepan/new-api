@@ -458,19 +458,11 @@ func TokenAuth() func(c *gin.Context) {
 
 		userGroup := userCache.Group
 		tokenGroup := token.Group
+		if err := validateTokenGroupAccess(userGroup, tokenGroup); err != nil {
+			abortWithOpenAiMessage(c, http.StatusForbidden, err.Error())
+			return
+		}
 		if tokenGroup != "" {
-			// check common.UserUsableGroups[userGroup]
-			if _, ok := service.GetUserUsableGroups(userGroup)[tokenGroup]; !ok {
-				abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("无权访问 %s 分组", tokenGroup))
-				return
-			}
-			// check group in common.GroupRatio
-			if !ratio_setting.ContainsGroupRatio(tokenGroup) {
-				if tokenGroup != "auto" {
-					abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("分组 %s 已被弃用", tokenGroup))
-					return
-				}
-			}
 			userGroup = tokenGroup
 		}
 		common.SetContextKey(c, constant.ContextKeyUsingGroup, userGroup)
@@ -481,6 +473,21 @@ func TokenAuth() func(c *gin.Context) {
 		}
 		c.Next()
 	}
+}
+
+func validateTokenGroupAccess(userGroup, tokenGroup string) error {
+	if tokenGroup == "" || tokenGroup == "auto" {
+		// auto 是虚拟路由分组，不是用户可选的真实分组。它会在后续按
+		// 全局/令牌的自动分组顺序解析，并逐个校验真实分组权限。
+		return nil
+	}
+	if _, ok := service.GetUserUsableGroups(userGroup)[tokenGroup]; !ok {
+		return fmt.Errorf("无权访问 %s 分组", tokenGroup)
+	}
+	if !ratio_setting.ContainsGroupRatio(tokenGroup) {
+		return fmt.Errorf("分组 %s 已被弃用", tokenGroup)
+	}
+	return nil
 }
 
 func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) error {
