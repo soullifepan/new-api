@@ -1,18 +1,18 @@
-# Frontend Development - Backend built from local source
+# Frontend development - backend runs from the mounted local source tree.
 #
 # Usage:
-#   1. docker compose -f docker-compose.dev.yml up -d
+#   1. make dev-api
 #   2. make dev-web
 #   3. Open http://localhost:5173 (Rsbuild dev server, API auto-proxied to :3000)
 #
-# Rebuild backend after Go code changes:
-#   docker compose -f docker-compose.dev.yml up -d --build new-api
+# Restart backend after Go code changes:
+#   podman compose -f docker-compose.dev.yml restart new-api
 #
 # Stop:
-#   docker compose -f docker-compose.dev.yml down
+#   podman compose -f docker-compose.dev.yml down
 #
 # Reset data:
-#   docker compose -f docker-compose.dev.yml down -v
+#   podman compose -f docker-compose.dev.yml down -v
 
 services:
   new-api:
@@ -25,7 +25,10 @@ services:
     ports:
       - "3000:3000"
     volumes:
+      - .:/workspace:Z
       - dev_data:/data
+      - dev_go_build_cache:/go-build-cache
+      - dev_go_module_cache:/go-module-cache
     environment:
       - SQL_DSN=postgresql://root:123456@postgres:5432/new-api
       - REDIS_CONN_STRING=redis://redis
@@ -43,6 +46,16 @@ services:
         condition: service_healthy
     networks:
       - dev-network
+    working_dir: /workspace
+    command:
+      - sh
+      - -ec
+      - |
+        mkdir -p web/dist
+        if [ ! -f web/dist/index.html ]; then
+          printf '%s' '<!doctype html><html><head><title>dev</title></head><body>use frontend dev server</body></html>' > web/dist/index.html
+        fi
+        exec go run main.go
 
   redis:
     image: redis:7-alpine
@@ -72,6 +85,8 @@ services:
 volumes:
   dev_data:
   dev_pg_data:
+  dev_go_build_cache:
+  dev_go_module_cache:
 
 networks:
   dev-network:

@@ -7,8 +7,10 @@ DEV_API_SERVICE = new-api
 DEV_POSTGRES_DB = new-api
 DEV_POSTGRES_USER = root
 DEV_SQLITE_PATH ?= one-api.db
+CONTAINER_ENGINE ?= podman
+COMPOSE ?= $(CONTAINER_ENGINE) compose
 
-.PHONY: all build-web build-all-web start-api dev dev-api dev-api-rebuild dev-web reset-setup test
+.PHONY: all build-web build-all-web start-api dev dev-api dev-api-rebuild dev-api-restart dev-web reset-setup test
 
 all: build-all-web start-api
 
@@ -24,12 +26,16 @@ start-api:
 	@cd $(API_DIR) && go run main.go &
 
 dev-api:
-	@echo "Starting api services (docker)..."
-	@docker compose -f $(DEV_COMPOSE_FILE) up -d
+	@echo "Starting local API services with $(CONTAINER_ENGINE)..."
+	@$(COMPOSE) -f $(DEV_COMPOSE_FILE) up -d --build
 
 dev-api-rebuild:
-	@echo "Rebuilding and starting api service (docker)..."
-	@docker compose -f $(DEV_COMPOSE_FILE) up -d --build $(DEV_API_SERVICE)
+	@echo "Rebuilding the development base image..."
+	@$(COMPOSE) -f $(DEV_COMPOSE_FILE) up -d --build $(DEV_API_SERVICE)
+
+dev-api-restart:
+	@echo "Restarting API to pick up local Go source changes..."
+	@$(COMPOSE) -f $(DEV_COMPOSE_FILE) restart $(DEV_API_SERVICE)
 
 dev-web:
 	@echo "Starting web frontend dev server..."
@@ -50,15 +56,15 @@ test:
 
 reset-setup:
 	@echo "Resetting local setup wizard state..."
-	@if docker compose -f $(DEV_COMPOSE_FILE) ps --services --status running | grep -qx "$(DEV_POSTGRES_SERVICE)"; then \
-		echo "Detected running docker dev PostgreSQL. Removing setup record and root users..."; \
-		docker compose -f $(DEV_COMPOSE_FILE) exec -T $(DEV_POSTGRES_SERVICE) \
+	@if $(COMPOSE) -f $(DEV_COMPOSE_FILE) ps --services --status running | grep -qx "$(DEV_POSTGRES_SERVICE)"; then \
+		echo "Detected running local dev PostgreSQL. Removing setup record and root users..."; \
+		$(COMPOSE) -f $(DEV_COMPOSE_FILE) exec -T $(DEV_POSTGRES_SERVICE) \
 			psql -U $(DEV_POSTGRES_USER) -d $(DEV_POSTGRES_DB) \
 			-c 'DELETE FROM setups;' \
 			-c 'DELETE FROM users WHERE role = 100;' \
 			-c "DELETE FROM options WHERE key IN ('SelfUseModeEnabled', 'DemoSiteEnabled');"; \
-		echo "Restarting docker dev api so setup status is recalculated..."; \
-		docker compose -f $(DEV_COMPOSE_FILE) restart $(DEV_API_SERVICE); \
+		echo "Restarting local dev API so setup status is recalculated..."; \
+		$(COMPOSE) -f $(DEV_COMPOSE_FILE) restart $(DEV_API_SERVICE); \
 	elif db_path="$${SQLITE_PATH:-$(DEV_SQLITE_PATH)}"; db_path="$${db_path%%\?*}"; [ -f "$$db_path" ]; then \
 		db_path="$${SQLITE_PATH:-$(DEV_SQLITE_PATH)}"; \
 		db_path="$${db_path%%\?*}"; \
@@ -67,7 +73,7 @@ reset-setup:
 			"DELETE FROM setups; DELETE FROM users WHERE role = 100; DELETE FROM options WHERE key IN ('SelfUseModeEnabled', 'DemoSiteEnabled');"; \
 		echo "SQLite setup state reset. Restart the local api process before testing the setup wizard."; \
 	else \
-		echo "No running docker dev PostgreSQL or local SQLite database found."; \
+		echo "No running local dev PostgreSQL or local SQLite database found."; \
 		echo "Start the dev stack with 'make dev-api', or set SQLITE_PATH/DEV_SQLITE_PATH to your local SQLite database."; \
 		exit 1; \
 	fi
