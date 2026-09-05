@@ -12,6 +12,8 @@ ENV GO111MODULE=on \
 
 WORKDIR /workspace
 
+# relaykit is a local module referenced via replace; its go.mod must be
+# present for go mod download to resolve the main module graph.
 COPY go.mod go.sum ./
 COPY relaykit/go.mod ./relaykit/go.mod
 RUN go mod download
