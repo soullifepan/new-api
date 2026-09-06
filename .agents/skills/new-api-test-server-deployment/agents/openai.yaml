@@ -1,0 +1,3 @@
+interface:
+  display_name: "New API 测试环境发布"
+  short_description: "发布、激活和验收测试服务器与任务插件"

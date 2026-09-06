@@ -1,0 +1,3 @@
+interface:
+  display_name: "New API 任务插件开发"
+  short_description: "开发本地异步任务插件、模型映射与规格计费"
