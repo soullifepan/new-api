@@ -9,10 +9,12 @@ export const meta = {
     en: "APIMart asynchronous image generation tasks",
     zh: "APIMart 异步图片生成任务",
   },
-  version: "0.1.1",
+  version: "0.1.2",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
-  allowedHosts: ["api.apimart.ai", "upload.apimart.ai", "cdn.apimart.ai"],
+  // api.apib.ai is the configured API entrypoint. APIMart-compatible image
+  // results may still be served from the legacy upload/CDN hosts.
+  allowedHosts: ["api.apib.ai", "upload.apimart.ai", "cdn.apimart.ai"],
   // The implementation is protocol-based. Adding another documented model is
   // a manifest/config release, not a new plugin implementation.
   models: [

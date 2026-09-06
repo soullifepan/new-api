@@ -36,7 +36,7 @@
       "hook": "buildSubmitRequest",
       "args": [
         {
-          "baseUrl": "https://api.apimart.ai",
+          "baseUrl": "https://api.apib.ai",
           "apiKey": "test-token",
           "model": "gpt-image-2",
           "requestBody": {
@@ -49,7 +49,7 @@
         }
       ],
       "expected": {
-        "url": "https://api.apimart.ai/v1/images/generations",
+        "url": "https://api.apib.ai/v1/images/generations",
         "method": "POST",
         "headers": {
           "Accept": "application/json",
@@ -71,7 +71,7 @@
       "hook": "buildSubmitRequest",
       "args": [
         {
-          "baseUrl": "https://api.apimart.ai",
+          "baseUrl": "https://api.apib.ai",
           "apiKey": "test-token",
           "model": "gpt-image-2-am",
           "upstreamModel": "gpt-image-2",
@@ -83,7 +83,7 @@
         }
       ],
       "expected": {
-        "url": "https://api.apimart.ai/v1/images/generations",
+        "url": "https://api.apib.ai/v1/images/generations",
         "method": "POST",
         "headers": {
           "Accept": "application/json",

@@ -39,7 +39,7 @@ go run . plugin test plugins/local/apimart/plugin.js --fixture plugins/local/api
 
 ```text
 插件键：apimart
-基础地址：https://api.apimart.ai
+基础地址：https://api.apib.ai
 密钥：APIMart Bearer Token
 模型映射：gpt-image-2-am → gpt-image-2
 ```
