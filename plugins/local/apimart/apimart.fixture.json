@@ -1,0 +1,120 @@
+{
+  "cases": [
+    {
+      "name": "accepts a documented image generation request",
+      "hook": "native",
+      "member": "decodeImageGeneration",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "gpt-image-2",
+              "prompt": "a ginger cat at sunset",
+              "size": "16:9",
+              "resolution": "2k",
+              "n": 1
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "gpt-image-2",
+        "action": "image_generation",
+        "requestBody": {
+          "model": "gpt-image-2",
+          "prompt": "a ginger cat at sunset",
+          "size": "16:9",
+          "resolution": "2k",
+          "n": 1
+        }
+      }
+    },
+    {
+      "name": "builds the documented APIMart submit request",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apimart.ai",
+          "apiKey": "test-token",
+          "model": "gpt-image-2",
+          "requestBody": {
+            "model": "gpt-image-2",
+            "prompt": "a ginger cat at sunset",
+            "size": "16:9",
+            "resolution": "2k",
+            "n": 1
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://api.apimart.ai/v1/images/generations",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer test-token"
+        },
+        "body": {
+          "model": "gpt-image-2",
+          "prompt": "a ginger cat at sunset",
+          "size": "16:9",
+          "resolution": "2k",
+          "n": 1
+        },
+        "action": "image_generation"
+      }
+    },
+    {
+      "name": "extracts the upstream task id from a successful submission",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {},
+        {
+          "body": {
+            "code": 200,
+            "data": [{"status": "submitted", "task_id": "task_upstream_1"}]
+          }
+        }
+      ],
+      "expected": {
+        "taskId": "task_upstream_1",
+        "taskData": {
+          "code": 200,
+          "data": [{"status": "submitted", "task_id": "task_upstream_1"}]
+        }
+      }
+    },
+    {
+      "name": "converts a completed APIMart task to a gateway success",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "code": 200,
+          "data": {
+            "id": "task_upstream_1",
+            "status": "completed",
+            "progress": 100,
+            "result": {"images": [{"url": ["https://upload.apimart.ai/image.png"]}]}
+          }
+        }
+      ],
+      "expected": {"status": "SUCCESS", "progress": "100%", "reason": ""}
+    },
+    {
+      "name": "keeps unknown provider states retryable",
+      "hook": "parseTaskResult",
+      "args": [{}, {"code": 200, "data": {"status": "waiting_for_human"}}],
+      "expected": {"status": "UNKNOWN", "reason": "unrecognized APIMart task status: waiting_for_human"}
+    },
+    {
+      "name": "rejects a request above the documented image count",
+      "hook": "native",
+      "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "gpt-image-2", "prompt": "cat", "n": 5}}}],
+      "expectedError": "n must be an integer between 1 and 4"
+    }
+  ]
+}
