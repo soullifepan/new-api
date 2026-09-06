@@ -9,9 +9,26 @@ export const meta = {
     en: "APIMart asynchronous image generation tasks",
     zh: "APIMart 异步图片生成任务",
   },
-  version: "0.1.2",
+  version: "0.2.0",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
+  usageSchema: {
+    images: {
+      type: "number",
+      unit: "count",
+      description: { en: "Number of generated images.", zh: "生成图片的数量。" },
+    },
+    resolution: {
+      enum: ["default", "1k", "2k", "4k"],
+      description: { en: "Requested output resolution tier.", zh: "请求的输出分辨率档位。" },
+    },
+  },
+  usageExamples: [
+    { label: "Default · 1 image", facts: { images: 1, resolution: "default" } },
+    { label: "1K · 1 image", facts: { images: 1, resolution: "1k" } },
+    { label: "2K · 1 image", facts: { images: 1, resolution: "2k" } },
+    { label: "4K · 1 image", facts: { images: 1, resolution: "4k" } },
+  ],
   // api.apib.ai is the configured API entrypoint. APIMart-compatible image
   // results may still be served from the legacy upload/CDN hosts.
   allowedHosts: ["api.apib.ai", "upload.apimart.ai", "cdn.apimart.ai"],
@@ -53,6 +70,11 @@ function object(value, errorMessage) {
 
 function isDeclaredModel(model) {
   return meta.models.includes(model);
+}
+
+function billingResolution(value) {
+  const resolution = trimmed(value).toLowerCase();
+  return ["1k", "2k", "4k"].includes(resolution) ? resolution : "default";
 }
 
 function imageTaskData(task) {
@@ -126,6 +148,15 @@ export function parseSubmitResponse(ctx, response) {
   const taskId = trimmed(submitted.task_id);
   if (!taskId) throw new Error("APIMart submit response is missing task_id");
   return { taskId: taskId, taskData: body };
+}
+
+export function extractUsage(ctx) {
+  if (ctx.usagePurpose === "billing_ratios") return null;
+  const request = ctx.requestBody || {};
+  return {
+    images: request.n === undefined ? 1 : request.n,
+    resolution: billingResolution(request.resolution),
+  };
 }
 
 export function buildQueryRequest(ctx) {

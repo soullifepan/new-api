@@ -126,6 +126,26 @@
       }
     },
     {
+      "name": "extracts billing facts from image count and resolution",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "requestBody": {
+            "model": "gpt-image-2-am",
+            "resolution": "2K",
+            "n": 3
+          }
+        }
+      ],
+      "expected": {"images": 3, "resolution": "2k"}
+    },
+    {
+      "name": "uses the default pricing tier for an omitted resolution",
+      "hook": "extractUsage",
+      "args": [{"requestBody": {"model": "gpt-image-2-am"}}],
+      "expected": {"images": 1, "resolution": "default"}
+    },
+    {
       "name": "extracts the upstream task id from a successful submission",
       "hook": "parseSubmitResponse",
       "args": [

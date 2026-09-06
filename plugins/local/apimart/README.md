@@ -48,6 +48,23 @@ go run . plugin test plugins/local/apimart/plugin.js --fixture plugins/local/api
 
 ## 计费与素材保存
 
-为每个渠道模型在 New API 中配置自己的定价。APIMart 响应里的 `cost` 只用于上游对账，不作为用户扣费输入。
+为每个渠道模型在 New API 中配置自己的定价。插件向表达式提供以下已校验的任务计费用量：
+
+- `u("images")`：请求的 `n`，未提供时为 `1`；
+- `u("resolution")`：`default`、`1k`、`2k`、`4k`。未提供或无法识别时为 `default`。
+
+GPT-Image-2 的当前上游成本可用下面的表达式配置：
+
+```text
+u("resolution") == "4k"
+  ? tier("4k", u("images") * 0.021)
+  : (u("resolution") == "2k"
+    ? tier("2k", u("images") * 0.014)
+    : (u("resolution") == "1k"
+      ? tier("1k", u("images") * 0.0085)
+      : tier("default", u("images") * 0.0085)))
+```
+
+这是每张图片的美元成本；任务表达式不会按百万 Token 换算。若要对外加价，直接将上述单价替换为目标售价即可。APIMart 响应里的 `cost` 只用于上游对账，不作为用户扣费输入。
 
 APIMart 产物 URL 会过期；Tapcomfy 在任务成功后应立即下载并持久化到自己的对象存储。
