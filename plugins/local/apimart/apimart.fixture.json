@@ -67,6 +67,65 @@
       }
     },
     {
+      "name": "uses the mapped upstream model for the APIMart request",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apimart.ai",
+          "apiKey": "test-token",
+          "model": "gpt-image-2-am",
+          "upstreamModel": "gpt-image-2",
+          "requestBody": {
+            "model": "gpt-image-2-am",
+            "prompt": "a ginger cat at sunset",
+            "n": 1
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://api.apimart.ai/v1/images/generations",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer test-token"
+        },
+        "body": {
+          "model": "gpt-image-2",
+          "prompt": "a ginger cat at sunset",
+          "n": 1
+        },
+        "action": "image_generation"
+      }
+    },
+    {
+      "name": "accepts the public APIMart model alias",
+      "hook": "native",
+      "member": "decodeImageGeneration",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "gpt-image-2-am",
+              "prompt": "a ginger cat at sunset",
+              "n": 1
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "gpt-image-2-am",
+        "action": "image_generation",
+        "requestBody": {
+          "model": "gpt-image-2-am",
+          "prompt": "a ginger cat at sunset",
+          "n": 1
+        }
+      }
+    },
+    {
       "name": "extracts the upstream task id from a successful submission",
       "hook": "parseSubmitResponse",
       "args": [

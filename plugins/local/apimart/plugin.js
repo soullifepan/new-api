@@ -9,7 +9,7 @@ export const meta = {
     en: "APIMart asynchronous image generation tasks",
     zh: "APIMart 异步图片生成任务",
   },
-  version: "0.1.0",
+  version: "0.1.1",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   allowedHosts: ["api.apimart.ai", "upload.apimart.ai", "cdn.apimart.ai"],
@@ -17,6 +17,7 @@ export const meta = {
   // a manifest/config release, not a new plugin implementation.
   models: [
     "gpt-image-2",
+    "gpt-image-2-am",
     "gpt-image-2-ext",
     "gpt-image-2-official",
     "gpt-4o-image",

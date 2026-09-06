@@ -17,7 +17,7 @@ GET  /apimart/v1/tasks/{task_id}
 
 ## 支持范围
 
-当前清单覆盖已验证为相同 APIMart 异步图片协议的模型和别名，包括 GPT-Image-2、Nano Banana 2、Flux 2、Flux Kontext、Seedream 与 Grok Imagine。
+当前清单覆盖已验证为相同 APIMart 异步图片协议的模型和别名，包括 GPT-Image-2、Nano Banana 2、Flux 2、Flux Kontext、Seedream 与 Grok Imagine。对外提供 `gpt-image-2-am`，用于和同步 `gpt-image-2` 区分。
 
 新增同协议模型时：
 
@@ -41,6 +41,7 @@ go run . plugin test plugins/local/apimart/plugin.js --fixture plugins/local/api
 插件键：apimart
 基础地址：https://api.apimart.ai
 密钥：APIMart Bearer Token
+模型映射：gpt-image-2-am → gpt-image-2
 ```
 
 不要把真实 token 放进插件源码、fixtures 或 Git。
