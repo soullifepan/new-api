@@ -1422,13 +1422,16 @@ func validateUsageFieldSchema(name string, field UsageFieldSchema) error {
 	if field.Type != "number" {
 		return fmt.Errorf("plugin meta usageSchema field %q type must be number or boolean", name)
 	}
-	if field.Unit != "second" && field.Unit != "count" && field.Unit != "token" && field.Unit != "credit" {
-		return fmt.Errorf("plugin meta usageSchema field %q unit must be second, count, token, or credit", name)
+	if field.Unit != "second" && field.Unit != "count" && field.Unit != "token" && field.Unit != "credit" && field.Unit != "usd" {
+		return fmt.Errorf("plugin meta usageSchema field %q unit must be second, count, token, credit, or usd", name)
 	}
 	return nil
 }
 
-const maxUsageExamples = 16
+// Usage examples are display-only. A task provider may have one published
+// price row for each operation and speed, so leave enough room for a complete
+// tariff while keeping metadata responses bounded.
+const maxUsageExamples = 48
 const maxUsageExampleLabelRunes = 48
 
 func decodeUsageExamples(value any) ([]UsageExample, error) {
@@ -1565,7 +1568,7 @@ func validateUsageExampleValue(value any, field UsageFieldSchema) error {
 	limit := float64(relaycommon.MaxTaskDurationSeconds)
 	if field.Unit == "count" {
 		limit = float64(dto.MaxImageN)
-	} else if field.Unit == "token" || field.Unit == "credit" {
+	} else if field.Unit == "token" || field.Unit == "credit" || field.Unit == "usd" {
 		limit = float64(common.MaxQuota)
 	}
 	if number > limit {

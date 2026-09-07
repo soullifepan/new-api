@@ -47,6 +47,26 @@ function assertConfigRoundTrip(config: TaskVisualConfig) {
 }
 
 describe('task billing expressions', () => {
+  test('round-trips a direct published USD charge', () => {
+    const usdSchema: BillingUsageSchema = {
+      documented_usd: { type: 'number', unit: 'usd' },
+    }
+    const expression = 'tier("documented_rate", u("documented_usd"))'
+
+    const parsed = tryParseTaskVisualConfig(expression, usdSchema)
+    assert.deepEqual(parsed, {
+      tiers: [
+        {
+          label: 'documented_rate',
+          conditions: [],
+          constant: 0,
+          unitPrices: { documented_usd: 1 },
+        },
+      ],
+    })
+    assert.equal(generateTaskExprFromConfig(parsed, usdSchema), expression)
+  })
+
   test('round-trips flat, enum-tiered, and additive canonical shapes', () => {
     assertConfigRoundTrip({
       tiers: [

@@ -54,22 +54,22 @@
       "expected": {"url": "https://api.apib.ai/v1/midjourney/task_upstream_1", "method": "GET", "headers": {"Accept": "application/json", "Authorization": "Bearer test-token"}}
     },
     {
-      "name": "reserves the documented relax imagine credits",
+      "name": "reserves the published relax imagine USD charge",
       "hook": "extractUsage",
       "args": [{"action": "imagine", "requestBody": {"prompt": "a paper-cut fox"}}],
-      "expected": {"documented_credits": 0.4504}
+      "expected": {"documented_usd": 0.04504}
     },
     {
-      "name": "reserves the documented fast imagine credits",
+      "name": "reserves the published fast imagine USD charge",
       "hook": "extractUsage",
       "args": [{"action": "imagine", "requestBody": {"prompt": "a paper-cut fox", "speed": "fast"}}],
-      "expected": {"documented_credits": 0.5504}
+      "expected": {"documented_usd": 0.05504}
     },
     {
-      "name": "multiplies 720p video credits by the batch size",
+      "name": "multiplies the 720p video USD charge by the batch size",
       "hook": "extractUsage",
       "args": [{"action": "video", "requestBody": {"image_urls": ["https://example.test/frame.png"], "video_type": "vid_1.1_i2v_720", "batch_size": 4}}],
-      "expected": {"documented_credits": 16}
+      "expected": {"documented_usd": 1.6}
     },
     {
       "name": "parses a successful image task and makes its images artifacts",

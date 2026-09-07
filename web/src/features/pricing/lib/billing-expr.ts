@@ -522,7 +522,10 @@ function parseTaskTierCall(
     const bareMatch = term.match(
       /^u\(\s*("(?:[^"\\]|\\.)*")\s*\)\s*\*\s*(-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)$/
     )
-    const match = scaledMatch ?? bareMatch
+    const directMatch = term.match(
+      /^u\(\s*("(?:[^"\\]|\\.)*")\s*\)$/
+    )
+    const match = scaledMatch ?? bareMatch ?? directMatch
     if (!match) return null
     let field: string
     try {
@@ -531,7 +534,7 @@ function parseTaskTierCall(
       return null
     }
     const fieldSchema = schema[field]
-    const value = Number(match[2])
+    const value = directMatch ? 1 : Number(match[2])
     if (
       fieldSchema?.type !== 'number' ||
       !fieldSchema.unit ||
@@ -543,6 +546,10 @@ function parseTaskTierCall(
     }
     if (fieldSchema.unit === 'token') {
       if (!scaledMatch) return null
+    } else if (fieldSchema.unit === 'usd') {
+      if (scaledMatch) return null
+    } else if (directMatch) {
+      return null
     } else if (scaledMatch) {
       return null
     }

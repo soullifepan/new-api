@@ -32,19 +32,19 @@ GET  /apimart/midjourney/v1/tasks/{task_id}
 
 ## 计费
 
-APIMart 的任务查询不返回可信的实际成本，因此插件按已提供的 APIMart 公开价目表固定预扣；失败任务由宿主退款。插件输出 `u("documented_credits")`，单位是 APIMart Credits：
+APIMart 的任务查询不返回可信的实际成本，因此插件按已提供的 APIMart 公开价目表固定预扣；失败任务由宿主退款。插件输出 `u("documented_usd")`，它已经是本次任务的美元金额：
 
-- Imagine：Relax `0.4504`、Fast `0.5504`、Turbo `1`；
-- Blend、Edits、放大、变体、重绘、Zoom、Pan、Remix：Relax / Fast `0.5504`、Turbo `1`；
-- Video：480p `2` Credits、720p `4` Credits，乘以 `batch_size`（1 / 2 / 4）。
+- Imagine：Relax `$0.04504`、Fast `$0.05504`、Turbo `$0.10`；
+- Blend、Edits、放大、变体、重绘、Zoom、Pan、Remix：Relax / Fast `$0.05504`、Turbo `$0.10`；
+- Video：480p `$0.20`、720p `$0.40`，乘以 `batch_size`（1 / 2 / 4）。
 
 模型定价选择“表达式”并填写：
 
 ```text
-tier("documented_rate", u("documented_credits") * 0.1)
+tier("documented_rate", u("documented_usd"))
 ```
 
-这会按 `$0.1 / Credit` 换算为美元。分组倍率和用户折扣由 New API 在此基础上处理。APIMart 以后若调整价目表，必须上传新的插件版本；不要修改已上传版本的源码。
+无需 Credit 换算。分组倍率和用户折扣由 New API 在此基础上处理。定价示例覆盖当前插件支持的所有操作与速度档位；`describe`、`inpaint` / `modal` 仍因未开放而不在示例中。APIMart 以后若调整价目表，必须上传新的插件版本；不要修改已上传版本的源码。
 
 ## 本地校验
 
