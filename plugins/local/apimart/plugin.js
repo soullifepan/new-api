@@ -9,7 +9,7 @@ export const meta = {
     en: "APIMart asynchronous image generation tasks",
     zh: "APIMart 异步图片生成任务",
   },
-  version: "0.2.0",
+  version: "0.3.0",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   usageSchema: {
@@ -22,12 +22,20 @@ export const meta = {
       enum: ["default", "1k", "2k", "4k"],
       description: { en: "Requested output resolution tier.", zh: "请求的输出分辨率档位。" },
     },
+    upstream_credits: {
+      type: "number",
+      unit: "credit",
+      description: {
+        en: "Estimated at submission and replaced by APIMart's completed task deduction.",
+        zh: "提交时预估，任务完成后由 APIMart 实际扣减积分覆盖。",
+      },
+    },
   },
   usageExamples: [
-    { label: "Default · 1 image", facts: { images: 1, resolution: "default" } },
-    { label: "1K · 1 image", facts: { images: 1, resolution: "1k" } },
-    { label: "2K · 1 image", facts: { images: 1, resolution: "2k" } },
-    { label: "4K · 1 image", facts: { images: 1, resolution: "4k" } },
+    { label: "Default · 1 image", facts: { images: 1, resolution: "default", upstream_credits: 0 } },
+    { label: "1K · 1 image", facts: { images: 1, resolution: "1k", upstream_credits: 0 } },
+    { label: "2K · 1 image", facts: { images: 1, resolution: "2k", upstream_credits: 0 } },
+    { label: "4K · 1 image", facts: { images: 1, resolution: "4k", upstream_credits: 0 } },
   ],
   // api.apib.ai is the configured API entrypoint. APIMart-compatible image
   // results may still be served from the legacy upload/CDN hosts.
@@ -39,6 +47,7 @@ export const meta = {
     "gpt-image-2-am",
     "gpt-image-2-ext",
     "gpt-image-2-official",
+    "gpt-image-2-official-am",
     "gpt-4o-image",
     "gpt-image-1-official",
     "gpt-image-1.5-official",
@@ -75,6 +84,31 @@ function isDeclaredModel(model) {
 function billingResolution(value) {
   const resolution = trimmed(value).toLowerCase();
   return ["1k", "2k", "4k"].includes(resolution) ? resolution : "default";
+}
+
+function isOfficialGPTImage2(model) {
+  return ["gpt-image-2-official", "gpt-image-2-official-am"].includes(trimmed(model));
+}
+
+function officialQuality(value) {
+  const quality = trimmed(value).toLowerCase();
+  return quality === "medium" || quality === "high" ? quality : "low";
+}
+
+function inputImageCount(request) {
+  const references = Array.isArray(request.image_urls) ? request.image_urls.length : 0;
+  return references + (trimmed(request.mask_url) ? 1 : 0);
+}
+
+function estimateOfficialCredits(request) {
+  const resolution = billingResolution(request.resolution) === "default" ? "1k" : billingResolution(request.resolution);
+  const perImage = {
+    low: { "1k": 0.06, "2k": 0.12, "4k": 0.2 },
+    medium: { "1k": 0.53, "2k": 1.07, "4k": 1.78 },
+    high: { "1k": 2.11, "2k": 4.28, "4k": 7.12 },
+  };
+  const images = request.n === undefined ? 1 : request.n;
+  return images * perImage[officialQuality(request.quality)][resolution] + inputImageCount(request) * 0.154;
 }
 
 function imageTaskData(task) {
@@ -153,10 +187,26 @@ export function parseSubmitResponse(ctx, response) {
 export function extractUsage(ctx) {
   if (ctx.usagePurpose === "billing_ratios") return null;
   const request = ctx.requestBody || {};
-  return {
+  const facts = {
     images: request.n === undefined ? 1 : request.n,
     resolution: billingResolution(request.resolution),
   };
+  if (isOfficialGPTImage2(ctx.upstreamModel || ctx.model || request.model)) {
+    facts.upstream_credits = estimateOfficialCredits(request);
+  }
+  return facts;
+}
+
+export function extractUsageOnComplete(ctx, _taskResult, body) {
+  if (!isOfficialGPTImage2(ctx.upstreamModel || ctx.model)) return null;
+  const data = body && body.data;
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const status = trimmed(data.status).toLowerCase();
+  if (status === "failed") return { upstream_credits: 0 };
+  if (status !== "completed") return null;
+  const credits = Number(data.credits_cost);
+  if (!Number.isFinite(credits) || credits < 0 || credits > 64) return null;
+  return { upstream_credits: credits };
 }
 
 export function buildQueryRequest(ctx) {
@@ -221,6 +271,18 @@ export const native = {
     }
     if (request.n !== undefined && (!Number.isInteger(request.n) || request.n < 1 || request.n > 4)) {
       throw new Error("n must be an integer between 1 and 4");
+    }
+    if (request.image_urls !== undefined && (!Array.isArray(request.image_urls) || request.image_urls.length > 16 || request.image_urls.some(function (url) { return !trimmed(url); }))) {
+      throw new Error("image_urls must contain at most 16 non-empty URLs");
+    }
+    if (request.mask_url !== undefined && !trimmed(request.mask_url)) throw new Error("mask_url must be a non-empty URL");
+    if (isOfficialGPTImage2(model)) {
+      if (request.resolution !== undefined && !["1k", "2k", "4k"].includes(trimmed(request.resolution).toLowerCase())) {
+        throw new Error("resolution must be one of 1k, 2k, or 4k");
+      }
+      if (request.quality !== undefined && !["auto", "low", "medium", "high"].includes(trimmed(request.quality).toLowerCase())) {
+        throw new Error("quality must be one of auto, low, medium, or high");
+      }
     }
     return { kind: "submit", model: model, action: "image_generation", requestBody: request };
   },

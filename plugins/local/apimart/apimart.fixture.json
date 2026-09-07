@@ -126,6 +126,39 @@
       }
     },
     {
+      "name": "accepts the official GPT Image 2 public alias",
+      "hook": "native",
+      "member": "decodeImageGeneration",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "gpt-image-2-official-am",
+              "prompt": "a ginger cat at sunset",
+              "resolution": "2k",
+              "quality": "medium",
+              "n": 2,
+              "image_urls": ["https://example.test/a.png", "https://example.test/b.png"]
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "gpt-image-2-official-am",
+        "action": "image_generation",
+        "requestBody": {
+          "model": "gpt-image-2-official-am",
+          "prompt": "a ginger cat at sunset",
+          "resolution": "2k",
+          "quality": "medium",
+          "n": 2,
+          "image_urls": ["https://example.test/a.png", "https://example.test/b.png"]
+        }
+      }
+    },
+    {
       "name": "extracts billing facts from image count and resolution",
       "hook": "extractUsage",
       "args": [
@@ -144,6 +177,54 @@
       "hook": "extractUsage",
       "args": [{"requestBody": {"model": "gpt-image-2-am"}}],
       "expected": {"images": 1, "resolution": "default"}
+    },
+    {
+      "name": "estimates official GPT Image 2 credits before submission",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "model": "gpt-image-2-official-am",
+          "upstreamModel": "gpt-image-2-official",
+          "requestBody": {
+            "model": "gpt-image-2-official-am",
+            "resolution": "2K",
+            "quality": "medium",
+            "n": 2,
+            "image_urls": ["https://example.test/a.png", "https://example.test/b.png"]
+          }
+        }
+      ],
+      "expected": {"images": 2, "resolution": "2k", "upstream_credits": 2.448}
+    },
+    {
+      "name": "settles official GPT Image 2 with the completed upstream credit deduction",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {"model": "gpt-image-2-official-am", "upstreamModel": "gpt-image-2-official"},
+        {},
+        {"code": 200, "data": {"status": "completed", "credits_cost": 0.04792}}
+      ],
+      "expected": {"upstream_credits": 0.04792}
+    },
+    {
+      "name": "zeros the official GPT Image 2 credit charge when the task fails",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {"model": "gpt-image-2-official-am", "upstreamModel": "gpt-image-2-official"},
+        {},
+        {"code": 200, "data": {"status": "failed"}}
+      ],
+      "expected": {"upstream_credits": 0}
+    },
+    {
+      "name": "rejects an implausible completed upstream credit deduction",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {"model": "gpt-image-2-official-am", "upstreamModel": "gpt-image-2-official"},
+        {},
+        {"code": 200, "data": {"status": "completed", "credits_cost": 65}}
+      ],
+      "expected": null
     },
     {
       "name": "extracts the upstream task id from a successful submission",

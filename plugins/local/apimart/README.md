@@ -53,7 +53,7 @@ go run . plugin test plugins/local/apimart/plugin.js --fixture plugins/local/api
 - `u("images")`：请求的 `n`，未提供时为 `1`；
 - `u("resolution")`：`default`、`1k`、`2k`、`4k`。未提供或无法识别时为 `default`。
 
-GPT-Image-2 的当前上游成本可用下面的表达式配置：
+`gpt-image-2-am` 的当前上游成本可用下面的表达式配置：
 
 ```text
 u("resolution") == "4k"
@@ -66,5 +66,19 @@ u("resolution") == "4k"
 ```
 
 这是每张图片的美元成本；任务表达式不会按百万 Token 换算。若要对外加价，直接将上述单价替换为目标售价即可。APIMart 响应里的 `cost` 只用于上游对账，不作为用户扣费输入。
+
+`gpt-image-2-official-am` 使用上游完成任务返回的 `credits_cost` 结算。提交时插件按 `n`、`resolution`、`quality`、参考图和遮罩图数量预估并预扣；完成后以 `credits_cost` 覆盖预估值，失败时结算为零。配置渠道映射：
+
+```text
+gpt-image-2-official-am → gpt-image-2-official
+```
+
+模型定价选择“表达式”，填写：
+
+```text
+tier("upstream_actual", u("upstream_credits") * 0.1)
+```
+
+这表示 1 Credit = $0.1。若需加价，调整乘数，例如 20% 加价使用 `* 0.1 * 1.2`。页面应提示“预计费用基于所选规格计算；任务完成后按上游实际 Credits 结算，多退少补”。
 
 APIMart 产物 URL 会过期；Tapcomfy 在任务成功后应立即下载并持久化到自己的对象存储。
