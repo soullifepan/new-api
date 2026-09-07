@@ -1,0 +1,63 @@
+{
+  "cases": [
+    {
+      "name": "accepts an imagine request without an upstream model field",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [{"action": "imagine", "body": {"kind": "json", "value": {"prompt": "a paper-cut fox in a forest", "speed": "fast"}}}],
+      "expected": {"kind": "submit", "model": "midjourney-am", "action": "imagine", "requestBody": {"prompt": "a paper-cut fox in a forest", "speed": "fast"}}
+    },
+    {
+      "name": "rejects an imagine request without a prompt",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [{"action": "imagine", "body": {"kind": "json", "value": {}}}],
+      "expectedError": "prompt is required"
+    },
+    {
+      "name": "requires a valid source task and index for upscale",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [{"action": "upscale", "body": {"kind": "json", "value": {"task_id": "task_public_1", "index": 2}}}],
+      "expected": {"kind": "submit", "model": "midjourney-am", "action": "upscale", "requestBody": {"task_id": "task_public_1", "index": 2}, "originTaskIds": ["task_public_1"]}
+    },
+    {
+      "name": "builds an upstream continuation request with the private task id",
+      "hook": "buildSubmitRequest",
+      "args": [{"baseUrl": "https://api.apimart.ai", "apiKey": "test-token", "action": "upscale", "requestBody": {"task_id": "task_public_1", "index": 2}, "originTasks": [{"upstreamTaskId": "task_upstream_1"}]}],
+      "expected": {"url": "https://api.apimart.ai/v1/midjourney/generations/upscale", "method": "POST", "headers": {"Accept": "application/json", "Content-Type": "application/json", "Authorization": "Bearer test-token"}, "body": {"task_id": "task_upstream_1", "index": 2}, "action": "upscale"}
+    },
+    {
+      "name": "accepts image to video with a billed batch size",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [{"action": "video", "body": {"kind": "json", "value": {"image_urls": ["https://example.test/frame.png"], "batch_size": 4}}}],
+      "expected": {"kind": "submit", "model": "midjourney-am", "action": "video", "requestBody": {"image_urls": ["https://example.test/frame.png"], "batch_size": 4}}
+    },
+    {
+      "name": "rejects video with both a source task and a first frame",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [{"action": "video", "body": {"kind": "json", "value": {"task_id": "task_public_1", "image_urls": ["https://example.test/frame.png"]}}}],
+      "expectedError": "provide exactly one of image_urls or task_id"
+    },
+    {
+      "name": "parses an APIMart submission response",
+      "hook": "parseSubmitResponse",
+      "args": [{}, {"body": {"code": 200, "data": [{"status": "submitted", "task_id": "task_upstream_1"}]}}],
+      "expected": {"taskId": "task_upstream_1", "taskData": {"code": 200, "data": [{"status": "submitted", "task_id": "task_upstream_1"}]}}
+    },
+    {
+      "name": "parses a successful image task and makes its images artifacts",
+      "hook": "parseTaskResult",
+      "args": [{}, {"id": "task_upstream_1", "status": "SUCCESS", "progress": "100%", "image_urls": ["https://cdn.apimart.ai/image-1.png"]}],
+      "expected": {"status": "SUCCESS", "progress": "100%", "reason": ""}
+    },
+    {
+      "name": "exposes an image artifact after completion",
+      "hook": "listArtifacts",
+      "args": [{"status": "SUCCESS", "data": {"status": "SUCCESS", "image_urls": ["https://cdn.apimart.ai/image-1.png"]}}],
+      "expected": [{"key": "asset-0-8c4f5b12d2bc7e2b11a3542bce70aa2c8d186e822f1aab7ddeb55613a583d2a5", "type": "image"}]
+    }
+  ]
+}
