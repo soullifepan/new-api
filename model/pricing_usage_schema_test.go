@@ -61,6 +61,48 @@ func TestPricingCarriesTaskUsageSchemaAndRefreshesWithPluginGeneration(t *testin
 	assert.Equal(t, "count", refreshedPricing["pricing-usage-model"].BillingUsageSchema["clips"].Unit)
 }
 
+func TestPricingUsesModelSpecificTaskUsageMetadata(t *testing.T) {
+	resetPricingEndpointTestTables(t)
+	const pluginKey = "pricing-usage-by-model"
+	source := `
+export const meta = {
+  apiVersion: 1, key: "pricing-usage-by-model", name: "Pricing Usage By Model", version: "1.0.0", author: {name: "Test"},
+  models: ["image-pricing-model", "video-pricing-model"], fetchMode: "per_task",
+  usageSchemaByModel: {
+    "image-pricing-model": {images: {type: "number", unit: "count", description: "Generated images."}},
+    "video-pricing-model": {seconds: {type: "number", unit: "second", description: "Generated seconds."}},
+  },
+  usageExamplesByModel: {
+    "image-pricing-model": [{label: "1 image", facts: {images: 1}}],
+    "video-pricing-model": [{label: "1 second", facts: {seconds: 1}}],
+  },
+};
+export function buildSubmitRequest() { return {}; }
+export function parseSubmitResponse() { return {}; }
+export function buildQueryRequest() { return {}; }
+export function parseTaskResult() { return {}; }
+`
+	_, err := jsplugin.DefaultRegistry.Register(source, jsplugin.Options{})
+	require.NoError(t, err)
+	t.Cleanup(func() { jsplugin.DefaultRegistry.Unregister(pluginKey) })
+
+	insertPricingEndpointChannel(t, 902, constant.ChannelTypeTaskPlugin, dto.ChannelOtherSettings{})
+	insertPricingEndpointAbility(t, 902, "image-pricing-model")
+	insertPricingEndpointAbility(t, 902, "video-pricing-model")
+
+	pricing := pricingByModel(GetPricing())
+	image := pricing["image-pricing-model"]
+	video := pricing["video-pricing-model"]
+	require.Contains(t, image.BillingUsageSchema, "images")
+	assert.NotContains(t, image.BillingUsageSchema, "seconds")
+	require.Len(t, image.BillingUsageExamples, 1)
+	assert.Equal(t, "1 image", image.BillingUsageExamples[0].Label)
+	require.Contains(t, video.BillingUsageSchema, "seconds")
+	assert.NotContains(t, video.BillingUsageSchema, "images")
+	require.Len(t, video.BillingUsageExamples, 1)
+	assert.Equal(t, "1 second", video.BillingUsageExamples[0].Label)
+}
+
 func TestPricingAliasCarriesPluginUsageSchemaAndTailExpr(t *testing.T) {
 	resetPricingEndpointTestTables(t)
 	const pluginKey = "pricing-usage-probe"

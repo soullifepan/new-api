@@ -1335,12 +1335,22 @@ func (a *TaskAdaptor) validateResolvedUsageRequest(request any) error {
 	return a.validateResolvedUsageValue(jsonValue(request))
 }
 
+func (a *TaskAdaptor) usageSchema() map[string]pluginruntime.UsageFieldSchema {
+	model := ""
+	if a.info != nil {
+		model = a.info.OriginModelName
+	}
+	schema, _ := a.plugin.Meta.UsageForModel(model)
+	return schema
+}
+
 func (a *TaskAdaptor) validateResolvedUsageValue(value any) error {
+	schema := a.usageSchema()
 	switch typed := value.(type) {
 	case map[string]any:
 		for key, item := range typed {
-			if schema, declared := a.plugin.Meta.UsageSchema[key]; declared {
-				if _, err := validateUsageValue(item, schema, true); err != nil {
+			if field, declared := schema[key]; declared {
+				if _, err := validateUsageValue(item, field, true); err != nil {
 					return err
 				}
 			} else if limit, canonical := canonicalUsageLimit(key); canonical {
@@ -1364,13 +1374,14 @@ func (a *TaskAdaptor) validateResolvedUsageValue(value any) error {
 
 func (a *TaskAdaptor) validatedUsageRatios(facts map[string]any) (map[string]float64, error) {
 	ratios := make(map[string]float64)
+	schema := a.usageSchema()
 	for key, value := range facts {
-		if schema, declared := a.plugin.Meta.UsageSchema[key]; declared {
-			number, err := validateUsageValue(value, schema, false)
+		if field, declared := schema[key]; declared {
+			number, err := validateUsageValue(value, field, false)
 			if err != nil {
 				return nil, err
 			}
-			if schema.Type == "number" {
+			if field.Type == "number" {
 				facts[key] = number
 				if number > 0 {
 					ratios[key] = number
@@ -1408,14 +1419,15 @@ func (a *TaskAdaptor) validatedCompletionUsageFacts(facts any) (map[string]any, 
 		return nil, fmt.Errorf("plugin usage hook must return an object")
 	}
 	validated := make(map[string]any, len(values))
+	schema := a.usageSchema()
 	for key, value := range values {
 		validated[key] = value
-		if schema, declared := a.plugin.Meta.UsageSchema[key]; declared {
-			number, err := validateUsageValue(value, schema, false)
+		if field, declared := schema[key]; declared {
+			number, err := validateUsageValue(value, field, false)
 			if err != nil {
 				return nil, err
 			}
-			if schema.Type == "number" {
+			if field.Type == "number" {
 				validated[key] = number
 			}
 			continue

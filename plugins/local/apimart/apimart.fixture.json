@@ -170,13 +170,13 @@
           }
         }
       ],
-      "expected": {"images": 3, "resolution": "2k", "quality": "low", "input_images": 0}
+      "expected": {"images": 3, "resolution": "2k", "input_images": 0}
     },
     {
       "name": "uses the default pricing tier for an omitted resolution",
       "hook": "extractUsage",
       "args": [{"requestBody": {"model": "gpt-image-2-am"}}],
-      "expected": {"images": 1, "resolution": "default", "quality": "low", "input_images": 0}
+      "expected": {"images": 1, "resolution": "default", "input_images": 0}
     },
     {
       "name": "estimates official GPT Image 2 credits before submission",
@@ -194,7 +194,7 @@
           }
         }
       ],
-      "expected": {"images": 2, "resolution": "2k", "quality": "medium", "input_images": 2, "upstream_credits": 2.448}
+      "expected": {"upstream_credits": 2.448}
     },
     {
       "name": "settles official GPT Image 2 with the completed upstream credit deduction",

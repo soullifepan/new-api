@@ -424,23 +424,26 @@ func updatePricing() {
 				plugin, ok = pluginGeneration.Get(target.PluginKey)
 			}
 		}
-		if ok && plugin != nil && len(plugin.Meta.UsageSchema) > 0 {
-			pricing.BillingUsageSchema = make(map[string]jsplugin.UsageFieldSchema, len(plugin.Meta.UsageSchema))
-			for key, field := range plugin.Meta.UsageSchema {
-				field.Enum = append([]string(nil), field.Enum...)
-				field.Description = maps.Clone(field.Description)
-				pricing.BillingUsageSchema[key] = field
-			}
-			if len(plugin.Meta.UsageExamples) > 0 {
-				pricing.BillingUsageExamples = make([]jsplugin.UsageExample, len(plugin.Meta.UsageExamples))
-				for index, example := range plugin.Meta.UsageExamples {
-					facts := make(map[string]any, len(example.Facts))
-					for key, value := range example.Facts {
-						facts[key] = value
-					}
-					pricing.BillingUsageExamples[index] = jsplugin.UsageExample{
-						Label: example.Label,
-						Facts: facts,
+		if ok && plugin != nil {
+			usageSchema, usageExamples := plugin.Meta.UsageForModel(model)
+			if len(usageSchema) > 0 {
+				pricing.BillingUsageSchema = make(map[string]jsplugin.UsageFieldSchema, len(usageSchema))
+				for key, field := range usageSchema {
+					field.Enum = append([]string(nil), field.Enum...)
+					field.Description = maps.Clone(field.Description)
+					pricing.BillingUsageSchema[key] = field
+				}
+				if len(usageExamples) > 0 {
+					pricing.BillingUsageExamples = make([]jsplugin.UsageExample, len(usageExamples))
+					for index, example := range usageExamples {
+						facts := make(map[string]any, len(example.Facts))
+						for key, value := range example.Facts {
+							facts[key] = value
+						}
+						pricing.BillingUsageExamples[index] = jsplugin.UsageExample{
+							Label: example.Label,
+							Facts: facts,
+						}
 					}
 				}
 			}

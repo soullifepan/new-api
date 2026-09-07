@@ -9,36 +9,48 @@ export const meta = {
     en: "APIMart asynchronous image generation tasks",
     zh: "APIMart 异步图片生成任务",
   },
-  version: "0.6.0",
+  version: "0.7.0",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
-  usageSchema: {
-    images: {
-      type: "number",
-      unit: "count",
-      description: { en: "Number of generated images.", zh: "生成图片的数量。" },
-    },
-    resolution: {
-      enum: ["default", "1k", "2k", "4k"],
-      description: { en: "Requested output resolution tier.", zh: "请求的输出分辨率档位。" },
-    },
-    quality: {
-      enum: ["low", "medium", "high"],
-      description: { en: "Requested output quality.", zh: "请求的输出质量。" },
-    },
-    input_images: {
-      type: "number",
-      unit: "count",
-      description: { en: "Number of input reference and mask images.", zh: "输入参考图和遮罩图数量。" },
-    },
-    upstream_credits: {
-      type: "number",
-      unit: "credit",
-      description: {
-        en: "Estimated at submission and replaced by APIMart's completed task deduction.",
-        zh: "提交时预估，任务完成后由 APIMart 实际扣减积分覆盖。",
+  usageSchemaByModel: {
+    "gpt-image-2-am": {
+      images: {
+        type: "number",
+        unit: "count",
+        description: { en: "Number of successfully generated images.", zh: "成功生成图片的数量。" },
+      },
+      resolution: {
+        enum: ["default", "1k", "2k", "4k"],
+        description: { en: "Requested output resolution tier.", zh: "请求的输出分辨率档位。" },
+      },
+      input_images: {
+        type: "number",
+        unit: "count",
+        description: { en: "Number of input reference and mask images.", zh: "输入参考图和遮罩图数量。" },
       },
     },
+    "gpt-image-2-official-am": {
+      upstream_credits: {
+        type: "number",
+        unit: "credit",
+        description: {
+          en: "Estimated at submission and replaced by APIMart's completed task deduction.",
+          zh: "提交时预估，任务完成后由 APIMart 实际扣减积分覆盖。",
+        },
+      },
+    },
+  },
+  usageExamplesByModel: {
+    "gpt-image-2-am": [
+      { label: "Default · 1 image", facts: { images: 1, resolution: "default", input_images: 0 } },
+      { label: "2K · 1 image", facts: { images: 1, resolution: "2k", input_images: 0 } },
+      { label: "4K · 1 image", facts: { images: 1, resolution: "4k", input_images: 0 } },
+    ],
+    "gpt-image-2-official-am": [
+      { label: "Low · 1K · 1 image (estimated)", facts: { upstream_credits: 0.06 } },
+      { label: "Medium · 2K · 1 image (estimated)", facts: { upstream_credits: 1.07 } },
+      { label: "High · 4K · 1 image (estimated)", facts: { upstream_credits: 7.12 } },
+    ],
   },
   // api.apib.ai is the configured API entrypoint. APIMart-compatible image
   // results may still be served from the legacy upload/CDN hosts.
@@ -71,11 +83,6 @@ function isDeclaredModel(model) {
 function billingResolution(value) {
   const resolution = trimmed(value).toLowerCase();
   return ["1k", "2k", "4k"].includes(resolution) ? resolution : "default";
-}
-
-function billingQuality(value) {
-  const quality = trimmed(value).toLowerCase();
-  return ["low", "medium", "high"].includes(quality) ? quality : "low";
 }
 
 function isOfficialGPTImage2(model) {
@@ -180,16 +187,14 @@ export function parseSubmitResponse(ctx, response) {
 export function extractUsage(ctx) {
   if (ctx.usagePurpose === "billing_ratios") return null;
   const request = ctx.requestBody || {};
-  const facts = {
+  if (isOfficialGPTImage2(ctx.upstreamModel || ctx.model || request.model)) {
+    return { upstream_credits: estimateOfficialCredits(request) };
+  }
+  return {
     images: request.n === undefined ? 1 : request.n,
     resolution: billingResolution(request.resolution),
-    quality: billingQuality(request.quality),
     input_images: inputImageCount(request),
   };
-  if (isOfficialGPTImage2(ctx.upstreamModel || ctx.model || request.model)) {
-    facts.upstream_credits = estimateOfficialCredits(request);
-  }
-  return facts;
 }
 
 export function extractUsageOnComplete(ctx, _taskResult, body) {

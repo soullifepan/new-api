@@ -342,6 +342,38 @@ func TestRegistryDecodesAndValidatesUsageSchema(t *testing.T) {
 	})
 }
 
+func TestRegistryUsesModelSpecificUsageMetadata(t *testing.T) {
+	source := routingTestPluginSource(
+		"model-specific-usage",
+		0,
+		`["image-model", "video-model"]`,
+		`usageSchemaByModel: {
+			"image-model": {images: {type: "number", unit: "count"}},
+			"video-model": {seconds: {type: "number", unit: "second"}},
+		},
+		usageExamplesByModel: {
+			"image-model": [{label: "1 image", facts: {images: 1}}],
+			"video-model": [{label: "1 second", facts: {seconds: 1}}],
+		},`,
+		"",
+	)
+
+	plugin, err := CompilePlugin(source, Options{})
+	require.NoError(t, err)
+
+	imageSchema, imageExamples := plugin.Meta.UsageForModel("image-model")
+	require.Contains(t, imageSchema, "images")
+	assert.NotContains(t, imageSchema, "seconds")
+	require.Len(t, imageExamples, 1)
+	assert.Equal(t, "1 image", imageExamples[0].Label)
+
+	videoSchema, videoExamples := plugin.Meta.UsageForModel("video-model")
+	require.Contains(t, videoSchema, "seconds")
+	assert.NotContains(t, videoSchema, "images")
+	require.Len(t, videoExamples, 1)
+	assert.Equal(t, "1 second", videoExamples[0].Label)
+}
+
 func TestRegistryValidatesUsageExamples(t *testing.T) {
 	tokenSchema := `usageSchema: {tokens: {type: "number", unit: "token"}, mode: {enum: ["std", "pro"]}},`
 	validExample := `{label: "std · 1 token", facts: {tokens: 1, mode: "std"}}`

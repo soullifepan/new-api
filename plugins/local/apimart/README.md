@@ -19,7 +19,7 @@ GET  /apimart/v1/tasks/{task_id}
 
 当前清单暂时只提供两个明确的 APIMart 异步图片别名：`gpt-image-2-am` 和 `gpt-image-2-official-am`。普通模型名（例如 `gpt-image-2`）不在插件清单中，因此不会被误识别为任务模型。
 
-插件不声明 `usageExamples`，避免在模型详情页生成跨模型的组合价格矩阵；实际费用仍由各模型自己的计费表达式决定。
+插件为每个模型声明独立的 `usageSchemaByModel` 和 `usageExamplesByModel`：模型详情页只显示当前模型的规格与预估价格，不会混入其他 APIMart 模型的组合。
 
 后续新增同协议模型时：
 
@@ -50,13 +50,13 @@ go run . plugin test plugins/local/apimart/plugin.js --fixture plugins/local/api
 
 ## 计费与素材保存
 
-为每个渠道模型在 New API 中配置自己的定价。插件向表达式提供以下已校验的任务计费用量：
+为每个渠道模型在 New API 中配置自己的定价。`gpt-image-2-am` 向表达式提供以下已校验的任务计费用量：
 
 - `u("images")`：请求的 `n`，未提供时为 `1`；
 - `u("resolution")`：`default`、`1k`、`2k`、`4k`。未提供或无法识别时为 `default`。
-- `u("quality")`：`low`、`medium`、`high`。未提供时为 `low`。
 - `u("input_images")`：参考图和遮罩图数量，没有输入图时为 `0`。
-- `u("upstream_credits")`：官方积分模型在完成任务后由上游 `credits_cost` 覆盖；其他模型不提供此字段。
+
+`gpt-image-2-official-am` 只提供 `u("upstream_credits")`：提交时预估，完成后由上游 `credits_cost` 覆盖。
 
 `gpt-image-2-am` 的当前上游成本可用下面的表达式配置：
 

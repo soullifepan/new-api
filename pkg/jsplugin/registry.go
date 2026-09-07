@@ -90,7 +90,24 @@ type Meta struct {
 	Protocols     []ProtocolClaim             `json:"protocols"`
 	UsageSchema   map[string]UsageFieldSchema `json:"usageSchema,omitempty"`
 	UsageExamples []UsageExample              `json:"usageExamples,omitempty"`
-	Auth          AuthMeta                    `json:"auth"`
+	// UsageSchemaByModel and UsageExamplesByModel override the plugin-wide
+	// metadata for the named public model. The legacy fields remain the
+	// fallback for existing plugins and models without an override.
+	UsageSchemaByModel   map[string]map[string]UsageFieldSchema `json:"usageSchemaByModel,omitempty"`
+	UsageExamplesByModel map[string][]UsageExample              `json:"usageExamplesByModel,omitempty"`
+	Auth                 AuthMeta                               `json:"auth"`
+}
+
+func (m Meta) UsageForModel(model string) (map[string]UsageFieldSchema, []UsageExample) {
+	schema := m.UsageSchema
+	if override, ok := m.UsageSchemaByModel[model]; ok {
+		schema = override
+	}
+	examples := m.UsageExamples
+	if override, ok := m.UsageExamplesByModel[model]; ok {
+		examples = override
+	}
+	return schema, examples
 }
 
 // ProtocolSupports reports whether the named protocol claim includes mode.
@@ -858,7 +875,35 @@ func cloneMeta(meta Meta) Meta {
 		meta.UsageSchema = usageSchema
 	}
 	meta.UsageExamples = cloneUsageExamples(meta.UsageExamples)
+	if meta.UsageSchemaByModel != nil {
+		meta.UsageSchemaByModel = cloneUsageSchemaByModel(meta.UsageSchemaByModel)
+	}
+	if meta.UsageExamplesByModel != nil {
+		meta.UsageExamplesByModel = cloneUsageExamplesByModel(meta.UsageExamplesByModel)
+	}
 	return meta
+}
+
+func cloneUsageSchemaByModel(source map[string]map[string]UsageFieldSchema) map[string]map[string]UsageFieldSchema {
+	cloned := make(map[string]map[string]UsageFieldSchema, len(source))
+	for model, schema := range source {
+		copied := make(map[string]UsageFieldSchema, len(schema))
+		for key, field := range schema {
+			field.Enum = append([]string(nil), field.Enum...)
+			field.Description = maps.Clone(field.Description)
+			copied[key] = field
+		}
+		cloned[model] = copied
+	}
+	return cloned
+}
+
+func cloneUsageExamplesByModel(source map[string][]UsageExample) map[string][]UsageExample {
+	cloned := make(map[string][]UsageExample, len(source))
+	for model, examples := range source {
+		cloned[model] = cloneUsageExamples(examples)
+	}
+	return cloned
 }
 
 func cloneUsageExamples(examples []UsageExample) []UsageExample {
@@ -946,7 +991,7 @@ func decodeMeta(value any) (Meta, error) {
 	}
 	for field := range object {
 		switch field {
-		case "apiVersion", "key", "name", "icon", "description", "version", "author", "channelTypes", "channelType", "compatibleChannelTypes", "models", "fetchMode", "allowedHosts", "routes", "protocols", "usageSchema", "usageExamples", "auth", "endpoints", "submitPaths", "actions":
+		case "apiVersion", "key", "name", "icon", "description", "version", "author", "channelTypes", "channelType", "compatibleChannelTypes", "models", "fetchMode", "allowedHosts", "routes", "protocols", "usageSchema", "usageExamples", "usageSchemaByModel", "usageExamplesByModel", "auth", "endpoints", "submitPaths", "actions":
 		default:
 			return Meta{}, fmt.Errorf("plugin meta has unknown field %q", field)
 		}
@@ -1031,6 +1076,18 @@ func decodeMeta(value any) (Meta, error) {
 	}
 	if usageExamples, exists := object["usageExamples"]; exists {
 		meta.UsageExamples, err = decodeUsageExamples(usageExamples)
+		if err != nil {
+			return Meta{}, err
+		}
+	}
+	if usageSchemaByModel, exists := object["usageSchemaByModel"]; exists {
+		meta.UsageSchemaByModel, err = decodeUsageSchemaByModel(usageSchemaByModel)
+		if err != nil {
+			return Meta{}, err
+		}
+	}
+	if usageExamplesByModel, exists := object["usageExamplesByModel"]; exists {
+		meta.UsageExamplesByModel, err = decodeUsageExamplesByModel(usageExamplesByModel)
 		if err != nil {
 			return Meta{}, err
 		}
@@ -1250,6 +1307,28 @@ func normalizeV1Meta(meta *Meta) error {
 	if err := validateUsageExamples(meta.UsageSchema, meta.UsageExamples); err != nil {
 		return err
 	}
+	for model, schema := range meta.UsageSchemaByModel {
+		if _, declared := models[model]; !declared {
+			return fmt.Errorf("plugin meta usageSchemaByModel model %q is not declared in plugin meta models", model)
+		}
+		for name, field := range schema {
+			if strings.TrimSpace(name) == "" || strings.TrimSpace(name) != name {
+				return fmt.Errorf("plugin meta usageSchemaByModel model %q keys must be non-empty canonical names", model)
+			}
+			if err := validateUsageFieldSchema(name, field); err != nil {
+				return fmt.Errorf("plugin meta usageSchemaByModel model %q: %w", model, err)
+			}
+		}
+	}
+	for model, examples := range meta.UsageExamplesByModel {
+		if _, declared := models[model]; !declared {
+			return fmt.Errorf("plugin meta usageExamplesByModel model %q is not declared in plugin meta models", model)
+		}
+		schema, _ := meta.UsageForModel(model)
+		if err := validateUsageExamples(schema, examples); err != nil {
+			return fmt.Errorf("plugin meta usageExamplesByModel model %q: %w", model, err)
+		}
+	}
 	return nil
 }
 
@@ -1296,6 +1375,22 @@ func decodeUsageSchema(value any) (map[string]UsageFieldSchema, error) {
 		schema[name] = field
 	}
 	return schema, nil
+}
+
+func decodeUsageSchemaByModel(value any) (map[string]map[string]UsageFieldSchema, error) {
+	object, ok := value.(map[string]any)
+	if !ok || object == nil {
+		return nil, fmt.Errorf("plugin meta usageSchemaByModel must be an object")
+	}
+	result := make(map[string]map[string]UsageFieldSchema, len(object))
+	for model, rawSchema := range object {
+		schema, err := decodeUsageSchema(rawSchema)
+		if err != nil {
+			return nil, fmt.Errorf("plugin meta usageSchemaByModel model %q: %w", model, err)
+		}
+		result[model] = schema
+	}
+	return result, nil
 }
 
 func validateUsageFieldSchema(name string, field UsageFieldSchema) error {
@@ -1373,6 +1468,22 @@ func decodeUsageExamples(value any) ([]UsageExample, error) {
 		examples = append(examples, UsageExample{Label: label, Facts: facts})
 	}
 	return examples, nil
+}
+
+func decodeUsageExamplesByModel(value any) (map[string][]UsageExample, error) {
+	object, ok := value.(map[string]any)
+	if !ok || object == nil {
+		return nil, fmt.Errorf("plugin meta usageExamplesByModel must be an object")
+	}
+	result := make(map[string][]UsageExample, len(object))
+	for model, rawExamples := range object {
+		examples, err := decodeUsageExamples(rawExamples)
+		if err != nil {
+			return nil, fmt.Errorf("plugin meta usageExamplesByModel model %q: %w", model, err)
+		}
+		result[model] = examples
+	}
+	return result, nil
 }
 
 func usageSchemaHasTokenUnit(schema map[string]UsageFieldSchema) bool {
