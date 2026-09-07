@@ -10,11 +10,32 @@ export const meta = {
     en: "APIMart Midjourney asynchronous image and image-to-video tasks",
     zh: "APIMart Midjourney 异步绘图与图生视频任务",
   },
-  version: "0.1.1",
+  version: "0.2.0",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   allowedHosts: ["api.apib.ai", "cdn.apimart.ai"],
   models: ["midjourney-am"],
+  usageSchemaByModel: {
+    "midjourney-am": {
+      documented_credits: {
+        type: "number",
+        unit: "credit",
+        description: {
+          en: "APIMart documented Midjourney credits reserved for this task.",
+          zh: "按 APIMart 公开价目表为本任务预扣的 Midjourney 积分。",
+        },
+      },
+    },
+  },
+  usageExamplesByModel: {
+    "midjourney-am": [
+      { label: "Imagine · Relax", facts: { documented_credits: 0.4504 } },
+      { label: "Imagine · Fast", facts: { documented_credits: 0.5504 } },
+      { label: "Follow-up · Turbo", facts: { documented_credits: 1 } },
+      { label: "Video · 480p", facts: { documented_credits: 2 } },
+      { label: "Video · 720p · 4 outputs", facts: { documented_credits: 16 } },
+    ],
+  },
   routes: [
     { method: "POST", path: "/apimart/midjourney/v1/generations", type: "submit", action: "imagine", decode: "decodeSubmit", render: "renderSubmitted" },
     { method: "POST", path: "/apimart/midjourney/v1/generations/blend", type: "submit", action: "blend", decode: "decodeSubmit", render: "renderSubmitted" },
@@ -63,6 +84,26 @@ function actionPath(action) {
   };
   if (suffix[action] === undefined) throw new Error("unsupported Midjourney action");
   return "/v1/midjourney/generations" + suffix[action];
+}
+
+function normalizedSpeed(value) {
+  const speed = trimmed(value).toLowerCase();
+  if (!speed || speed === "relax") return "relax";
+  if (speed === "fast" || speed === "turbo") return speed;
+  throw new Error("speed must be relax, fast, or turbo");
+}
+
+function documentedCredits(action, request) {
+  if (action === "video") {
+    const videoType = trimmed(request.video_type).toLowerCase();
+    const unitCredits = videoType.includes("720") ? 4 : 2;
+    const batchSize = request.batch_size === undefined ? 1 : request.batch_size;
+    return unitCredits * batchSize;
+  }
+  const speed = normalizedSpeed(request.speed);
+  if (speed === "turbo") return 1;
+  if (action === "imagine" && speed === "relax") return 0.4504;
+  return 0.5504;
 }
 
 function taskData(value) {
@@ -211,6 +252,12 @@ export function buildSubmitRequest(ctx) {
     body: body,
     action: ctx.action,
   };
+}
+
+export function extractUsage(ctx) {
+  if (ctx.usagePurpose === "billing_ratios") return null;
+  const request = object(ctx.requestBody, "Midjourney request is required");
+  return { documented_credits: documentedCredits(trimmed(ctx.action), request) };
 }
 
 export function parseSubmitResponse(_ctx, response) {

@@ -32,7 +32,19 @@ GET  /apimart/midjourney/v1/tasks/{task_id}
 
 ## 计费
 
-APIMart 的 Midjourney 价格按操作、版本、速度和视频批次组合匹配，官方文档要求以控制台当前价格为准。本版本不猜测或硬编码价格，因此也不声明任务计费表达式字段；在确认每个计费键的价格表后，再以独立插件版本增加经过校验的预估与最终结算规则。
+APIMart 的任务查询不返回可信的实际成本，因此插件按已提供的 APIMart 公开价目表固定预扣；失败任务由宿主退款。插件输出 `u("documented_credits")`，单位是 APIMart Credits：
+
+- Imagine：Relax `0.4504`、Fast `0.5504`、Turbo `1`；
+- Blend、Edits、放大、变体、重绘、Zoom、Pan、Remix：Relax / Fast `0.5504`、Turbo `1`；
+- Video：480p `2` Credits、720p `4` Credits，乘以 `batch_size`（1 / 2 / 4）。
+
+模型定价选择“表达式”并填写：
+
+```text
+tier("documented_rate", u("documented_credits") * 0.1)
+```
+
+这会按 `$0.1 / Credit` 换算为美元。分组倍率和用户折扣由 New API 在此基础上处理。APIMart 以后若调整价目表，必须上传新的插件版本；不要修改已上传版本的源码。
 
 ## 本地校验
 
