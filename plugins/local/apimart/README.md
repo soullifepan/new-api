@@ -19,6 +19,8 @@ GET  /apimart/v1/tasks/{task_id}
 
 当前清单暂时只提供两个明确的 APIMart 异步图片别名：`gpt-image-2-am` 和 `gpt-image-2-official-am`。普通模型名（例如 `gpt-image-2`）不在插件清单中，因此不会被误识别为任务模型。
 
+插件不声明 `usageExamples`，避免在模型详情页生成跨模型的组合价格矩阵；实际费用仍由各模型自己的计费表达式决定。
+
 后续新增同协议模型时：
 
 1. 在 `plugin.js` 的 `meta.models` 添加规范模型名；

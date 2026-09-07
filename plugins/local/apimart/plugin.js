@@ -9,7 +9,7 @@ export const meta = {
     en: "APIMart asynchronous image generation tasks",
     zh: "APIMart 异步图片生成任务",
   },
-  version: "0.5.0",
+  version: "0.6.0",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   usageSchema: {
@@ -40,12 +40,6 @@ export const meta = {
       },
     },
   },
-  usageExamples: [
-    { label: "Default · 1 image (estimated)", facts: { images: 1, resolution: "default", quality: "low", input_images: 0, upstream_credits: 0.06 } },
-    { label: "1K · 1 image (estimated)", facts: { images: 1, resolution: "1k", quality: "low", input_images: 0, upstream_credits: 0.06 } },
-    { label: "2K · 1 image (estimated)", facts: { images: 1, resolution: "2k", quality: "low", input_images: 0, upstream_credits: 0.12 } },
-    { label: "4K · 1 image (estimated)", facts: { images: 1, resolution: "4k", quality: "low", input_images: 0, upstream_credits: 0.2 } },
-  ],
   // api.apib.ai is the configured API entrypoint. APIMart-compatible image
   // results may still be served from the legacy upload/CDN hosts.
   allowedHosts: ["api.apib.ai", "upload.apimart.ai", "cdn.apimart.ai"],
