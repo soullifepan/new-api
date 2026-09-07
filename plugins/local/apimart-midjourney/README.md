@@ -23,12 +23,12 @@ GET  /apimart/midjourney/v1/tasks/{task_id}
 
 ```text
 插件键：apimart-midjourney
-基础地址：https://api.apimart.ai
+基础地址：https://api.apib.ai
 渠道模型：midjourney-am
-模型映射：midjourney-am → midjourney
+模型映射：留空
 ```
 
-上游的新路由会自行注入 `model=midjourney`，插件不会把对外别名传给上游。不要把实际 API Key 写进插件、fixture 或仓库。
+上游的新路由会自行注入 `model=midjourney`，插件不会把对外别名传给上游。轮询使用 `/v1/midjourney/{task_id}`，以取得 Midjourney 的图片结果和后续操作信息。不要把实际 API Key 写进插件、fixture 或仓库。
 
 ## 计费
 

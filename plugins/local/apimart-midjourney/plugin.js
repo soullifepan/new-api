@@ -10,10 +10,10 @@ export const meta = {
     en: "APIMart Midjourney asynchronous image and image-to-video tasks",
     zh: "APIMart Midjourney 异步绘图与图生视频任务",
   },
-  version: "0.1.0",
+  version: "0.1.1",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
-  allowedHosts: ["api.apimart.ai", "cdn.apimart.ai"],
+  allowedHosts: ["api.apib.ai", "cdn.apimart.ai"],
   models: ["midjourney-am"],
   routes: [
     { method: "POST", path: "/apimart/midjourney/v1/generations", type: "submit", action: "imagine", decode: "decodeSubmit", render: "renderSubmitted" },
@@ -227,7 +227,9 @@ export function buildQueryRequest(ctx) {
   const taskID = trimmed(ctx.taskId);
   if (!taskID) throw new Error("task_id is required");
   return {
-    url: ctx.baseUrl + "/v1/tasks/" + encodeURIComponent(taskID),
+    // The Midjourney query endpoint includes image URLs and follow-up buttons;
+    // the generic /v1/tasks endpoint intentionally exposes a narrower shape.
+    url: ctx.baseUrl + "/v1/midjourney/" + encodeURIComponent(taskID),
     method: "GET",
     headers: { Accept: "application/json", Authorization: "Bearer " + ctx.apiKey },
   };

@@ -48,6 +48,12 @@
       "expected": {"taskId": "task_upstream_1", "taskData": {"code": 200, "data": [{"status": "submitted", "task_id": "task_upstream_1"}]}}
     },
     {
+      "name": "polls the Midjourney result endpoint on the APIMart-compatible host",
+      "hook": "buildQueryRequest",
+      "args": [{"baseUrl": "https://api.apib.ai", "apiKey": "test-token", "taskId": "task_upstream_1"}],
+      "expected": {"url": "https://api.apib.ai/v1/midjourney/task_upstream_1", "method": "GET", "headers": {"Accept": "application/json", "Authorization": "Bearer test-token"}}
+    },
+    {
       "name": "parses a successful image task and makes its images artifacts",
       "hook": "parseTaskResult",
       "args": [{}, {"id": "task_upstream_1", "status": "SUCCESS", "progress": "100%", "image_urls": ["https://cdn.apimart.ai/image-1.png"]}],
