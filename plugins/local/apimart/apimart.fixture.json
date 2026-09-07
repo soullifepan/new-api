@@ -159,18 +159,18 @@
       }
     },
     {
-      "name": "extracts billing facts from image count and resolution",
+      "name": "extracts bounded billing facts from the documented image request",
       "hook": "extractUsage",
       "args": [
         {
           "requestBody": {
             "model": "gpt-image-2-am",
             "resolution": "2K",
-            "n": 3
+            "n": 1
           }
         }
       ],
-      "expected": {"images": 3, "resolution": "2k", "input_images": 0}
+      "expected": {"images": 1, "resolution": "2k", "input_images": 0}
     },
     {
       "name": "uses the default pricing tier for an omitted resolution",
@@ -270,11 +270,39 @@
       "expected": {"status": "UNKNOWN", "reason": "unrecognized APIMart task status: waiting_for_human"}
     },
     {
-      "name": "rejects a request above the documented image count",
+      "name": "rejects a non-documentary image count",
       "hook": "native",
       "member": "decodeImageGeneration",
       "args": [{"body": {"kind": "json", "value": {"model": "gpt-image-2-am", "prompt": "cat", "n": 5}}}],
-      "expectedError": "n must be an integer between 1 and 4"
+      "expectedError": "n must be 1"
+    },
+    {
+      "name": "accepts a documented pixel size",
+      "hook": "native",
+      "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "gpt-image-2-am", "prompt": "cat", "size": "1881x836", "resolution": "4k", "n": 1}}}],
+      "expected": {"kind": "submit", "model": "gpt-image-2-am", "action": "image_generation", "requestBody": {"model": "gpt-image-2-am", "prompt": "cat", "size": "1881x836", "resolution": "4k", "n": 1}}
+    },
+    {
+      "name": "rejects an unsupported image size",
+      "hook": "native",
+      "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "gpt-image-2-am", "prompt": "cat", "size": "7:5"}}}],
+      "expectedError": "size must be auto, a supported ratio, or a pixel size up to 3840x3840"
+    },
+    {
+      "name": "requires a prompt for an APIMart image task",
+      "hook": "native",
+      "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "gpt-image-2-am", "image_urls": ["https://example.test/source.png"]}}}],
+      "expectedError": "prompt is required"
+    },
+    {
+      "name": "enforces the documented reference image limit",
+      "hook": "native",
+      "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "gpt-image-2-am", "prompt": "cat", "image_urls": ["https://example.test/1.png", "https://example.test/2.png", "https://example.test/3.png", "https://example.test/4.png", "https://example.test/5.png", "https://example.test/6.png", "https://example.test/7.png", "https://example.test/8.png", "https://example.test/9.png", "https://example.test/10.png", "https://example.test/11.png", "https://example.test/12.png", "https://example.test/13.png", "https://example.test/14.png", "https://example.test/15.png", "https://example.test/16.png"]}}}],
+      "expectedError": "image_urls must contain at most 15 non-empty URLs"
     }
   ]
 }

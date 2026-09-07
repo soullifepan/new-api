@@ -19,6 +19,8 @@ GET  /apimart/v1/tasks/{task_id}
 
 当前清单暂时只提供两个明确的 APIMart 异步图片别名：`gpt-image-2-am` 和 `gpt-image-2-official-am`。普通模型名（例如 `gpt-image-2`）不在插件清单中，因此不会被误识别为任务模型。
 
+`gpt-image-2-am` 遵循 APIMart GPT-Image-2 文档：`prompt` 必填，`n` 只能为 `1`，`resolution` 只能为 `1k`、`2k` 或 `4k`，`image_urls` 最多 15 张（URL 或 data URI）。`size` 支持 `auto`、文档列出的 15 个比例（包括 `1:1`、`16:9`、`9:16`、`21:9`），以及边长不超过 3840 的 `宽x高` 像素尺寸，例如 `1881x836`。
+
 插件为每个模型声明独立的 `usageSchemaByModel` 和 `usageExamplesByModel`：模型详情页只显示当前模型的规格与预估价格，不会混入其他 APIMart 模型的组合。
 
 后续新增同协议模型时：
@@ -52,7 +54,7 @@ go run . plugin test plugins/local/apimart/plugin.js --fixture plugins/local/api
 
 为每个渠道模型在 New API 中配置自己的定价。`gpt-image-2-am` 向表达式提供以下已校验的任务计费用量：
 
-- `u("images")`：请求的 `n`，未提供时为 `1`；
+- `u("images")`：固定为 `1`；APIMart GPT-Image-2 每个任务只允许生成一张图；
 - `u("resolution")`：`default`、`1k`、`2k`、`4k`。未提供或无法识别时为 `default`。
 - `u("input_images")`：参考图和遮罩图数量，没有输入图时为 `0`。
 

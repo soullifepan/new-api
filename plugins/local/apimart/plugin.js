@@ -9,7 +9,7 @@ export const meta = {
     en: "APIMart asynchronous image generation tasks",
     zh: "APIMart 异步图片生成任务",
   },
-  version: "0.7.1",
+  version: "0.7.2",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   usageSchemaByModel: {
@@ -89,6 +89,21 @@ function isDeclaredModel(model) {
 function billingResolution(value) {
   const resolution = trimmed(value).toLowerCase();
   return ["1k", "2k", "4k"].includes(resolution) ? resolution : "default";
+}
+
+const gptImage2Sizes = new Set([
+  "auto", "1:1", "3:2", "2:3", "4:3", "3:4", "5:4", "4:5",
+  "16:9", "9:16", "2:1", "1:2", "3:1", "1:3", "21:9", "9:21",
+]);
+
+function isSupportedGPTImage2Size(value) {
+  const size = trimmed(value).toLowerCase();
+  if (gptImage2Sizes.has(size)) return true;
+  const match = /^(\d{1,4})x(\d{1,4})$/i.exec(size);
+  if (!match) return false;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  return width >= 1 && width <= 3840 && height >= 1 && height <= 3840;
 }
 
 function isOfficialGPTImage2(model) {
@@ -197,7 +212,9 @@ export function extractUsage(ctx) {
     return { upstream_credits: estimateOfficialCredits(request) };
   }
   return {
-    images: request.n === undefined ? 1 : request.n,
+    // APIMart GPT-Image-2 only supports one result per task. Keep the
+    // pre-consume fact independent from any bypassed passthrough value.
+    images: 1,
     resolution: billingResolution(request.resolution),
     input_images: inputImageCount(request),
   };
@@ -272,22 +289,28 @@ export const native = {
     const request = object(ctx.body.value, "request body must be an object");
     const model = trimmed(request.model);
     if (!isDeclaredModel(model)) throw new Error("unsupported APIMart image model");
-    if (!trimmed(request.prompt) && (!Array.isArray(request.image_urls) || request.image_urls.length === 0)) {
-      throw new Error("prompt or image_urls is required");
-    }
-    if (request.n !== undefined && (!Number.isInteger(request.n) || request.n < 1 || request.n > 4)) {
-      throw new Error("n must be an integer between 1 and 4");
-    }
-    if (request.image_urls !== undefined && (!Array.isArray(request.image_urls) || request.image_urls.length > 16 || request.image_urls.some(function (url) { return !trimmed(url); }))) {
-      throw new Error("image_urls must contain at most 16 non-empty URLs");
+    if (!trimmed(request.prompt)) throw new Error("prompt is required");
+    if (request.image_urls !== undefined && (!Array.isArray(request.image_urls) || request.image_urls.length > 15 || request.image_urls.some(function (url) { return !trimmed(url); }))) {
+      throw new Error("image_urls must contain at most 15 non-empty URLs");
     }
     if (request.mask_url !== undefined && !trimmed(request.mask_url)) throw new Error("mask_url must be a non-empty URL");
     if (isOfficialGPTImage2(model)) {
+      if (request.n !== undefined && (!Number.isInteger(request.n) || request.n < 1 || request.n > 4)) {
+        throw new Error("n must be an integer between 1 and 4");
+      }
       if (request.resolution !== undefined && !["1k", "2k", "4k"].includes(trimmed(request.resolution).toLowerCase())) {
         throw new Error("resolution must be one of 1k, 2k, or 4k");
       }
       if (request.quality !== undefined && !["auto", "low", "medium", "high"].includes(trimmed(request.quality).toLowerCase())) {
         throw new Error("quality must be one of auto, low, medium, or high");
+      }
+    } else {
+      if (request.n !== undefined && request.n !== 1) throw new Error("n must be 1");
+      if (request.resolution !== undefined && !["1k", "2k", "4k"].includes(trimmed(request.resolution).toLowerCase())) {
+        throw new Error("resolution must be one of 1k, 2k, or 4k");
+      }
+      if (request.size !== undefined && !isSupportedGPTImage2Size(request.size)) {
+        throw new Error("size must be auto, a supported ratio, or a pixel size up to 3840x3840");
       }
     }
     return { kind: "submit", model: model, action: "image_generation", requestBody: request };
