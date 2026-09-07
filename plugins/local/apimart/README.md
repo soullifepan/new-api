@@ -52,6 +52,9 @@ go run . plugin test plugins/local/apimart/plugin.js --fixture plugins/local/api
 
 - `u("images")`：请求的 `n`，未提供时为 `1`；
 - `u("resolution")`：`default`、`1k`、`2k`、`4k`。未提供或无法识别时为 `default`。
+- `u("quality")`：`low`、`medium`、`high`。未提供时为 `low`。
+- `u("input_images")`：参考图和遮罩图数量，没有输入图时为 `0`。
+- `u("upstream_credits")`：官方积分模型在完成任务后由上游 `credits_cost` 覆盖；其他模型不提供此字段。
 
 `gpt-image-2-am` 的当前上游成本可用下面的表达式配置：
 

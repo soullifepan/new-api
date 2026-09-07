@@ -9,7 +9,7 @@ export const meta = {
     en: "APIMart asynchronous image generation tasks",
     zh: "APIMart 异步图片生成任务",
   },
-  version: "0.3.1",
+  version: "0.4.0",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   usageSchema: {
@@ -22,6 +22,15 @@ export const meta = {
       enum: ["default", "1k", "2k", "4k"],
       description: { en: "Requested output resolution tier.", zh: "请求的输出分辨率档位。" },
     },
+    quality: {
+      enum: ["low", "medium", "high"],
+      description: { en: "Requested output quality.", zh: "请求的输出质量。" },
+    },
+    input_images: {
+      type: "number",
+      unit: "count",
+      description: { en: "Number of input reference and mask images.", zh: "输入参考图和遮罩图数量。" },
+    },
     upstream_credits: {
       type: "number",
       unit: "credit",
@@ -32,10 +41,10 @@ export const meta = {
     },
   },
   usageExamples: [
-    { label: "Default · 1 image (estimated)", facts: { images: 1, resolution: "default", upstream_credits: 0.06 } },
-    { label: "1K · 1 image (estimated)", facts: { images: 1, resolution: "1k", upstream_credits: 0.06 } },
-    { label: "2K · 1 image (estimated)", facts: { images: 1, resolution: "2k", upstream_credits: 0.12 } },
-    { label: "4K · 1 image (estimated)", facts: { images: 1, resolution: "4k", upstream_credits: 0.2 } },
+    { label: "Default · 1 image (estimated)", facts: { images: 1, resolution: "default", quality: "low", input_images: 0, upstream_credits: 0.06 } },
+    { label: "1K · 1 image (estimated)", facts: { images: 1, resolution: "1k", quality: "low", input_images: 0, upstream_credits: 0.06 } },
+    { label: "2K · 1 image (estimated)", facts: { images: 1, resolution: "2k", quality: "low", input_images: 0, upstream_credits: 0.12 } },
+    { label: "4K · 1 image (estimated)", facts: { images: 1, resolution: "4k", quality: "low", input_images: 0, upstream_credits: 0.2 } },
   ],
   // api.apib.ai is the configured API entrypoint. APIMart-compatible image
   // results may still be served from the legacy upload/CDN hosts.
@@ -84,6 +93,11 @@ function isDeclaredModel(model) {
 function billingResolution(value) {
   const resolution = trimmed(value).toLowerCase();
   return ["1k", "2k", "4k"].includes(resolution) ? resolution : "default";
+}
+
+function billingQuality(value) {
+  const quality = trimmed(value).toLowerCase();
+  return ["low", "medium", "high"].includes(quality) ? quality : "low";
 }
 
 function isOfficialGPTImage2(model) {
@@ -190,6 +204,8 @@ export function extractUsage(ctx) {
   const facts = {
     images: request.n === undefined ? 1 : request.n,
     resolution: billingResolution(request.resolution),
+    quality: billingQuality(request.quality),
+    input_images: inputImageCount(request),
   };
   if (isOfficialGPTImage2(ctx.upstreamModel || ctx.model || request.model)) {
     facts.upstream_credits = estimateOfficialCredits(request);
