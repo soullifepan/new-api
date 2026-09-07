@@ -9,7 +9,7 @@ export const meta = {
     en: "APIMart asynchronous image generation tasks",
     zh: "APIMart 异步图片生成任务",
   },
-  version: "0.4.0",
+  version: "0.5.0",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   usageSchema: {
@@ -49,27 +49,11 @@ export const meta = {
   // api.apib.ai is the configured API entrypoint. APIMart-compatible image
   // results may still be served from the legacy upload/CDN hosts.
   allowedHosts: ["api.apib.ai", "upload.apimart.ai", "cdn.apimart.ai"],
-  // The implementation is protocol-based. Adding another documented model is
-  // a manifest/config release, not a new plugin implementation.
+  // Keep only explicit APIMart aliases here. Standard model names must remain
+  // available to ordinary channels without being classified as task models.
   models: [
-    "gpt-image-2",
     "gpt-image-2-am",
-    "gpt-image-2-ext",
-    "gpt-image-2-official",
     "gpt-image-2-official-am",
-    "gpt-4o-image",
-    "gpt-image-1-official",
-    "gpt-image-1.5-official",
-    "nano-banana-2",
-    "nano-banana-2-ext",
-    "gemini-3.1-flash-image-preview",
-    "gemini-3.1-flash-image-preview-official",
-    "flux-2-flex",
-    "flux-2-pro",
-    "flux-kontext-pro",
-    "doubao-seedance-4-0",
-    "doubao-seedance-4-5",
-    "grok-imagine-1.0-apimart",
   ],
   routes: [
     { method: "POST", path: "/apimart/v1/images/generations", type: "submit", decode: "decodeImageGeneration", render: "renderSubmitted" },
@@ -172,8 +156,9 @@ function artifactKey(index, url) {
 
 export function buildSubmitRequest(ctx) {
   const request = object(ctx.requestBody, "image generation request is required");
-  const model = trimmed(ctx.upstreamModel || ctx.model || request.model);
-  if (!isDeclaredModel(model)) throw new Error("unsupported APIMart image model");
+  const publicModel = trimmed(ctx.model || request.model);
+  const model = trimmed(ctx.upstreamModel || publicModel);
+  if (!isDeclaredModel(publicModel)) throw new Error("unsupported APIMart image model");
   const body = Object.assign({}, request, { model: model });
   return {
     url: ctx.baseUrl + "/v1/images/generations",

@@ -9,7 +9,7 @@
           "body": {
             "kind": "json",
             "value": {
-              "model": "gpt-image-2",
+              "model": "gpt-image-2-am",
               "prompt": "a ginger cat at sunset",
               "size": "16:9",
               "resolution": "2k",
@@ -20,10 +20,10 @@
       ],
       "expected": {
         "kind": "submit",
-        "model": "gpt-image-2",
+        "model": "gpt-image-2-am",
         "action": "image_generation",
         "requestBody": {
-          "model": "gpt-image-2",
+          "model": "gpt-image-2-am",
           "prompt": "a ginger cat at sunset",
           "size": "16:9",
           "resolution": "2k",
@@ -38,9 +38,9 @@
         {
           "baseUrl": "https://api.apib.ai",
           "apiKey": "test-token",
-          "model": "gpt-image-2",
+          "model": "gpt-image-2-am",
           "requestBody": {
-            "model": "gpt-image-2",
+            "model": "gpt-image-2-am",
             "prompt": "a ginger cat at sunset",
             "size": "16:9",
             "resolution": "2k",
@@ -57,7 +57,7 @@
           "Authorization": "Bearer test-token"
         },
         "body": {
-          "model": "gpt-image-2",
+              "model": "gpt-image-2-am",
           "prompt": "a ginger cat at sunset",
           "size": "16:9",
           "resolution": "2k",
@@ -273,7 +273,7 @@
       "name": "rejects a request above the documented image count",
       "hook": "native",
       "member": "decodeImageGeneration",
-      "args": [{"body": {"kind": "json", "value": {"model": "gpt-image-2", "prompt": "cat", "n": 5}}}],
+      "args": [{"body": {"kind": "json", "value": {"model": "gpt-image-2-am", "prompt": "cat", "n": 5}}}],
       "expectedError": "n must be an integer between 1 and 4"
     }
   ]
