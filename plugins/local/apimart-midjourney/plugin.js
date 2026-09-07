@@ -10,64 +10,30 @@ export const meta = {
     en: "APIMart Midjourney asynchronous image and image-to-video tasks",
     zh: "APIMart Midjourney 异步绘图与图生视频任务",
   },
-  version: "0.3.0",
+  version: "0.2.0",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   allowedHosts: ["api.apib.ai", "cdn.apimart.ai"],
   models: ["midjourney-am"],
   usageSchemaByModel: {
     "midjourney-am": {
-      documented_usd: {
+      documented_credits: {
         type: "number",
-        unit: "usd",
+        unit: "credit",
         description: {
-          en: "Published APIMart Midjourney USD charge reserved for this task.",
-          zh: "按 APIMart 公开价目表为本任务预扣的美元金额。",
+          en: "APIMart documented Midjourney credits reserved for this task.",
+          zh: "按 APIMart 公开价目表为本任务预扣的 Midjourney 积分。",
         },
       },
     },
   },
   usageExamplesByModel: {
     "midjourney-am": [
-      { label: "Imagine · Relax", facts: { documented_usd: 0.04504 } },
-      { label: "Imagine · Fast", facts: { documented_usd: 0.05504 } },
-      { label: "Imagine · Turbo", facts: { documented_usd: 0.1 } },
-      { label: "Blend · Relax", facts: { documented_usd: 0.05504 } },
-      { label: "Blend · Fast", facts: { documented_usd: 0.05504 } },
-      { label: "Blend · Turbo", facts: { documented_usd: 0.1 } },
-      { label: "Edits · Relax", facts: { documented_usd: 0.05504 } },
-      { label: "Edits · Fast", facts: { documented_usd: 0.05504 } },
-      { label: "Edits · Turbo", facts: { documented_usd: 0.1 } },
-      { label: "Upscale · Relax", facts: { documented_usd: 0.05504 } },
-      { label: "Upscale · Fast", facts: { documented_usd: 0.05504 } },
-      { label: "Upscale · Turbo", facts: { documented_usd: 0.1 } },
-      { label: "Variation · Relax", facts: { documented_usd: 0.05504 } },
-      { label: "Variation · Fast", facts: { documented_usd: 0.05504 } },
-      { label: "Variation · Turbo", facts: { documented_usd: 0.1 } },
-      { label: "High variation · Relax", facts: { documented_usd: 0.05504 } },
-      { label: "High variation · Fast", facts: { documented_usd: 0.05504 } },
-      { label: "High variation · Turbo", facts: { documented_usd: 0.1 } },
-      { label: "Low variation · Relax", facts: { documented_usd: 0.05504 } },
-      { label: "Low variation · Fast", facts: { documented_usd: 0.05504 } },
-      { label: "Low variation · Turbo", facts: { documented_usd: 0.1 } },
-      { label: "Reroll · Relax", facts: { documented_usd: 0.05504 } },
-      { label: "Reroll · Fast", facts: { documented_usd: 0.05504 } },
-      { label: "Reroll · Turbo", facts: { documented_usd: 0.1 } },
-      { label: "Zoom · Relax", facts: { documented_usd: 0.05504 } },
-      { label: "Zoom · Fast", facts: { documented_usd: 0.05504 } },
-      { label: "Zoom · Turbo", facts: { documented_usd: 0.1 } },
-      { label: "Pan · Relax", facts: { documented_usd: 0.05504 } },
-      { label: "Pan · Fast", facts: { documented_usd: 0.05504 } },
-      { label: "Pan · Turbo", facts: { documented_usd: 0.1 } },
-      { label: "Remix strong · Relax", facts: { documented_usd: 0.05504 } },
-      { label: "Remix strong · Fast", facts: { documented_usd: 0.05504 } },
-      { label: "Remix strong · Turbo", facts: { documented_usd: 0.1 } },
-      { label: "Remix subtle · Relax", facts: { documented_usd: 0.05504 } },
-      { label: "Remix subtle · Fast", facts: { documented_usd: 0.05504 } },
-      { label: "Remix subtle · Turbo", facts: { documented_usd: 0.1 } },
-      { label: "Video · 480p", facts: { documented_usd: 0.2 } },
-      { label: "Video · 720p", facts: { documented_usd: 0.4 } },
-      { label: "Video · 720p · 4 outputs", facts: { documented_usd: 1.6 } },
+      { label: "Imagine · Relax", facts: { documented_credits: 0.4504 } },
+      { label: "Imagine · Fast", facts: { documented_credits: 0.5504 } },
+      { label: "Follow-up · Turbo", facts: { documented_credits: 1 } },
+      { label: "Video · 480p", facts: { documented_credits: 2 } },
+      { label: "Video · 720p · 4 outputs", facts: { documented_credits: 16 } },
     ],
   },
   routes: [
@@ -127,17 +93,17 @@ function normalizedSpeed(value) {
   throw new Error("speed must be relax, fast, or turbo");
 }
 
-function documentedUSD(action, request) {
+function documentedCredits(action, request) {
   if (action === "video") {
     const videoType = trimmed(request.video_type).toLowerCase();
-    const unitUSD = videoType.includes("720") ? 0.4 : 0.2;
+    const unitCredits = videoType.includes("720") ? 4 : 2;
     const batchSize = request.batch_size === undefined ? 1 : request.batch_size;
-    return unitUSD * batchSize;
+    return unitCredits * batchSize;
   }
   const speed = normalizedSpeed(request.speed);
-  if (speed === "turbo") return 0.1;
-  if (action === "imagine" && speed === "relax") return 0.04504;
-  return 0.05504;
+  if (speed === "turbo") return 1;
+  if (action === "imagine" && speed === "relax") return 0.4504;
+  return 0.5504;
 }
 
 function taskData(value) {
@@ -291,7 +257,7 @@ export function buildSubmitRequest(ctx) {
 export function extractUsage(ctx) {
   if (ctx.usagePurpose === "billing_ratios") return null;
   const request = object(ctx.requestBody, "Midjourney request is required");
-  return { documented_usd: documentedUSD(trimmed(ctx.action), request) };
+  return { documented_credits: documentedCredits(trimmed(ctx.action), request) };
 }
 
 export function parseSubmitResponse(_ctx, response) {

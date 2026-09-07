@@ -394,10 +394,6 @@ function generateTaskTierBody(
       )
       continue
     }
-    if (definition.unit === 'usd' && price === 1) {
-      parts.push(`u(${JSON.stringify(field)})`)
-      continue
-    }
     parts.push(`u(${JSON.stringify(field)}) * ${price}`)
   }
   return parts.join(' + ')

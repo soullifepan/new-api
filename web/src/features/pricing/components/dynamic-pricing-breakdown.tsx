@@ -174,7 +174,6 @@ function formatBreakdownPrice(
   if (field.unit === 'second') return `${amount}/${t('s')}`
   if (field.unit === 'count') return `${amount}/${t('unit')}`
   if (field.unit === 'credit') return `${amount}/${t('credit')}`
-  if (field.unit === 'usd') return `${amount}/${t('USD')}`
   if (
     field.unit === 'token' &&
     !BILLING_PRICING_VARS.some((variable) => variable.field === field.id)

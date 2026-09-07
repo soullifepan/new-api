@@ -150,14 +150,12 @@ Task plugins can expose validated, provider-specific billing facts through
 `meta.usageSchema`. Expressions read those facts with `u("key")`. A literal key
 must be declared by the plugin schema before the expression can be saved.
 Numeric facts are finite, non-negative values in the declared canonical unit
-(`second`, `count`, `token`, `credit`, or `usd`); enum facts are exact strings from the
+(`second`, `count`, `token`, or `credit`); enum facts are exact strings from the
 declared value list. The schema description is display-only metadata and never
 affects evaluation. `token` is the host unit for upstream billing tokens (for
 example doubao `usage.completion_tokens`). `credit` is the host unit for vendor
-resource-pack units (for example kling `final_unit_deduction`). `usd` is a
-published or verified dollar charge for the complete request and is used
-directly in the expression. All three share the int32 quota bound, not the
-3600-second / 128-count limits.
+resource-pack units (for example kling `final_unit_deduction`). Both share the
+int32 quota bound, not the 3600-second / 128-count limits.
 
 Task usage billing has a deliberately different conversion rule from token
 billing:
@@ -195,17 +193,13 @@ tier("base", u("tokens") * 9.8 / 1000000)
 # Vendor credit overlay (kling resource-pack units)
 # The coefficient is the real $/credit price; no /1M scale.
 tier("base", u("units") * 0.14)
-
-# Published upstream request charge (already in USD)
-tier("base", u("documented_usd"))
 ```
 
 The tier body is an optional non-negative constant plus one or more
 `u("<number field>") * <unit price>` terms. Token-unit fields use the
 canonical scaled shape `u("<field>") * <dollars per 1M tokens> / 1000000`.
 Credit, second, and count fields keep the bare `u("<field>") * <unit price>`
-shape. USD fields may use a direct `u("<field>")` term because the field is
-already the full request charge. Tier conditions are equality checks
+shape. Tier conditions are equality checks
 between declared enum fields and values, optionally joined by `&&`, with
 chained ternaries following the same ordering rules as token tiers. Numeric
 range tiers are not part of the current canonical shape. Request rules after
@@ -214,7 +208,7 @@ range tiers are not part of the current canonical shape. Request rules after
 Before saving, the host compiles every expression, rejects literal `u()` keys
 that the selected task plugin did not declare, and smoke-tests usage vectors.
 Every numeric field is exercised at 0, 1, and its host-owned unit ceiling
-(`second` 3600, `count` 128, `token`/`credit`/`usd` int32 max). Enum values are exercised as a
+(`second` 3600, `count` 128, `token`/`credit` int32 max). Enum values are exercised as a
 Cartesian product. Smoke vectors are capped at
 64, reducing oversized enum dimensions to their first and last values. Every
 evaluated result must be finite and non-negative.

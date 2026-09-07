@@ -184,11 +184,10 @@ func TestRegistryDecodesAndValidatesUsageSchema(t *testing.T) {
 			count: {type: "number", unit: "count"},
 			tokens: {type: "number", unit: "token", description: "Upstream billing tokens."},
 			credits: {type: "number", unit: "credit", description: "Vendor resource-pack units."},
-			usd_amount: {type: "number", unit: "usd", description: "Published upstream USD charge."},
 			mode: {enum: ["std", "pro"], description: "Provider quality tier."},
 			generate_audio: {type: "boolean", description: "Whether audio is generated."},
 		},
-		usageExamples: [{label: "std · 1s", facts: {duration: 1, count: 1, tokens: 1, credits: 1, usd_amount: 0.1, mode: "std", generate_audio: true}}],`,
+		usageExamples: [{label: "std · 1s", facts: {duration: 1, count: 1, tokens: 1, credits: 1, mode: "std", generate_audio: true}}],`,
 		"",
 	)
 	plugin, err := CompilePlugin(valid, Options{})
@@ -204,7 +203,6 @@ func TestRegistryDecodesAndValidatesUsageSchema(t *testing.T) {
 	assert.Equal(t, "number", plugin.Meta.UsageSchema["credits"].Type)
 	assert.Equal(t, "credit", plugin.Meta.UsageSchema["credits"].Unit)
 	assert.Equal(t, LocalizedText{"en": "Vendor resource-pack units."}, plugin.Meta.UsageSchema["credits"].Description)
-	assert.Equal(t, "usd", plugin.Meta.UsageSchema["usd_amount"].Unit)
 	assert.Equal(t, []string{"std", "pro"}, plugin.Meta.UsageSchema["mode"].Enum)
 	assert.Equal(t, LocalizedText{"en": "Provider quality tier."}, plugin.Meta.UsageSchema["mode"].Description)
 	assert.Equal(t, "boolean", plugin.Meta.UsageSchema["generate_audio"].Type)
@@ -221,7 +219,7 @@ func TestRegistryDecodesAndValidatesUsageSchema(t *testing.T) {
 		{
 			name:          "unsupported numeric unit",
 			declaration:   `{type: "number", unit: "minute"}`,
-			expectedError: "unit must be second, count, token, credit, or usd",
+			expectedError: "unit must be second, count, token, or credit",
 		},
 		{
 			name:          "boolean cannot mix unit",
@@ -406,9 +404,9 @@ func TestRegistryValidatesUsageExamples(t *testing.T) {
 			expectedError: "usageExamples is required when usageSchema declares a token unit",
 		},
 		{
-			name:          "cap is 48 examples",
-			metaFields:    tokenSchema + `usageExamples: [` + strings.Repeat(validExample+",", 48) + validExample + `],`,
-			expectedError: "must not exceed 48 entries",
+			name:          "cap is 16 examples",
+			metaFields:    tokenSchema + `usageExamples: [` + strings.Repeat(validExample+",", 16) + validExample + `],`,
+			expectedError: "must not exceed 16 entries",
 		},
 		{
 			name:          "label must be non-empty",

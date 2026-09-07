@@ -27,12 +27,7 @@ export type PricingVendor = {
   description?: string
 }
 
-export type BillingUsageUnit =
-  | 'second'
-  | 'count'
-  | 'token'
-  | 'credit'
-  | 'usd'
+export type BillingUsageUnit = 'second' | 'count' | 'token' | 'credit'
 
 export type BillingUsageFieldSchema = {
   type?: 'number' | 'boolean'
