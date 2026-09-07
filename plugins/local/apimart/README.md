@@ -72,7 +72,7 @@ u("resolution") == "4k"
 
 这是每张图片的美元成本；任务表达式不会按百万 Token 换算。若要对外加价，直接将上述单价替换为目标售价即可。APIMart 响应里的 `cost` 只用于上游对账，不作为用户扣费输入。
 
-`gpt-image-2-official-am` 使用上游完成任务返回的 `credits_cost` 结算。提交时插件按 `n`、`resolution`、`quality`、参考图和遮罩图数量预估并预扣；完成后以 `credits_cost` 覆盖预估值，失败时结算为零。页面中的分辨率价格示例是预估值，最终以实际 `upstream_credits` 结算；因此定价档位会显示 `$0.1 / credit`，而不是把预估价误当成固定单价。配置渠道映射：
+`gpt-image-2-official-am` 使用上游完成任务返回的 `credits_cost` 结算。提交时插件按 `n`、`resolution`、`quality`、参考图和遮罩图数量预估并预扣；完成后以 `credits_cost` 覆盖预估值，失败时结算为零。页面展示低、中、高质量 × 1K、2K、4K 的完整九档预估价，最终仍以实际 `upstream_credits` 结算；因此定价档位会显示 `$0.1 / credit`，而不是把预估价误当成固定单价。配置渠道映射：
 
 ```text
 gpt-image-2-official-am → gpt-image-2-official

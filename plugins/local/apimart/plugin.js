@@ -9,7 +9,7 @@ export const meta = {
     en: "APIMart asynchronous image generation tasks",
     zh: "APIMart 异步图片生成任务",
   },
-  version: "0.7.0",
+  version: "0.7.1",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   usageSchemaByModel: {
@@ -48,7 +48,13 @@ export const meta = {
     ],
     "gpt-image-2-official-am": [
       { label: "Low · 1K · 1 image (estimated)", facts: { upstream_credits: 0.06 } },
+      { label: "Low · 2K · 1 image (estimated)", facts: { upstream_credits: 0.12 } },
+      { label: "Low · 4K · 1 image (estimated)", facts: { upstream_credits: 0.20 } },
+      { label: "Medium · 1K · 1 image (estimated)", facts: { upstream_credits: 0.53 } },
       { label: "Medium · 2K · 1 image (estimated)", facts: { upstream_credits: 1.07 } },
+      { label: "Medium · 4K · 1 image (estimated)", facts: { upstream_credits: 1.78 } },
+      { label: "High · 1K · 1 image (estimated)", facts: { upstream_credits: 2.11 } },
+      { label: "High · 2K · 1 image (estimated)", facts: { upstream_credits: 4.28 } },
       { label: "High · 4K · 1 image (estimated)", facts: { upstream_credits: 7.12 } },
     ],
   },
