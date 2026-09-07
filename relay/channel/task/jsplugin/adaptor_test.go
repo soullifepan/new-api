@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/textproto"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -1161,6 +1163,77 @@ func TestTaskAdaptorBatchBridge(t *testing.T) {
 	assert.Equal(t, "IN_PROGRESS", pending.TaskInfo.Status)
 	assert.Equal(t, "40%", pending.TaskInfo.Progress)
 	assert.Empty(t, pending.TaskInfo.Url)
+}
+
+func TestAPIMartProCompletionReadsPersistedBillingState(t *testing.T) {
+	source, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "plugins", "local", "apimart", "plugin.js"))
+	require.NoError(t, err)
+	plugin, err := pluginruntime.NewRegistry().Register(string(source), pluginruntime.Options{})
+	require.NoError(t, err)
+	adaptor := New(plugin)
+	info := &relaycommon.RelayInfo{
+		ChannelMeta:     &relaycommon.ChannelMeta{ChannelBaseUrl: "https://api.apib.ai", ApiKey: "test-token"},
+		TaskRelayInfo:   &relaycommon.TaskRelayInfo{},
+		OriginModelName: "seedream-5-0-pro-am",
+	}
+	adaptor.Init(info)
+
+	for _, testCase := range []struct {
+		name       string
+		size       string
+		resolution string
+	}{
+		{name: "1K", size: "1K", resolution: "1k"},
+		{name: "1.5K", size: "1.5K", resolution: "1.5k"},
+		{name: "2K", size: "2K", resolution: "2k"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/apimart/v1/images/generations", nil)
+			c.Set("task_request", map[string]any{
+				"model":               "seedream-5-0-pro-am",
+				"image_urls":          []string{"https://example.test/input.png"},
+				"layer_decomposition": true,
+				"size":                testCase.size,
+			})
+			submitResponse, taskErr := adaptor.ParseResponse(
+				c,
+				&http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(strings.NewReader(`{"code":200,"data":[{"status":"submitted","task_id":"upstream-task"}]}`)),
+					Header:     make(http.Header),
+				},
+				info,
+			)
+			require.Nil(t, taskErr)
+			require.NotNil(t, submitResponse)
+			require.NotEmpty(t, submitResponse.PluginState)
+
+			task := &model.Task{
+				TaskID: "public-task",
+				Properties: model.Properties{
+					OriginModelName:   "seedream-5-0-pro-am",
+					UpstreamModelName: "seedream-5-0-pro-am",
+				},
+				Data: []byte(`{"code":200,"data":{"status":"processing"}}`),
+				PrivateData: model.TaskPrivateData{
+					UpstreamTaskID: submitResponse.UpstreamTaskID,
+					PluginState:    submitResponse.PluginState,
+				},
+			}
+			completed, err := adaptor.ParseTaskResult(
+				task,
+				&http.Response{StatusCode: http.StatusOK, Header: make(http.Header)},
+				[]byte(`{"code":200,"data":{"status":"success","result":{"images":[{"url":["https://upload.apimart.ai/1.png","https://upload.apimart.ai/2.png","https://upload.apimart.ai/3.png"]}]}}}`),
+			)
+			require.NoError(t, err)
+			assert.Equal(t, "SUCCESS", completed.Status)
+			require.NotNil(t, completed.UsageFacts)
+			assert.EqualValues(t, 3, completed.UsageFacts["layer_images"])
+			assert.Equal(t, testCase.resolution, completed.UsageFacts["resolution"])
+			assert.EqualValues(t, 1, completed.UsageFacts["reference_images"])
+		})
+	}
 }
 
 const mappingOrderAdaptorPlugin = `

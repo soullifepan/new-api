@@ -247,7 +247,20 @@
       }
     },
     {
-      "name": "converts a completed APIMart task to a gateway success",
+      "name": "persists validated Pro layer billing facts in plugin state",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {"model": "seedream-5-0-pro-am", "requestBody": {"model": "seedream-5-0-pro-am", "image_urls": ["https://example.test/poster.png"], "layer_decomposition": true, "size": "1.5K"}},
+        {"body": {"code": 200, "data": [{"status": "submitted", "task_id": "task_upstream_2"}]}}
+      ],
+      "expected": {
+        "taskId": "task_upstream_2",
+        "taskData": {"code": 200, "data": [{"status": "submitted", "task_id": "task_upstream_2"}]},
+        "state": {"billing_usage": {"resolution": "1.5k", "standard_images": 0, "layer_images": 17, "reference_images": 1}}
+      }
+    },
+    {
+      "name": "converts a successful APIMart task to a gateway success",
       "hook": "parseTaskResult",
       "args": [
         {},
@@ -255,13 +268,19 @@
           "code": 200,
           "data": {
             "id": "task_upstream_1",
-            "status": "completed",
+            "status": "success",
             "progress": 100,
             "result": {"images": [{"url": ["https://upload.apimart.ai/image.png"]}]}
           }
         }
       ],
       "expected": {"status": "SUCCESS", "progress": "100%", "reason": ""}
+    },
+    {
+      "name": "keeps pending APIMart tasks pollable",
+      "hook": "parseTaskResult",
+      "args": [{}, {"code": 200, "data": {"status": "pending", "progress": 12}}],
+      "expected": {"status": "SUBMITTED", "progress": "12%", "reason": ""}
     },
     {
       "name": "keeps unknown provider states retryable",
@@ -303,6 +322,118 @@
       "member": "decodeImageGeneration",
       "args": [{"body": {"kind": "json", "value": {"model": "gpt-image-2-am", "prompt": "cat", "image_urls": ["https://example.test/1.png", "https://example.test/2.png", "https://example.test/3.png", "https://example.test/4.png", "https://example.test/5.png", "https://example.test/6.png", "https://example.test/7.png", "https://example.test/8.png", "https://example.test/9.png", "https://example.test/10.png", "https://example.test/11.png", "https://example.test/12.png", "https://example.test/13.png", "https://example.test/14.png", "https://example.test/15.png", "https://example.test/16.png"]}}}],
       "expectedError": "image_urls must contain at most 15 non-empty URLs"
+    },
+    {
+      "name": "normalizes a bounded Seedream Lite request to its whitelist",
+      "hook": "native",
+      "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "seedream-5-0-lite-am", "prompt": "cat", "size": "2x1", "resolution": "3K", "n": 2, "image_urls": ["https://example.test/a.png"], "output_format": "png", "watermark": true}}}],
+      "expected": {"kind": "submit", "model": "seedream-5-0-lite-am", "action": "image_generation", "requestBody": {"model": "seedream-5-0-lite-am", "prompt": "cat", "size": "2:1", "resolution": "3k", "n": 2, "image_urls": ["https://example.test/a.png"], "output_format": "png", "watermark": true}}
+    },
+    {
+      "name": "rejects Lite requests whose inputs plus outputs exceed fifteen",
+      "hook": "native",
+      "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "seedream-5-0-lite-am", "prompt": "cat", "n": 15, "image_urls": ["https://example.test/a.png"]}}}],
+      "expectedError": "image_urls plus n must not exceed 15"
+    },
+    {
+      "name": "accepts the documented Pro layer decomposition constraints",
+      "hook": "native",
+      "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "seedream-5-0-pro-am", "image_urls": ["https://example.test/poster.png"], "layer_decomposition": true, "size": "1.5K", "output_format": "png"}}}],
+      "expected": {"kind": "submit", "model": "seedream-5-0-pro-am", "action": "image_generation", "requestBody": {"model": "seedream-5-0-pro-am", "image_urls": ["https://example.test/poster.png"], "size": "1.5k", "resolution": "1k", "output_format": "png", "layer_decomposition": true}}
+    },
+    {
+      "name": "maps standard Pro references as a total input count",
+      "hook": "extractUsage",
+      "args": [{"model": "seedream-5-0-pro-am", "requestBody": {"model": "seedream-5-0-pro-am", "prompt": "cat", "resolution": "1K", "image_urls": ["https://example.test/a.png", "https://example.test/b.png"]}}],
+      "expected": {"resolution": "1k", "standard_images": 1, "layer_images": 0, "reference_images": 2}
+    },
+    {
+      "name": "maps standard Pro 1.5K output to its own matrix row",
+      "hook": "extractUsage",
+      "args": [{"model": "seedream-5-0-pro-am", "requestBody": {"model": "seedream-5-0-pro-am", "prompt": "cat", "resolution": "1.5K"}}],
+      "expected": {"resolution": "1.5k", "standard_images": 1, "layer_images": 0, "reference_images": 0}
+    },
+    {
+      "name": "keeps all three standard Pro references for expression subtraction",
+      "hook": "extractUsage",
+      "args": [{"model": "seedream-5-0-pro-am", "requestBody": {"model": "seedream-5-0-pro-am", "prompt": "cat", "resolution": "1.5K", "image_urls": ["https://example.test/a.png", "https://example.test/b.png", "https://example.test/c.png"]}}],
+      "expected": {"resolution": "1.5k", "standard_images": 1, "layer_images": 0, "reference_images": 3}
+    },
+    {
+      "name": "keeps standard reference total at successful completion",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "seedream-5-0-pro-am", "requestBody": {"model": "seedream-5-0-pro-am", "prompt": "cat", "resolution": "1.5K", "image_urls": ["https://example.test/a.png", "https://example.test/b.png", "https://example.test/c.png"]}}, {}, {"status": "success", "result": {"images": [{"url": ["https://upload.apimart.ai/result.png"]}]}}],
+      "expected": {"resolution": "1.5k", "standard_images": 1, "layer_images": 0, "reference_images": 3}
+    },
+    {
+      "name": "maps standard Pro 2K output to its own matrix row",
+      "hook": "extractUsage",
+      "args": [{"model": "seedream-5-0-pro-am", "requestBody": {"model": "seedream-5-0-pro-am", "prompt": "cat", "resolution": "2K"}}],
+      "expected": {"resolution": "2k", "standard_images": 1, "layer_images": 0, "reference_images": 0}
+    },
+    {
+      "name": "preauthorizes 1.5K layer decomposition at the 1.5K row",
+      "hook": "extractUsage",
+      "args": [{"model": "seedream-5-0-pro-am", "requestBody": {"model": "seedream-5-0-pro-am", "image_urls": ["https://example.test/a.png"], "layer_decomposition": true, "size": "1.5K"}}],
+      "expected": {"resolution": "1.5k", "standard_images": 0, "layer_images": 17, "reference_images": 1}
+    },
+    {
+      "name": "settles 1.5K layer decomposition at the 1.5K row",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "seedream-5-0-pro-am", "requestBody": {"model": "seedream-5-0-pro-am", "image_urls": ["https://example.test/a.png"], "layer_decomposition": true, "size": "1.5K"}}, {}, {"status": "success", "result": {"images": [{"url": ["https://upload.apimart.ai/base.png", "https://upload.apimart.ai/layer.png", "https://upload.apimart.ai/detail.png"]}]}}],
+      "expected": {"resolution": "1.5k", "standard_images": 0, "layer_images": 3, "reference_images": 1}
+    },
+    {
+      "name": "settles four layer images from completed APIMart response URLs",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "seedream-5-0-pro-am", "requestBody": {"model": "seedream-5-0-pro-am", "image_urls": ["https://example.test/a.png"], "layer_decomposition": true, "size": "2K"}}, {}, {"code": 200, "data": {"status": "success", "result": {"images": [{"url": ["https://upload.apimart.ai/base.png", "https://upload.apimart.ai/layer-1.png"]}], "layers": [{"urls": ["https://upload.apimart.ai/layer-2.png", "https://upload.apimart.ai/layer-3.png"]}]}}}],
+      "expected": {"resolution": "2k", "standard_images": 0, "layer_images": 4, "reference_images": 1}
+    },
+    {
+      "name": "settles 1K layer usage from persisted polling context",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "seedream-5-0-pro-am", "state": {"billing_usage": {"resolution": "1k", "standard_images": 0, "layer_images": 17, "reference_images": 1}}}, {"status": "SUCCESS"}, {"code": 200, "data": {"status": "success", "result": {"images": [{"url": ["https://upload.apimart.ai/1.png", "https://upload.apimart.ai/2.png", "https://upload.apimart.ai/3.png"]}]}}}],
+      "expected": {"resolution": "1k", "standard_images": 0, "layer_images": 3, "reference_images": 1}
+    },
+    {
+      "name": "settles 1.5K layer usage from persisted polling context",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "seedream-5-0-pro-am", "state": {"billing_usage": {"resolution": "1.5k", "standard_images": 0, "layer_images": 17, "reference_images": 1}}}, {"status": "SUCCESS"}, {"code": 200, "data": {"status": "success", "result": {"images": [{"url": ["https://upload.apimart.ai/1.png", "https://upload.apimart.ai/2.png", "https://upload.apimart.ai/3.png"]}]}}}],
+      "expected": {"resolution": "1.5k", "standard_images": 0, "layer_images": 3, "reference_images": 1}
+    },
+    {
+      "name": "settles 2K layer usage from persisted polling context",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "seedream-5-0-pro-am", "state": {"billing_usage": {"resolution": "2k", "standard_images": 0, "layer_images": 17, "reference_images": 1}}}, {"status": "SUCCESS"}, {"code": 200, "data": {"status": "success", "result": {"images": [{"url": ["https://upload.apimart.ai/1.png", "https://upload.apimart.ai/2.png", "https://upload.apimart.ai/3.png"]}]}}}],
+      "expected": {"resolution": "2k", "standard_images": 0, "layer_images": 3, "reference_images": 1}
+    },
+    {
+      "name": "zeros all Pro billing quantities when a referenced-image task fails",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "seedream-5-0-pro-am", "requestBody": {"model": "seedream-5-0-pro-am", "prompt": "cat", "resolution": "2K", "image_urls": ["https://example.test/a.png", "https://example.test/b.png"]}}, {}, {"status": "failed"}],
+      "expected": {"resolution": "2k", "standard_images": 0, "layer_images": 0, "reference_images": 0}
+    },
+    {
+      "name": "zeros all Pro billing quantities when a layer task is cancelled",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "seedream-5-0-pro-am", "requestBody": {"model": "seedream-5-0-pro-am", "image_urls": ["https://example.test/a.png"], "layer_decomposition": true, "size": "auto"}}, {}, {"status": "cancelled"}],
+      "expected": {"resolution": "2k", "standard_images": 0, "layer_images": 0, "reference_images": 0}
+    },
+    {
+      "name": "submits mapped Z Image Turbo requests without unsupported fields",
+      "hook": "buildSubmitRequest",
+      "args": [{"baseUrl": "https://api.apib.ai", "apiKey": "test-token", "model": "z-image-turbo-am", "upstreamModel": "z-image-turbo", "requestBody": {"model": "z-image-turbo-am", "prompt": "ink landscape", "size": "16:9", "resolution": "2K", "prompt_extend": true}}],
+      "expected": {"url": "https://api.apib.ai/v1/images/generations", "method": "POST", "headers": {"Accept": "application/json", "Content-Type": "application/json", "Authorization": "Bearer test-token"}, "body": {"model": "z-image-turbo", "prompt": "ink landscape", "size": "16:9", "resolution": "2k", "prompt_extend": true}, "action": "image_generation"}
+    },
+    {
+      "name": "rejects unpriced fields for Z Image Turbo",
+      "hook": "native",
+      "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "z-image-turbo-am", "prompt": "cat", "nsfw_check": true}}}],
+      "expectedError": "unsupported field for z-image-turbo-am: nsfw_check"
     }
   ]
 }

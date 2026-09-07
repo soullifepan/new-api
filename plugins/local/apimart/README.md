@@ -17,20 +17,15 @@ GET  /apimart/v1/tasks/{task_id}
 
 ## 支持范围
 
-当前清单暂时只提供两个明确的 APIMart 异步图片别名：`gpt-image-2-am` 和 `gpt-image-2-official-am`。普通模型名（例如 `gpt-image-2`）不在插件清单中，因此不会被误识别为任务模型。
+插件的异步图片别名全部经由 `https://api.apib.ai/v1/images/generations` 提交，查询经由 `/v1/tasks/{upstream_task_id}`。对外永远只返回 New API 公共 `task_id` 和包装后的查询结果；上游任务 ID、Bearer Token 均不进入响应。
 
-`gpt-image-2-am` 遵循 APIMart GPT-Image-2 文档：`prompt` 必填，`n` 只能为 `1`，`resolution` 只能为 `1k`、`2k` 或 `4k`，`image_urls` 最多 15 张（URL 或 data URI）。`size` 支持 `auto`、文档列出的 15 个比例（包括 `1:1`、`16:9`、`9:16`、`21:9`），以及边长不超过 3840 的 `宽x高` 像素尺寸，例如 `1881x836`。
+| 网关别名 | 配置的上游模型 | 已验证字段契约 |
+| --- | --- | --- |
+| `seedream-5-0-lite-am` | `seedream-5-0-lite` | `prompt`、比例或 `auto`、`resolution` `2K/3K/4K`、`n` `1..15`，并强制 `image_urls.length + n ≤ 15`；`image_urls`、`output_format` `jpeg/png`、`watermark`。 |
+| `seedream-5-0-pro-am` | `seedream-5-0-pro` | 固定 `n=1`、最多 10 个 `image_urls`、`resolution` `1K/1.5K/2K`、比例/`auto` 或合法像素尺寸、`output_format` `jpeg/png`；透明背景要求单输入图和 PNG，分层要求单图和 `auto/1K/1.5K/2K`。 |
+| `z-image-turbo-am` | `z-image-turbo` | 固定一张，`prompt` 最多 800 字符，7 个文档比例、`resolution` `1K/2K`、`prompt_extend`。 |
 
-插件为每个模型声明独立的 `usageSchemaByModel` 和 `usageExamplesByModel`：模型详情页只显示当前模型的规格与预估价格，不会混入其他 APIMart 模型的组合。
-
-后续新增同协议模型时：
-
-1. 在 `plugin.js` 的 `meta.models` 添加规范模型名；
-2. 上传新的语义化插件版本；
-3. 在测试环境创建或更新 `Task Plugin` 渠道，绑定 `apimart`，并配置渠道模型、模型映射、分组与定价；
-4. 为新增模型补充一个低成本的请求验证。
-
-协议或结果结构不同的模型不应直接加入清单；应先为其增加独立的适配分支或单独插件。
+每个别名执行严格模型级字段白名单；不在表中的字段（包括会产生未声明成本的 `nsfw_check`）被拒绝，不会静默透传。`gpt-image-2-am` 和 `gpt-image-2-official-am` 保持已有兼容契约。
 
 ## 上传与校验
 
@@ -48,6 +43,14 @@ go run . plugin test plugins/local/apimart/plugin.js --fixture plugins/local/api
 模型映射：gpt-image-2-am → gpt-image-2
 ```
 
+新增模型映射：
+
+```text
+seedream-5-0-lite-am → seedream-5-0-lite
+seedream-5-0-pro-am  → seedream-5-0-pro
+z-image-turbo-am     → z-image-turbo
+```
+
 不要把真实 token 放进插件源码、fixtures 或 Git。
 
 ## 计费与素材保存
@@ -59,6 +62,30 @@ go run . plugin test plugins/local/apimart/plugin.js --fixture plugins/local/api
 - `u("input_images")`：参考图和遮罩图数量，没有输入图时为 `0`。
 
 `gpt-image-2-official-am` 只提供 `u("upstream_credits")`：提交时预估，完成后由上游 `credits_cost` 覆盖。
+
+三项新增别名需要在渠道模型定价中配置表达式。`seedream-5-0-pro-am` 使用 `u("resolution")`（`1k`、`1.5k`、`2k`）作为矩阵行，`u("standard_images")` 和 `u("layer_images")` 作为输出价格列：
+
+| `resolution` | `standard_images` | `layer_images` | `reference_images` |
+| --- | --- | --- | --- |
+| `1k` | 标准 1K：1 | 图层 1K：预扣 17、按完成 URL 数结算 | 输入参考图总数 |
+| `1.5k` | 标准 1.5K：1 | 图层 1.5K：预扣 17、按完成 URL 数结算；单价与图层 1K 相同 | 输入参考图总数 |
+| `2k` | 标准 2K：1 | 图层 2K：预扣 17、按完成 URL 数结算 | 输入参考图总数 |
+
+标准生成只产生 `standard_images=1`，并从 `image_urls` 提取 `reference_images=0..10`；图层拆分只产生 `layer_images=17` 且固定 `reference_images=1`。提交时插件会把这些已验证、非敏感的计费事实写入跨轮次 `PluginState`，轮询即使覆盖任务响应数据也能在完成时恢复图层档位。图层 `size="1.5k"` 的 billing UI 档位为 `resolution="1.5k"`，即使上游请求为遵守接口契约同时携带 `size="1.5k"` 与 `resolution="1k"` 也不改变该档位，`auto` 映射到 `resolution="2k"`。轮询将上游 `success` 和 `completed` 都映射为成功；图层完成时从 `result.images` 和可选 `result.layers` 的去重 URL 计数覆盖预扣 `layer_images`（最多 17），标准任务保持提交时的参考图总数；失败或取消时三个计数量均为零。
+
+管理员可使用现有结构化矩阵配置此模型；`reference_images` 按输入参考图总数计费，第一张也收费，图层固定为 1，因此也产生一笔参考图费用。
+
+Raw expression 的三个分支都用 `tier()` 包裹：
+
+```text
+u("resolution") == "1k"
+  ? tier("1k", u("standard_images") * 0.02925 + u("layer_images") * 0.014625 + u("reference_images") * 0.00195)
+  : u("resolution") == "1.5k"
+    ? tier("1.5k", u("standard_images") * 0.02925 + u("layer_images") * 0.014625 + u("reference_images") * 0.00195)
+    : tier("2k", u("standard_images") * 0.0585 + u("layer_images") * 0.02925 + u("reference_images") * 0.00195)
+```
+
+任务表达式输出单次请求的美元金额，不按百万 Token 或 credit 再转换。`seedream-5-0-lite-am` 继续提供 `u("images")`、`u("resolution")`（`2k/3k/4k`）、`u("input_images")`；`z-image-turbo-am` 继续提供 `u("images")`、`u("resolution")`（`1k/2k`）、`u("prompt_extend")`。
 
 `gpt-image-2-am` 的当前上游成本可用下面的表达式配置：
 

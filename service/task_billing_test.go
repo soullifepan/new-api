@@ -1632,6 +1632,57 @@ func TestSettle_TieredUsageFactsMergeCompletionOverSubmission(t *testing.T) {
 	}
 }
 
+func TestSettle_TieredLayerUsageRefundsPreauthorization(t *testing.T) {
+	truncate(t)
+	const userID = 35
+	const initialQuota = 10_000
+	const preConsumed = 17
+	seedUser(t, userID, initialQuota)
+
+	expression := `tier("layer_2k", u("layer_images"))`
+	task := makeTask(userID, 0, preConsumed, 0, BillingSourceWallet, 0)
+	task.PrivateData.BillingContext.TieredSnapshot = &billingexpr.BillingSnapshot{
+		ExprString:       expression,
+		ExprHash:         billingexpr.ExprHashString(expression),
+		GroupRatio:       1,
+		QuotaPerUnit:     1,
+		ExprVersion:      1,
+		TaskUsageBilling: true,
+		UsageFacts: map[string]any{
+			"resolution":       "2k",
+			"standard_images":  float64(0),
+			"layer_images":     float64(17),
+			"reference_images": float64(1),
+		},
+		EstimatedTier: "layer_2k",
+	}
+
+	settled := settleTaskBillingOnComplete(
+		context.Background(),
+		&mockAdaptor{},
+		task,
+		&relaycommon.TaskInfo{
+			Status:     model.TaskStatusSuccess,
+			UsageFacts: map[string]any{"layer_images": float64(3)},
+		},
+	)
+
+	require.True(t, settled)
+	assert.Equal(t, 3, task.Quota)
+	assert.Equal(t, initialQuota+(preConsumed-3), getUserQuota(t, userID))
+	require.NotNil(t, task.PrivateData.BillingContext.TieredSnapshot)
+	assert.Equal(t, float64(3), task.PrivateData.BillingContext.TieredSnapshot.UsageFacts["layer_images"])
+
+	log := getLastLog(t)
+	require.NotNil(t, log)
+	var other map[string]any
+	require.NoError(t, common.UnmarshalJsonStr(log.Other, &other))
+	facts, ok := other["usage_facts"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, float64(3), facts["layer_images"])
+	assert.Equal(t, "layer_2k", other["matched_tier"])
+}
+
 func TestSettle_TieredSnapshotWriteBackUsesSettledFactsAndMatchedTier(t *testing.T) {
 	truncate(t)
 	const userID = 36

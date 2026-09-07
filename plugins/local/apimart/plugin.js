@@ -9,54 +9,39 @@ export const meta = {
     en: "APIMart asynchronous image generation tasks",
     zh: "APIMart 异步图片生成任务",
   },
-  version: "0.7.2",
+  version: "0.8.13",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   usageSchemaByModel: {
     "gpt-image-2-am": {
-      images: {
-        type: "number",
-        unit: "count",
-        description: { en: "Number of successfully generated images.", zh: "成功生成图片的数量。" },
-      },
-      resolution: {
-        enum: ["default", "1k", "2k", "4k"],
-        description: { en: "Requested output resolution tier.", zh: "请求的输出分辨率档位。" },
-      },
-      input_images: {
-        type: "number",
-        unit: "count",
-        description: { en: "Number of input reference and mask images.", zh: "输入参考图和遮罩图数量。" },
-      },
+      images: { type: "number", unit: "count", description: { en: "Number of successfully generated images.", zh: "成功生成图片的数量。" } },
+      resolution: { enum: ["default", "1k", "2k", "4k"], description: { en: "Requested output resolution tier.", zh: "请求的输出分辨率档位。" } },
+      input_images: { type: "number", unit: "count", description: { en: "Number of input reference and mask images.", zh: "输入参考图和遮罩图数量。" } },
     },
     "gpt-image-2-official-am": {
-      upstream_credits: {
-        type: "number",
-        unit: "credit",
-        description: {
-          en: "Estimated at submission and replaced by APIMart's completed task deduction.",
-          zh: "提交时预估，任务完成后由 APIMart 实际扣减积分覆盖。",
-        },
-      },
+      upstream_credits: { type: "number", unit: "credit", description: { en: "Estimated at submission and replaced by APIMart's completed task deduction.", zh: "提交时预估，任务完成后由 APIMart 实际扣减积分覆盖。" } },
+    },
+    "seedream-5-0-lite-am": {
+      images: { type: "number", unit: "count", description: { en: "Validated requested output count.", zh: "已校验的请求输出数量。" } },
+      resolution: { enum: ["2k", "3k", "4k"], description: { en: "Requested output resolution tier.", zh: "请求的输出分辨率档位。" } },
+      input_images: { type: "number", unit: "count", description: { en: "Validated reference image count.", zh: "已校验的参考图数量。" } },
+    },
+    "seedream-5-0-pro-am": {
+      resolution: { enum: ["1k", "1.5k", "2k"], description: { en: "Validated output billing tier; layer 1.5K is billed at the 1K rate.", zh: "已校验的输出计费档位；图层 1.5K 按 1K 费率计费。" } },
+      standard_images: { type: "number", unit: "count", description: { en: "Standard-mode output image count.", zh: "标准模式输出图片数量。" } },
+      layer_images: { type: "number", unit: "count", description: { en: "Layer-decomposition output image count.", zh: "图层拆分输出图片数量。" } },
+      reference_images: { type: "number", unit: "count", description: { en: "Total validated input reference image count.", zh: "已校验的输入参考图总数。" } },
+    },
+    "z-image-turbo-am": {
+      images: { type: "number", unit: "count", description: { en: "Fixed requested output count.", zh: "固定的请求输出数量。" } },
+      resolution: { enum: ["1k", "2k"], description: { en: "Requested output resolution tier.", zh: "请求的输出分辨率档位。" } },
+      prompt_extend: { type: "boolean", description: { en: "Whether paid prompt rewriting was requested.", zh: "是否请求付费提示词改写。" } },
     },
   },
   usageExamplesByModel: {
-    "gpt-image-2-am": [
-      { label: "Default · 1 image", facts: { images: 1, resolution: "default", input_images: 0 } },
-      { label: "2K · 1 image", facts: { images: 1, resolution: "2k", input_images: 0 } },
-      { label: "4K · 1 image", facts: { images: 1, resolution: "4k", input_images: 0 } },
-    ],
-    "gpt-image-2-official-am": [
-      { label: "Low · 1K · 1 image (estimated)", facts: { upstream_credits: 0.06 } },
-      { label: "Low · 2K · 1 image (estimated)", facts: { upstream_credits: 0.12 } },
-      { label: "Low · 4K · 1 image (estimated)", facts: { upstream_credits: 0.20 } },
-      { label: "Medium · 1K · 1 image (estimated)", facts: { upstream_credits: 0.53 } },
-      { label: "Medium · 2K · 1 image (estimated)", facts: { upstream_credits: 1.07 } },
-      { label: "Medium · 4K · 1 image (estimated)", facts: { upstream_credits: 1.78 } },
-      { label: "High · 1K · 1 image (estimated)", facts: { upstream_credits: 2.11 } },
-      { label: "High · 2K · 1 image (estimated)", facts: { upstream_credits: 4.28 } },
-      { label: "High · 4K · 1 image (estimated)", facts: { upstream_credits: 7.12 } },
-    ],
+    "seedream-5-0-lite-am": [{ label: "2K · 1 image", facts: { images: 1, resolution: "2k", input_images: 0 } }],
+    "seedream-5-0-pro-am": [{ label: "Standard · 1K", facts: { resolution: "1k", standard_images: 1, layer_images: 0, reference_images: 0 } }, { label: "Standard · 1.5K", facts: { resolution: "1.5k", standard_images: 1, layer_images: 0, reference_images: 0 } }, { label: "Standard · 2K", facts: { resolution: "2k", standard_images: 1, layer_images: 0, reference_images: 0 } }, { label: "Layer · 1K", facts: { resolution: "1k", standard_images: 0, layer_images: 17, reference_images: 1 } }, { label: "Layer · 1.5K", facts: { resolution: "1.5k", standard_images: 0, layer_images: 17, reference_images: 1 } }, { label: "Layer · 2K", facts: { resolution: "2k", standard_images: 0, layer_images: 17, reference_images: 1 } }],
+    "z-image-turbo-am": [{ label: "1K · 1 image", facts: { images: 1, resolution: "1k", prompt_extend: false } }],
   },
   // api.apib.ai is the configured API entrypoint. APIMart-compatible image
   // results may still be served from the legacy upload/CDN hosts.
@@ -66,6 +51,9 @@ export const meta = {
   models: [
     "gpt-image-2-am",
     "gpt-image-2-official-am",
+    "seedream-5-0-lite-am",
+    "seedream-5-0-pro-am",
+    "z-image-turbo-am",
   ],
   routes: [
     { method: "POST", path: "/apimart/v1/images/generations", type: "submit", decode: "decodeImageGeneration", render: "renderSubmitted" },
@@ -131,10 +119,191 @@ function estimateOfficialCredits(request) {
   return images * perImage[officialQuality(request.quality)][resolution] + inputImageCount(request) * 0.154;
 }
 
+const seedreamRatios = new Set(["auto", "1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3", "2:1", "1:2", "21:9"]);
+const zImageRatios = new Set(["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3"]);
+
+function boolean(value, name) {
+  if (typeof value !== "boolean") throw new Error(name + " must be a boolean");
+  return value;
+}
+
+function imageURLs(value, maximum) {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length > maximum || value.some(function (url) { return !trimmed(url); })) {
+    throw new Error("image_urls must contain at most " + maximum + " non-empty URLs");
+  }
+  return value.slice();
+}
+
+function normalizedRatio(value, ratios, errorMessage) {
+  const size = trimmed(value).toLowerCase();
+  const normalized = /^([12])x([12])$/.test(size) ? size.replace("x", ":") : size;
+  if (!ratios.has(normalized)) throw new Error(errorMessage);
+  return normalized;
+}
+
+function normalizedProSize(value) {
+  const size = trimmed(value).toLowerCase().replace("×", "x");
+  if (seedreamRatios.has(size) || ["1k", "1.5k", "2k"].includes(size)) return { value: size, pixels: 0 };
+  const match = /^(\d+)x(\d+)$/.exec(size);
+  if (!match) throw new Error("size must be auto, a supported ratio or tier, or valid pixel dimensions");
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  const pixels = width * height;
+  if (!Number.isSafeInteger(pixels) || pixels < 921600 || pixels > 4624220 || width / height < 1 / 16 || width / height > 16) {
+    throw new Error("pixel size must contain 921600 to 4624220 pixels with an aspect ratio from 1:16 to 16:1");
+  }
+  return { value: width + "x" + height, pixels: pixels };
+}
+
+function normalizeAPIMartModelRequest(model, request) {
+  if (!["seedream-5-0-lite-am", "seedream-5-0-pro-am", "z-image-turbo-am"].includes(model)) return request;
+  const allowed = model === "seedream-5-0-lite-am"
+    ? new Set(["model", "prompt", "size", "resolution", "n", "image_urls", "output_format", "watermark"])
+    : model === "seedream-5-0-pro-am"
+      ? new Set(["model", "prompt", "size", "resolution", "n", "image_urls", "output_format", "background", "layer_decomposition", "watermark"])
+      : new Set(["model", "prompt", "size", "resolution", "n", "prompt_extend"]);
+  for (const key of Object.keys(request)) {
+    if (!allowed.has(key)) throw new Error("unsupported field for " + model + ": " + key);
+  }
+  const layerDecomposition = request.layer_decomposition === undefined ? false : boolean(request.layer_decomposition, "layer_decomposition");
+  const prompt = trimmed(request.prompt);
+  const output = { model: model };
+  if (!prompt && !(model === "seedream-5-0-pro-am" && layerDecomposition)) throw new Error("prompt is required");
+  if (prompt) output.prompt = prompt;
+  if (model === "seedream-5-0-lite-am") {
+    const images = imageURLs(request.image_urls, 14);
+    const count = request.n === undefined ? 1 : request.n;
+    if (!Number.isInteger(count) || count < 1 || count > 15) throw new Error("n must be an integer between 1 and 15");
+    if ((images ? images.length : 0) + count > 15) throw new Error("image_urls plus n must not exceed 15");
+    output.n = count;
+    if (images) output.image_urls = images;
+    output.size = request.size === undefined ? "1:1" : normalizedRatio(request.size, seedreamRatios, "size must be auto or a supported Seedream ratio");
+    output.resolution = request.resolution === undefined ? "2k" : trimmed(request.resolution).toLowerCase();
+    if (!["2k", "3k", "4k"].includes(output.resolution)) throw new Error("resolution must be one of 2k, 3k, or 4k");
+    if (request.output_format !== undefined) {
+      output.output_format = trimmed(request.output_format).toLowerCase();
+      if (!["jpeg", "png"].includes(output.output_format)) throw new Error("output_format must be jpeg or png");
+    }
+    if (request.watermark !== undefined) output.watermark = boolean(request.watermark, "watermark");
+    return output;
+  }
+  if (model === "seedream-5-0-pro-am") {
+    if (request.n !== undefined && request.n !== 1) throw new Error("n must be 1");
+    const images = imageURLs(request.image_urls, 10);
+    if (images) output.image_urls = images;
+    const size = request.size === undefined ? { value: "auto", pixels: 0 } : normalizedProSize(request.size);
+    output.size = size.value;
+    output.resolution = request.resolution === undefined ? "1k" : trimmed(request.resolution).toLowerCase();
+    if (!["1k", "1.5k", "2k"].includes(output.resolution)) throw new Error("resolution must be one of 1k, 1.5k, or 2k");
+    if (request.output_format !== undefined) {
+      output.output_format = trimmed(request.output_format).toLowerCase();
+      if (!["jpeg", "png"].includes(output.output_format)) throw new Error("output_format must be jpeg or png");
+    }
+    if (request.background !== undefined) {
+      output.background = trimmed(request.background).toLowerCase();
+      if (!["opaque", "transparent"].includes(output.background)) throw new Error("background must be opaque or transparent");
+      if (output.background === "transparent" && (!images || images.length !== 1 || output.output_format !== "png")) throw new Error("transparent background requires one input image and output_format png");
+    }
+    if (layerDecomposition) {
+      if (!images || images.length !== 1 || !["auto", "1k", "1.5k", "2k"].includes(output.size)) throw new Error("layer_decomposition requires one image and size auto, 1k, 1.5k, or 2k");
+      output.layer_decomposition = true;
+    }
+    if (request.watermark !== undefined) output.watermark = boolean(request.watermark, "watermark");
+    return output;
+  }
+  if (request.n !== undefined && request.n !== 1) throw new Error("n must be 1");
+  if (prompt.length > 800) throw new Error("prompt must not exceed 800 characters");
+  output.size = request.size === undefined ? "1:1" : normalizedRatio(request.size, zImageRatios, "size must be a supported Z-Image-Turbo ratio");
+  output.resolution = request.resolution === undefined ? "1k" : trimmed(request.resolution).toLowerCase();
+  if (!["1k", "2k"].includes(output.resolution)) throw new Error("resolution must be 1k or 2k");
+  if (request.prompt_extend !== undefined) output.prompt_extend = boolean(request.prompt_extend, "prompt_extend");
+  return output;
+}
+
+function proStandardTier(request) {
+  const size = normalizedProSize(request.size);
+  if (size.pixels) return size.pixels > 2601124 ? "2k" : "1k";
+  if (size.value === "2k" || request.resolution === "2k") return "2k";
+  if (size.value === "1.5k" || request.resolution === "1.5k") return "1.5k";
+  return "1k";
+}
+function proUsage(resolution, standardImages, layerImages, referenceImages) {
+  return {
+    resolution: resolution,
+    standard_images: standardImages,
+    layer_images: layerImages,
+    reference_images: referenceImages,
+  };
+}
+
+function apimartUsage(request, model) {
+  if (model === "seedream-5-0-lite-am") return { images: request.n, resolution: request.resolution, input_images: inputImageCount(request) };
+  if (model === "seedream-5-0-pro-am") {
+    if (request.layer_decomposition === true) {
+      const size = normalizedProSize(request.size);
+      const billingResolution = size.value === "auto" ? "2k" : size.value;
+      return proUsage(billingResolution, 0, 17, 1);
+    }
+    return proUsage(proStandardTier(request), 1, 0, inputImageCount(request));
+  }
+  if (model === "z-image-turbo-am") return { images: 1, resolution: request.resolution, prompt_extend: request.prompt_extend === true };
+  return null;
+}
+
+function proCompletionData(body) {
+  const value = body && typeof body === "object" && !Array.isArray(body) ? body : {};
+  return value.data && typeof value.data === "object" && !Array.isArray(value.data) ? value.data : value;
+}
+
+function storedProUsage(ctx) {
+  const state = ctx && ctx.state && typeof ctx.state === "object" && !Array.isArray(ctx.state) ? ctx.state : {};
+  const usage = state.billing_usage;
+  if (!usage || typeof usage !== "object" || Array.isArray(usage)) return null;
+  if (!["1k", "1.5k", "2k"].includes(usage.resolution)) return null;
+  if (![0, 1].includes(usage.standard_images) || !Number.isInteger(usage.layer_images) || usage.layer_images < 0 || usage.layer_images > 17 || !Number.isInteger(usage.reference_images) || usage.reference_images < 0 || usage.reference_images > 10) return null;
+  return usage;
+}
+
+function proCompletedUsage(ctx, body) {
+  const data = proCompletionData(body);
+  const status = trimmed(data.status).toLowerCase();
+  let submission = storedProUsage(ctx);
+  if (!submission && ctx && ctx.requestBody) {
+    const request = normalizeAPIMartModelRequest("seedream-5-0-pro-am", ctx.requestBody);
+    submission = apimartUsage(request, "seedream-5-0-pro-am");
+  }
+  if (!submission) return null;
+  if (["failed", "cancelled", "canceled"].includes(status)) return proUsage(submission.resolution, 0, 0, 0);
+  if (!["completed", "success"].includes(status)) return null;
+  if (submission.standard_images > 0) return submission;
+  const result = data.result;
+  if (!result || typeof result !== "object" || Array.isArray(result)) return null;
+  const urls = new Set();
+  for (const collectionName of ["images", "layers"]) {
+    const collection = result[collectionName];
+    if (collection === undefined) continue;
+    if (!Array.isArray(collection)) return null;
+    for (const item of collection) {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+      const values = Array.isArray(item.url) ? item.url : Array.isArray(item.urls) ? item.urls : typeof item.url === "string" ? [item.url] : typeof item.urls === "string" ? [item.urls] : null;
+      if (!values) return null;
+      for (const value of values) {
+        const url = trimmed(value);
+        if (!url) return null;
+        urls.add(url);
+        if (urls.size > 17) return null;
+      }
+    }
+  }
+  return proUsage(submission.resolution, 0, urls.size, submission.reference_images);
+}
+
 function imageTaskData(task) {
   const snapshot = task && task.data;
   if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return {};
-  return snapshot.data && typeof snapshot.data === "object" && !Array.isArray(snapshot.data) ? snapshot.data : {};
+  const response = snapshot.response && typeof snapshot.response === "object" && !Array.isArray(snapshot.response) ? snapshot.response : snapshot;
+  return response.data && typeof response.data === "object" && !Array.isArray(response.data) ? response.data : {};
 }
 
 function publicStatus(status) {
@@ -181,7 +350,7 @@ export function buildSubmitRequest(ctx) {
   const publicModel = trimmed(ctx.model || request.model);
   const model = trimmed(ctx.upstreamModel || publicModel);
   if (!isDeclaredModel(publicModel)) throw new Error("unsupported APIMart image model");
-  const body = Object.assign({}, request, { model: model });
+  const body = Object.assign({}, normalizeAPIMartModelRequest(publicModel, request), { model: model });
   return {
     url: ctx.baseUrl + "/v1/images/generations",
     method: "POST",
@@ -202,12 +371,22 @@ export function parseSubmitResponse(ctx, response) {
   const submitted = entries[0] && typeof entries[0] === "object" ? entries[0] : {};
   const taskId = trimmed(submitted.task_id);
   if (!taskId) throw new Error("APIMart submit response is missing task_id");
-  return { taskId: taskId, taskData: body };
+  const request = ctx && ctx.requestBody && typeof ctx.requestBody === "object" ? ctx.requestBody : {};
+  const publicModel = trimmed(ctx && ctx.model || request.model);
+  const normalized = publicModel === "seedream-5-0-pro-am" ? normalizeAPIMartModelRequest(publicModel, request) : null;
+  const billingUsage = normalized ? apimartUsage(normalized, publicModel) : null;
+  return billingUsage
+    ? { taskId: taskId, taskData: body, state: { billing_usage: billingUsage } }
+    : { taskId: taskId, taskData: body };
 }
 
 export function extractUsage(ctx) {
   if (ctx.usagePurpose === "billing_ratios") return null;
   const request = ctx.requestBody || {};
+  const publicModel = trimmed(ctx.model || request.model);
+  const normalized = normalizeAPIMartModelRequest(publicModel, request);
+  const taskUsage = apimartUsage(normalized, publicModel);
+  if (taskUsage) return taskUsage;
   if (isOfficialGPTImage2(ctx.upstreamModel || ctx.model || request.model)) {
     return { upstream_credits: estimateOfficialCredits(request) };
   }
@@ -221,6 +400,8 @@ export function extractUsage(ctx) {
 }
 
 export function extractUsageOnComplete(ctx, _taskResult, body) {
+  const publicModel = trimmed(ctx.model || (ctx.requestBody || {}).model);
+  if (publicModel === "seedream-5-0-pro-am") return proCompletedUsage(ctx, body);
   if (!isOfficialGPTImage2(ctx.upstreamModel || ctx.model)) return null;
   const data = body && body.data;
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
@@ -251,10 +432,16 @@ export function parseTaskResult(ctx, body) {
   const statuses = {
     submitted: "SUBMITTED",
     queued: "SUBMITTED",
+    pending: "SUBMITTED",
     in_progress: "IN_PROGRESS",
     processing: "IN_PROGRESS",
+    running: "IN_PROGRESS",
     completed: "SUCCESS",
+    success: "SUCCESS",
     failed: "FAILURE",
+    failure: "FAILURE",
+    cancelled: "FAILURE",
+    canceled: "FAILURE",
   };
   const status = statuses[trimmed(data.status).toLowerCase()];
   if (!status) return { status: "UNKNOWN", reason: "unrecognized APIMart task status: " + String(data.status || "") };
@@ -289,6 +476,10 @@ export const native = {
     const request = object(ctx.body.value, "request body must be an object");
     const model = trimmed(request.model);
     if (!isDeclaredModel(model)) throw new Error("unsupported APIMart image model");
+    if (["seedream-5-0-lite-am", "seedream-5-0-pro-am", "z-image-turbo-am"].includes(model)) {
+      const normalized = normalizeAPIMartModelRequest(model, request);
+      return { kind: "submit", model: model, action: "image_generation", requestBody: normalized };
+    }
     if (!trimmed(request.prompt)) throw new Error("prompt is required");
     if (request.image_urls !== undefined && (!Array.isArray(request.image_urls) || request.image_urls.length > 15 || request.image_urls.some(function (url) { return !trimmed(url); }))) {
       throw new Error("image_urls must contain at most 15 non-empty URLs");
