@@ -1,0 +1,3625 @@
+{
+  "cases": [
+    {
+      "name": "sends documented generation endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "generation",
+          "requestBody": {
+            "custom": false,
+            "version": "v5",
+            "prompt": "rainy lo-fi piano"
+          },
+          "originTasks": []
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "custom": false,
+          "version": "v5",
+          "prompt": "rainy lo-fi piano",
+          "model": "suno"
+        },
+        "action": "generation"
+      }
+    },
+    {
+      "name": "sends documented lyrics endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "lyrics",
+          "requestBody": {
+            "prompt": "a reunion ballad",
+            "lyrics_model": "classic"
+          },
+          "originTasks": []
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/lyrics",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "prompt": "a reunion ballad",
+          "lyrics_model": "classic",
+          "model": "suno"
+        },
+        "action": "lyrics"
+      }
+    },
+    {
+      "name": "sends documented inspo endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "inspo",
+          "requestBody": {
+            "audio_urls": [
+              "https://cdn.apimart.ai/input-1.mp3"
+            ],
+            "version": "v5.5",
+            "tags": "dreamy pop",
+            "style_weight": 0
+          },
+          "originTasks": []
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/inspo",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "audio_urls": [
+            "https://cdn.apimart.ai/input-1.mp3"
+          ],
+          "version": "v5.5",
+          "tags": "dreamy pop",
+          "style_weight": 0,
+          "model": "suno"
+        },
+        "action": "inspo"
+      }
+    },
+    {
+      "name": "sends documented sounds endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "sounds",
+          "requestBody": {
+            "prompt": "vinyl crackle",
+            "version": "v5.5",
+            "type": "loop",
+            "bpm": 120
+          },
+          "originTasks": []
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/sounds",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "prompt": "vinyl crackle",
+          "version": "v5.5",
+          "type": "loop",
+          "bpm": 120,
+          "model": "suno"
+        },
+        "action": "sounds"
+      }
+    },
+    {
+      "name": "sends documented upsampleTags endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "upsampleTags",
+          "requestBody": {
+            "tags": "indie folk"
+          },
+          "originTasks": []
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/upsampleTags",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "tags": "indie folk",
+          "model": "suno"
+        },
+        "action": "upsampleTags"
+      }
+    },
+    {
+      "name": "sends documented uploadTask endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "uploadTask",
+          "requestBody": {
+            "audioFilePath": "https://media.example.com/upload.mp3"
+          },
+          "originTasks": []
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/uploadTask",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "audioFilePath": "https://media.example.com/upload.mp3",
+          "model": "suno"
+        },
+        "action": "uploadTask"
+      }
+    },
+    {
+      "name": "sends documented extend endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "extend",
+          "requestBody": {
+            "task_id": "task_public_song",
+            "audio_index": 2,
+            "continue_at": 120,
+            "version": "v5",
+            "custom": false,
+            "gpt_description": "soft ending"
+          },
+          "originTasks": [
+            {
+              "taskId": "task_public_song",
+              "upstreamTaskId": "vendor_task_public_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/extend",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "task_id": "vendor_task_public_song",
+          "audio_index": 2,
+          "continue_at": 120,
+          "version": "v5",
+          "custom": false,
+          "gpt_description": "soft ending",
+          "model": "suno"
+        },
+        "action": "extend"
+      }
+    },
+    {
+      "name": "sends documented coverSong endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "coverSong",
+          "requestBody": {
+            "task_id": "task_public_song",
+            "audio_index": 1,
+            "version": "v5",
+            "custom": false,
+            "gpt_description": "jazz cover"
+          },
+          "originTasks": [
+            {
+              "taskId": "task_public_song",
+              "upstreamTaskId": "vendor_task_public_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/coverSong",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "task_id": "vendor_task_public_song",
+          "audio_index": 1,
+          "version": "v5",
+          "custom": false,
+          "gpt_description": "jazz cover",
+          "model": "suno"
+        },
+        "action": "coverSong"
+      }
+    },
+    {
+      "name": "sends documented remaster endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "remaster",
+          "requestBody": {
+            "task_id": "task_public_song",
+            "audio_index": 1,
+            "version": "v5.5",
+            "variation_category": "normal"
+          },
+          "originTasks": [
+            {
+              "taskId": "task_public_song",
+              "upstreamTaskId": "vendor_task_public_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/remaster",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "task_id": "vendor_task_public_song",
+          "audio_index": 1,
+          "version": "v5.5",
+          "variation_category": "normal",
+          "model": "suno"
+        },
+        "action": "remaster"
+      }
+    },
+    {
+      "name": "sends documented stems endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "stems",
+          "requestBody": {
+            "task_id": "task_public_song",
+            "audio_index": 1,
+            "stem_type": "lead_vocal"
+          },
+          "originTasks": [
+            {
+              "taskId": "task_public_song",
+              "upstreamTaskId": "vendor_task_public_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/stems",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "task_id": "vendor_task_public_song",
+          "audio_index": 1,
+          "stem_type": "lead_vocal",
+          "model": "suno"
+        },
+        "action": "stems"
+      }
+    },
+    {
+      "name": "sends documented stemsAll endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "stemsAll",
+          "requestBody": {
+            "task_id": "task_public_song",
+            "audio_index": 1
+          },
+          "originTasks": [
+            {
+              "taskId": "task_public_song",
+              "upstreamTaskId": "vendor_task_public_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/stemsAll",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "task_id": "vendor_task_public_song",
+          "audio_index": 1,
+          "model": "suno"
+        },
+        "action": "stemsAll"
+      }
+    },
+    {
+      "name": "sends documented addVocals endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "addVocals",
+          "requestBody": {
+            "task_id": "task_public_upload",
+            "audio_index": 1,
+            "version": "v5",
+            "custom": true,
+            "prompt": "new lyrics"
+          },
+          "originTasks": [
+            {
+              "taskId": "task_public_upload",
+              "upstreamTaskId": "vendor_task_public_upload",
+              "action": "uploadTask",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/addVocals",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "task_id": "vendor_task_public_upload",
+          "audio_index": 1,
+          "version": "v5",
+          "custom": true,
+          "prompt": "new lyrics",
+          "model": "suno"
+        },
+        "action": "addVocals"
+      }
+    },
+    {
+      "name": "sends documented addInstrumental endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "addInstrumental",
+          "requestBody": {
+            "task_id": "task_public_upload",
+            "audio_index": 1,
+            "version": "v5.5",
+            "custom": false,
+            "gpt_description": "lo-fi"
+          },
+          "originTasks": [
+            {
+              "taskId": "task_public_upload",
+              "upstreamTaskId": "vendor_task_public_upload",
+              "action": "uploadTask",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/addInstrumental",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "task_id": "vendor_task_public_upload",
+          "audio_index": 1,
+          "version": "v5.5",
+          "custom": false,
+          "gpt_description": "lo-fi",
+          "model": "suno"
+        },
+        "action": "addInstrumental"
+      }
+    },
+    {
+      "name": "sends documented addStem endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "addStem",
+          "requestBody": {
+            "task_id": "task_public_song",
+            "audio_index": 1,
+            "version": "v5.5",
+            "tags": "drum kit",
+            "custom": true
+          },
+          "originTasks": [
+            {
+              "taskId": "task_public_song",
+              "upstreamTaskId": "vendor_task_public_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/addStem",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "task_id": "vendor_task_public_song",
+          "audio_index": 1,
+          "version": "v5.5",
+          "tags": "drum kit",
+          "custom": true,
+          "model": "suno"
+        },
+        "action": "addStem"
+      }
+    },
+    {
+      "name": "sends documented vox endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "vox",
+          "requestBody": {
+            "task_id": "task_public_song",
+            "audio_index": 1
+          },
+          "originTasks": [
+            {
+              "taskId": "task_public_song",
+              "upstreamTaskId": "vendor_task_public_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/vox",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "task_id": "vendor_task_public_song",
+          "audio_index": 1,
+          "model": "suno"
+        },
+        "action": "vox"
+      }
+    },
+    {
+      "name": "sends documented createVoice endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "createVoice",
+          "requestBody": {
+            "audio_url": "https://media.example.com/audio/voice?format=wav"
+          },
+          "originTasks": []
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/createVoice",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "audio_url": "https://media.example.com/audio/voice?format=wav",
+          "model": "suno"
+        },
+        "action": "createVoice"
+      }
+    },
+    {
+      "name": "sends documented persona endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "persona",
+          "requestBody": {
+            "task_id": "task_public_song",
+            "audio_index": 1,
+            "name": "fixture persona"
+          },
+          "originTasks": [
+            {
+              "taskId": "task_public_song",
+              "upstreamTaskId": "vendor_task_public_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/persona",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "task_id": "vendor_task_public_song",
+          "audio_index": 1,
+          "name": "fixture persona",
+          "model": "suno"
+        },
+        "action": "persona"
+      }
+    },
+    {
+      "name": "sends documented replaceMusic endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "replaceMusic",
+          "requestBody": {
+            "task_id": "task_public_song",
+            "audio_index": 1,
+            "version": "v5",
+            "prompt": "piano",
+            "start_s": 0,
+            "end_s": 20
+          },
+          "originTasks": [
+            {
+              "taskId": "task_public_song",
+              "upstreamTaskId": "vendor_task_public_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/replaceMusic",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "task_id": "vendor_task_public_song",
+          "audio_index": 1,
+          "version": "v5",
+          "prompt": "piano",
+          "start_s": 0,
+          "end_s": 20,
+          "model": "suno"
+        },
+        "action": "replaceMusic"
+      }
+    },
+    {
+      "name": "sends documented removeSection endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "removeSection",
+          "requestBody": {
+            "task_id": "task_public_song",
+            "audio_index": 1,
+            "start_s": 0,
+            "end_s": 20
+          },
+          "originTasks": [
+            {
+              "taskId": "task_public_song",
+              "upstreamTaskId": "vendor_task_public_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/removeSection",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "task_id": "vendor_task_public_song",
+          "audio_index": 1,
+          "start_s": 0,
+          "end_s": 20,
+          "model": "suno"
+        },
+        "action": "removeSection"
+      }
+    },
+    {
+      "name": "sends documented crop endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "crop",
+          "requestBody": {
+            "task_id": "task_public_song",
+            "audio_index": 1,
+            "start_s": 0,
+            "end_s": 30
+          },
+          "originTasks": [
+            {
+              "taskId": "task_public_song",
+              "upstreamTaskId": "vendor_task_public_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/crop",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "task_id": "vendor_task_public_song",
+          "audio_index": 1,
+          "start_s": 0,
+          "end_s": 30,
+          "model": "suno"
+        },
+        "action": "crop"
+      }
+    },
+    {
+      "name": "sends documented fadeIn endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "fadeIn",
+          "requestBody": {
+            "task_id": "task_public_song",
+            "audio_index": 1,
+            "duration_s": 0
+          },
+          "originTasks": [
+            {
+              "taskId": "task_public_song",
+              "upstreamTaskId": "vendor_task_public_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/fadeIn",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "task_id": "vendor_task_public_song",
+          "audio_index": 1,
+          "duration_s": 0,
+          "model": "suno"
+        },
+        "action": "fadeIn"
+      }
+    },
+    {
+      "name": "sends documented fadeOut endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "fadeOut",
+          "requestBody": {
+            "task_id": "task_public_song",
+            "audio_index": 1,
+            "duration_s": 5
+          },
+          "originTasks": [
+            {
+              "taskId": "task_public_song",
+              "upstreamTaskId": "vendor_task_public_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/fadeOut",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "task_id": "vendor_task_public_song",
+          "audio_index": 1,
+          "duration_s": 5,
+          "model": "suno"
+        },
+        "action": "fadeOut"
+      }
+    },
+    {
+      "name": "sends documented adjustSpeed endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "adjustSpeed",
+          "requestBody": {
+            "task_id": "task_public_song",
+            "audio_index": 1,
+            "speed": 1,
+            "keep_pitch": false
+          },
+          "originTasks": [
+            {
+              "taskId": "task_public_song",
+              "upstreamTaskId": "vendor_task_public_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/adjustSpeed",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "task_id": "vendor_task_public_song",
+          "audio_index": 1,
+          "speed": 1,
+          "keep_pitch": false,
+          "model": "suno"
+        },
+        "action": "adjustSpeed"
+      }
+    },
+    {
+      "name": "sends documented concat endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "concat",
+          "requestBody": {
+            "task_id": "task_public_extend",
+            "audio_index": 1
+          },
+          "originTasks": [
+            {
+              "taskId": "task_public_extend",
+              "upstreamTaskId": "vendor_task_public_extend",
+              "action": "extend",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/concat",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "task_id": "vendor_task_public_extend",
+          "audio_index": 1,
+          "model": "suno"
+        },
+        "action": "concat"
+      }
+    },
+    {
+      "name": "sends documented mashup endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "mashup",
+          "requestBody": {
+            "task_ids": [
+              "task_public_song",
+              "task_public_song_2"
+            ],
+            "audio_indexes": [
+              1,
+              2
+            ],
+            "version": "v5",
+            "custom": false,
+            "gpt_description": "blend the two tracks"
+          },
+          "originTasks": [
+            {
+              "taskId": "task_public_song",
+              "upstreamTaskId": "vendor_task_public_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "taskId": "task_public_song_2",
+              "upstreamTaskId": "vendor_task_public_song_2",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/mashup",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "task_ids": [
+            "vendor_task_public_song",
+            "vendor_task_public_song_2"
+          ],
+          "audio_indexes": [
+            1,
+            2
+          ],
+          "version": "v5",
+          "custom": false,
+          "gpt_description": "blend the two tracks",
+          "model": "suno"
+        },
+        "action": "mashup"
+      }
+    },
+    {
+      "name": "sends documented sample endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "sample",
+          "requestBody": {
+            "task_id": "task_public_song",
+            "audio_index": 1,
+            "version": "v5",
+            "start_s": 0.5,
+            "end_s": 20.25,
+            "custom": true,
+            "tags": "jazz"
+          },
+          "originTasks": [
+            {
+              "taskId": "task_public_song",
+              "upstreamTaskId": "vendor_task_public_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/sample",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "task_id": "vendor_task_public_song",
+          "audio_index": 1,
+          "version": "v5",
+          "start_s": 0.5,
+          "end_s": 20.25,
+          "custom": true,
+          "tags": "jazz",
+          "model": "suno"
+        },
+        "action": "sample"
+      }
+    },
+    {
+      "name": "sends documented midi endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "midi",
+          "requestBody": {
+            "task_id": "task_public_song",
+            "audio_index": 1
+          },
+          "originTasks": [
+            {
+              "taskId": "task_public_song",
+              "upstreamTaskId": "vendor_task_public_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/midi",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "task_id": "vendor_task_public_song",
+          "audio_index": 1,
+          "model": "suno"
+        },
+        "action": "midi"
+      }
+    },
+    {
+      "name": "sends documented alignedLyrics endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "alignedLyrics",
+          "requestBody": {
+            "task_id": "task_public_song",
+            "audio_index": 1
+          },
+          "originTasks": [
+            {
+              "taskId": "task_public_song",
+              "upstreamTaskId": "vendor_task_public_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/alignedLyrics",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "task_id": "vendor_task_public_song",
+          "audio_index": 1,
+          "model": "suno"
+        },
+        "action": "alignedLyrics"
+      }
+    },
+    {
+      "name": "sends documented bpm endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "bpm",
+          "requestBody": {
+            "task_id": "task_public_song",
+            "audio_index": 1
+          },
+          "originTasks": [
+            {
+              "taskId": "task_public_song",
+              "upstreamTaskId": "vendor_task_public_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/bpm",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "task_id": "vendor_task_public_song",
+          "audio_index": 1,
+          "model": "suno"
+        },
+        "action": "bpm"
+      }
+    },
+    {
+      "name": "sends documented generateMp4 endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "generateMp4",
+          "requestBody": {
+            "task_id": "task_public_song",
+            "audio_index": 1
+          },
+          "originTasks": [
+            {
+              "taskId": "task_public_song",
+              "upstreamTaskId": "vendor_task_public_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/generateMp4",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "task_id": "vendor_task_public_song",
+          "audio_index": 1,
+          "model": "suno"
+        },
+        "action": "generateMp4"
+      }
+    },
+    {
+      "name": "sends documented download endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "download",
+          "requestBody": {
+            "task_id": "task_public_song",
+            "audio_index": 1,
+            "formats": [
+              "mp3",
+              "m4a",
+              "wav"
+            ]
+          },
+          "originTasks": [
+            {
+              "taskId": "task_public_song",
+              "upstreamTaskId": "vendor_task_public_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/download",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "task_id": "vendor_task_public_song",
+          "audio_index": 1,
+          "formats": [
+            "mp3",
+            "m4a",
+            "wav"
+          ],
+          "model": "suno"
+        },
+        "action": "download"
+      }
+    },
+    {
+      "name": "accepts documented extend submission",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "extend",
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "suno-am",
+              "task_id": "task_public_song",
+              "audio_index": 2,
+              "continue_at": 120,
+              "version": "v5",
+              "custom": false,
+              "gpt_description": "soft ending"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "suno-am",
+        "action": "extend",
+        "requestBody": {
+          "task_id": "task_public_song",
+          "audio_index": 2,
+          "continue_at": 120,
+          "version": "v5",
+          "custom": false,
+          "gpt_description": "soft ending"
+        },
+        "originTaskIds": [
+          "task_public_song"
+        ]
+      }
+    },
+    {
+      "name": "accepts documented addVocals submission",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "addVocals",
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "suno-am",
+              "task_id": "task_public_upload",
+              "audio_index": 1,
+              "version": "v5",
+              "custom": true,
+              "prompt": "new lyrics"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "suno-am",
+        "action": "addVocals",
+        "requestBody": {
+          "task_id": "task_public_upload",
+          "audio_index": 1,
+          "version": "v5",
+          "custom": true,
+          "prompt": "new lyrics"
+        },
+        "originTaskIds": [
+          "task_public_upload"
+        ]
+      }
+    },
+    {
+      "name": "accepts documented concat submission",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "concat",
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "suno-am",
+              "task_id": "task_public_extend",
+              "audio_index": 1
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "suno-am",
+        "action": "concat",
+        "requestBody": {
+          "task_id": "task_public_extend",
+          "audio_index": 1
+        },
+        "originTaskIds": [
+          "task_public_extend"
+        ]
+      }
+    },
+    {
+      "name": "accepts documented mashup submission",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "mashup",
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "suno-am",
+              "task_ids": [
+                "task_public_song",
+                "task_public_song_2"
+              ],
+              "audio_indexes": [
+                1,
+                2
+              ],
+              "version": "v5",
+              "custom": false,
+              "gpt_description": "blend the two tracks"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "suno-am",
+        "action": "mashup",
+        "requestBody": {
+          "task_ids": [
+            "task_public_song",
+            "task_public_song_2"
+          ],
+          "audio_indexes": [
+            1,
+            2
+          ],
+          "version": "v5",
+          "custom": false,
+          "gpt_description": "blend the two tracks"
+        },
+        "originTaskIds": [
+          "task_public_song",
+          "task_public_song_2"
+        ]
+      }
+    },
+    {
+      "name": "rejects generation without documented version",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "generation",
+          "body": {
+            "kind": "json",
+            "value": {
+              "prompt": "missing version"
+            }
+          }
+        }
+      ],
+      "expectedError": "version"
+    },
+    {
+      "name": "rejects inspirational generation without prompt",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "generation",
+          "body": {
+            "kind": "json",
+            "value": {
+              "version": "v5",
+              "custom": false
+            }
+          }
+        }
+      ],
+      "expectedError": "prompt"
+    },
+    {
+      "name": "preserves explicit false and zero custom controls",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "generation",
+          "body": {
+            "kind": "json",
+            "value": {
+              "version": "v4.5+",
+              "custom": true,
+              "instrumental": false,
+              "prompt": "lyrics",
+              "auto_lyrics": false,
+              "style_weight": 0,
+              "weirdness_constraint": 0,
+              "audio_weight": 0
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "suno-am",
+        "action": "generation",
+        "requestBody": {
+          "version": "v4.5+",
+          "custom": true,
+          "instrumental": false,
+          "prompt": "lyrics",
+          "auto_lyrics": false,
+          "style_weight": 0,
+          "weirdness_constraint": 0,
+          "audio_weight": 0
+        }
+      }
+    },
+    {
+      "name": "rejects sound bpm above documented limit",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "sounds",
+          "body": {
+            "kind": "json",
+            "value": {
+              "prompt": "kick",
+              "bpm": 301,
+              "version": "v5"
+            }
+          }
+        }
+      ],
+      "expectedError": "bpm"
+    },
+    {
+      "name": "rejects source index zero",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "stems",
+          "body": {
+            "kind": "json",
+            "value": {
+              "task_id": "task_public_song",
+              "audio_index": 0
+            }
+          }
+        }
+      ],
+      "expectedError": "audio_index"
+    },
+    {
+      "name": "rejects non-versioned lyrics version",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "lyrics",
+          "body": {
+            "kind": "json",
+            "value": {
+              "prompt": "words",
+              "version": "v5"
+            }
+          }
+        }
+      ],
+      "expectedError": "version"
+    },
+    {
+      "name": "rejects direct upstream source identifier",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apimart.ai",
+          "apiKey": "test-token",
+          "action": "extend",
+          "requestBody": {
+            "task_id": "upstream_private_id",
+            "audio_index": 1,
+            "continue_at": 120,
+            "version": "v5"
+          },
+          "originTasks": []
+        }
+      ],
+      "expectedError": "referenced"
+    },
+    {
+      "name": "rejects mashup without two public sources",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "mashup",
+          "body": {
+            "kind": "json",
+            "value": {
+              "task_ids": [
+                "task_public_song"
+              ],
+              "version": "v5"
+            }
+          }
+        }
+      ],
+      "expectedError": "referenced"
+    },
+    {
+      "name": "rejects upload-only add vocals source without upload task",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apimart.ai",
+          "apiKey": "test-token",
+          "action": "addVocals",
+          "requestBody": {
+            "task_id": "task_public_song",
+            "audio_index": 1,
+            "version": "v5",
+            "custom": true,
+            "prompt": "words"
+          },
+          "originTasks": [
+            {
+              "taskId": "task_public_song",
+              "upstreamTaskId": "task_vendor_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "result": {
+                  "music": [
+                    {}
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expectedError": "uploadTask"
+    },
+    {
+      "name": "replaces a public source with same-channel upstream id",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apimart.ai",
+          "apiKey": "test-token",
+          "action": "extend",
+          "requestBody": {
+            "task_id": "task_public_song",
+            "audio_index": 2,
+            "continue_at": 120,
+            "version": "v5"
+          },
+          "originTasks": [
+            {
+              "taskId": "task_public_song",
+              "upstreamTaskId": "task_vendor_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "result": {
+                  "music": [
+                    {
+                      "audio_id": "private-1"
+                    },
+                    {
+                      "audio_id": "private-2"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apimart.ai/v1/music/generations/extend",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer test-token"
+        },
+        "body": {
+          "task_id": "task_vendor_song",
+          "audio_index": 2,
+          "continue_at": 120,
+          "version": "v5",
+          "model": "suno"
+        },
+        "action": "extend"
+      }
+    },
+    {
+      "name": "replaces both mashup source ids in vendor order",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apimart.ai",
+          "apiKey": "test-token",
+          "action": "mashup",
+          "requestBody": {
+            "task_ids": [
+              "task_public_song",
+              "task_public_song_2"
+            ],
+            "version": "v5",
+            "audio_indexes": [
+              1,
+              2
+            ],
+            "custom": true,
+            "tags": "jazz"
+          },
+          "originTasks": [
+            {
+              "taskId": "task_public_song_2",
+              "upstreamTaskId": "task_vendor_2",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "result": {
+                  "music": [
+                    {
+                      "audio_id": "private-0"
+                    },
+                    {
+                      "audio_id": "private-1"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "taskId": "task_public_song",
+              "upstreamTaskId": "task_vendor_1",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "result": {
+                  "music": [
+                    {
+                      "audio_id": "private-0"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apimart.ai/v1/music/generations/mashup",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer test-token"
+        },
+        "body": {
+          "task_ids": [
+            "task_vendor_1",
+            "task_vendor_2"
+          ],
+          "version": "v5",
+          "model": "suno",
+          "audio_indexes": [
+            1,
+            2
+          ],
+          "custom": true,
+          "tags": "jazz"
+        },
+        "action": "mashup"
+      }
+    },
+    {
+      "name": "queries an encoded private upstream task id",
+      "hook": "buildQueryRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "test-token",
+          "taskId": "task/vendor 1"
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/tasks/task%2Fvendor%201",
+        "method": "GET",
+        "headers": {
+          "Accept": "application/json",
+          "Authorization": "Bearer test-token"
+        }
+      }
+    },
+    {
+      "name": "parses documented submitted envelope",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {},
+        {
+          "body": {
+            "code": 200,
+            "data": [
+              {
+                "status": "submitted",
+                "task_id": "task_vendor_1"
+              }
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "taskId": "task_vendor_1",
+        "taskData": {
+          "code": 200,
+          "data": [
+            {
+              "status": "submitted",
+              "task_id": "task_vendor_1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "rejects submission without vendor task id",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {},
+        {
+          "body": {
+            "code": 200,
+            "data": [
+              {
+                "status": "submitted"
+              }
+            ]
+          }
+        }
+      ],
+      "expectedError": "task_id"
+    },
+    {
+      "name": "parses pending music polling envelope",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "task_id": "task_vendor_1",
+          "status": "pending",
+          "progress": 50,
+          "data": {}
+        }
+      ],
+      "expected": {
+        "status": "SUBMITTED",
+        "progress": "50%",
+        "reason": ""
+      }
+    },
+    {
+      "name": "parses failed music polling envelope",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "task_id": "task_vendor_1",
+          "status": "failed",
+          "progress": 100,
+          "data": {
+            "error": {
+              "message": "generation failed"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "status": "FAILURE",
+        "progress": "100%",
+        "reason": "generation failed"
+      }
+    },
+    {
+      "name": "keeps request billing one per accepted action",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "generation",
+          "requestBody": {
+            "version": "v5",
+            "prompt": "music"
+          }
+        }
+      ],
+      "expected": {
+        "requests": 1,
+        "action": "generation",
+        "version": "v5"
+      }
+    },
+    {
+      "name": "uses none billing tier for a no-version text result",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "lyrics",
+          "requestBody": {
+            "prompt": "words"
+          }
+        }
+      ],
+      "expected": {
+        "requests": 1,
+        "action": "lyrics",
+        "version": "none"
+      }
+    },
+    {
+      "name": "does not accept upstream cost spoofing at completion",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {},
+        {},
+        {
+          "status": "completed",
+          "cost": 999999,
+          "credits_cost": 999999,
+          "data": {
+            "result": {
+              "music": [
+                {},
+                {}
+              ]
+            }
+          }
+        }
+      ],
+      "expected": {
+        "requests": 1
+      }
+    },
+    {
+      "name": "never exposes artifacts before success",
+      "hook": "listArtifacts",
+      "args": [
+        {
+          "status": "FAILURE",
+          "data": {
+            "result": {
+              "audio_url": "https://cdn.apimart.ai/song-1.mp3"
+            }
+          }
+        }
+      ],
+      "expected": []
+    },
+    {
+      "name": "renders public media and metadata without private resource identifiers",
+      "hook": "native",
+      "member": "renderTask",
+      "args": [
+        {},
+        {
+          "task_id": "task_public_1",
+          "status": "SUCCESS",
+          "progress": "100%",
+          "data": {
+            "result": {
+              "music": [
+                {
+                  "audio_id": "vendor_audio",
+                  "persona_id": "vendor_persona",
+                  "audio_url": "https://cdn.apimart.ai/song-1.mp3",
+                  "title": "Safe title"
+                }
+              ],
+              "voice_id": "vendor_voice",
+              "midi_url": "https://cdn.apimart.ai/song.mid"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "task_id": "task_public_1",
+        "status": "completed",
+        "progress": 100,
+        "data": {
+          "result": {
+            "music": [
+              {
+                "audio_url": "https://cdn.apimart.ai/song-1.mp3",
+                "title": "Safe title"
+              }
+            ],
+            "midi_url": "https://cdn.apimart.ai/song.mid"
+          }
+        }
+      }
+    },
+    {
+      "name": "renders failed public task and refund reason",
+      "hook": "native",
+      "member": "renderTask",
+      "args": [
+        {},
+        {
+          "task_id": "task_public_1",
+          "status": "FAILURE",
+          "progress": "100%",
+          "fail_reason": "generation failed",
+          "data": {}
+        }
+      ],
+      "expected": {
+        "task_id": "task_public_1",
+        "status": "failed",
+        "progress": 100,
+        "data": {
+          "error": {
+            "message": "generation failed"
+          }
+        }
+      }
+    },
+    {
+      "name": "resolves an owned completed persona for custom generation",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apimart.ai",
+          "apiKey": "test-token",
+          "action": "generation",
+          "requestBody": {
+            "version": "v5",
+            "custom": true,
+            "prompt": "lyrics",
+            "persona_task_id": "task_public_persona"
+          },
+          "originTasks": [
+            {
+              "taskId": "task_public_persona",
+              "upstreamTaskId": "task_vendor_persona_task",
+              "action": "persona",
+              "status": "SUCCESS",
+              "data": {
+                "result": {
+                  "persona_id": "persona_vendor_private"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apimart.ai/v1/music/generations",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer test-token"
+        },
+        "body": {
+          "version": "v5",
+          "custom": true,
+          "prompt": "lyrics",
+          "persona_id": "persona_vendor_private",
+          "model": "suno"
+        },
+        "action": "generation"
+      }
+    },
+    {
+      "name": "rejects arbitrary vendor persona and vox identifiers",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "generation",
+          "body": {
+            "kind": "json",
+            "value": {
+              "version": "v5",
+              "custom": true,
+              "prompt": "lyrics",
+              "persona_id": "persona_vendor_private",
+              "vox_id": "vox_vendor_private"
+            }
+          }
+        }
+      ],
+      "expectedError": "persona"
+    },
+    {
+      "name": "normalizes mixed-case duplicate download formats",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "download",
+          "body": {
+            "kind": "json",
+            "value": {
+              "task_id": "task_public_song",
+              "formats": [
+                "MP3",
+                "wav",
+                "mp3",
+                "M4A"
+              ]
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "suno-am",
+        "action": "download",
+        "requestBody": {
+          "task_id": "task_public_song",
+          "formats": [
+            "mp3",
+            "wav",
+            "m4a"
+          ]
+        },
+        "originTaskIds": [
+          "task_public_song"
+        ]
+      }
+    },
+    {
+      "name": "rejects download without a format",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "download",
+          "body": {
+            "kind": "json",
+            "value": {
+              "task_id": "task_public_song"
+            }
+          }
+        }
+      ],
+      "expectedError": "formats"
+    },
+    {
+      "name": "rejects unsupported download format",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "download",
+          "body": {
+            "kind": "json",
+            "value": {
+              "task_id": "task_public_song",
+              "format": "flac"
+            }
+          }
+        }
+      ],
+      "expectedError": "formats"
+    },
+    {
+      "name": "ignores inactive generation customization before resolving sources",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "generation",
+          "body": {
+            "kind": "json",
+            "value": {
+              "version": "v5",
+              "prompt": "idea",
+              "title": "unused",
+              "style_weight": 0,
+              "persona_task_id": "unused-source",
+              "vocal_gender": "f"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "suno-am",
+        "action": "generation",
+        "requestBody": {
+          "version": "v5",
+          "prompt": "idea",
+          "vocal_gender": "Female"
+        }
+      }
+    },
+    {
+      "name": "allows custom instrumental generation without lyrics",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "generation",
+          "body": {
+            "kind": "json",
+            "value": {
+              "version": "v5",
+              "custom": true,
+              "instrumental": true
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "suno-am",
+        "action": "generation",
+        "requestBody": {
+          "version": "v5",
+          "custom": true,
+          "instrumental": true
+        }
+      }
+    },
+    {
+      "name": "infers cover custom mode from style without lyrics",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "coverSong",
+          "body": {
+            "kind": "json",
+            "value": {
+              "task_id": "task_public_song",
+              "tags": "jazz"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "suno-am",
+        "action": "coverSong",
+        "requestBody": {
+          "task_id": "task_public_song",
+          "tags": "jazz",
+          "version": "v5.5",
+          "custom": true
+        },
+        "originTaskIds": [
+          "task_public_song"
+        ]
+      }
+    },
+    {
+      "name": "requires an inspiration description on inferred noncustom cover",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "coverSong",
+          "body": {
+            "kind": "json",
+            "value": {
+              "task_id": "task_public_song"
+            }
+          }
+        }
+      ],
+      "expectedError": "gpt_description"
+    },
+    {
+      "name": "preserves zero creative weight through documented alias",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "extend",
+          "body": {
+            "kind": "json",
+            "value": {
+              "task_id": "task_public_song",
+              "continue_at": 0,
+              "custom": true,
+              "weirdness": 0
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "suno-am",
+        "action": "extend",
+        "requestBody": {
+          "task_id": "task_public_song",
+          "continue_at": 0,
+          "custom": true,
+          "version": "v5.5",
+          "weirdness_constraint": 0
+        },
+        "originTaskIds": [
+          "task_public_song"
+        ]
+      }
+    },
+    {
+      "name": "rejects conflicting creative weight aliases",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "extend",
+          "body": {
+            "kind": "json",
+            "value": {
+              "task_id": "task_public_song",
+              "continue_at": 0,
+              "custom": true,
+              "weirdness": 0,
+              "weirdness_constraint": 1
+            }
+          }
+        }
+      ],
+      "expectedError": "weirdness"
+    },
+    {
+      "name": "rejects weight beyond provider range",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "generation",
+          "body": {
+            "kind": "json",
+            "value": {
+              "version": "v5",
+              "prompt": "lyrics",
+              "custom": true,
+              "audio_weight": 1.1
+            }
+          }
+        }
+      ],
+      "expectedError": "audio_weight"
+    },
+    {
+      "name": "rejects reversed crop interval",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "crop",
+          "body": {
+            "kind": "json",
+            "value": {
+              "task_id": "task_public_song",
+              "start_s": 20,
+              "end_s": 10
+            }
+          }
+        }
+      ],
+      "expectedError": "end_s"
+    },
+    {
+      "name": "rejects oversized continuation duration",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "extend",
+          "body": {
+            "kind": "json",
+            "value": {
+              "task_id": "task_public_song",
+              "continue_at": 1e+30
+            }
+          }
+        }
+      ],
+      "expectedError": "continue_at"
+    },
+    {
+      "name": "rejects out-of-range playback speed",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "adjustSpeed",
+          "body": {
+            "kind": "json",
+            "value": {
+              "task_id": "task_public_song",
+              "speed": 4.1
+            }
+          }
+        }
+      ],
+      "expectedError": "speed"
+    },
+    {
+      "name": "rejects nonboolean generation mode",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "generation",
+          "body": {
+            "kind": "json",
+            "value": {
+              "version": "v5",
+              "prompt": "idea",
+              "custom": "false"
+            }
+          }
+        }
+      ],
+      "expectedError": "custom"
+    },
+    {
+      "name": "rejects inspiration URL overflow",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "inspo",
+          "body": {
+            "kind": "json",
+            "value": {
+              "audio_urls": [
+                "https://media.example.com/input.mp3",
+                "https://media.example.com/input.mp3",
+                "https://media.example.com/input.mp3",
+                "https://media.example.com/input.mp3",
+                "https://media.example.com/input.mp3"
+              ]
+            }
+          }
+        }
+      ],
+      "expectedError": "audio_urls"
+    },
+    {
+      "name": "rejects credentialed upload URL",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "uploadTask",
+          "body": {
+            "kind": "json",
+            "value": {
+              "audioFilePath": "https://secret:token@media.example.com/input.mp3"
+            }
+          }
+        }
+      ],
+      "expectedError": "audioFilePath"
+    },
+    {
+      "name": "rejects unsupported sound key spelling",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "sounds",
+          "body": {
+            "kind": "json",
+            "value": {
+              "prompt": "note",
+              "key": "Db"
+            }
+          }
+        }
+      ],
+      "expectedError": "key"
+    },
+    {
+      "name": "rejects unsupported inspo version",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "inspo",
+          "body": {
+            "kind": "json",
+            "value": {
+              "audio_urls": [
+                "https://media.example.com/input.mp3"
+              ],
+              "version": "v3.5"
+            }
+          }
+        }
+      ],
+      "expectedError": "version"
+    },
+    {
+      "name": "rejects unsupported sounds version",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "sounds",
+          "body": {
+            "kind": "json",
+            "value": {
+              "prompt": "sound",
+              "version": "v4"
+            }
+          }
+        }
+      ],
+      "expectedError": "version"
+    },
+    {
+      "name": "rejects unsupported remaster version",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "remaster",
+          "body": {
+            "kind": "json",
+            "value": {
+              "task_id": "task_public_song",
+              "version": "v4.5"
+            }
+          }
+        }
+      ],
+      "expectedError": "version"
+    },
+    {
+      "name": "rejects unsupported addVocals version",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "addVocals",
+          "body": {
+            "kind": "json",
+            "value": {
+              "task_id": "task_public_upload",
+              "custom": true,
+              "prompt": "lyrics",
+              "version": "v4"
+            }
+          }
+        }
+      ],
+      "expectedError": "version"
+    },
+    {
+      "name": "rejects unsupported addStem version",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "addStem",
+          "body": {
+            "kind": "json",
+            "value": {
+              "task_id": "task_public_song",
+              "tags": "jazz",
+              "version": "v5"
+            }
+          }
+        }
+      ],
+      "expectedError": "version"
+    },
+    {
+      "name": "rejects unsupported replaceMusic version",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "action": "replaceMusic",
+          "body": {
+            "kind": "json",
+            "value": {
+              "task_id": "task_public_song",
+              "start_s": 0,
+              "end_s": 10,
+              "version": "v4.5-all"
+            }
+          }
+        }
+      ],
+      "expectedError": "version"
+    },
+    {
+      "name": "rejects unfinished source before upstream submission",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "download",
+          "requestBody": {
+            "task_id": "song",
+            "format": "mp3"
+          },
+          "originTasks": [
+            {
+              "taskId": "song",
+              "upstreamTaskId": "vendor_song",
+              "action": "generation",
+              "status": "IN_PROGRESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expectedError": "completed"
+    },
+    {
+      "name": "rejects actual source track overflow",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "download",
+          "requestBody": {
+            "task_id": "song",
+            "audio_index": 3,
+            "format": "mp3"
+          },
+          "originTasks": [
+            {
+              "taskId": "song",
+              "upstreamTaskId": "vendor_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expectedError": "audio_index"
+    },
+    {
+      "name": "rejects text-only source for audio operations",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "download",
+          "requestBody": {
+            "task_id": "lyrics",
+            "format": "mp3"
+          },
+          "originTasks": [
+            {
+              "taskId": "lyrics",
+              "upstreamTaskId": "vendor_lyrics",
+              "action": "lyrics",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "lyrics": "words"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expectedError": "audio_index"
+    },
+    {
+      "name": "rejects nonextend source for concatenation",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "concat",
+          "requestBody": {
+            "task_id": "song"
+          },
+          "originTasks": [
+            {
+              "taskId": "song",
+              "upstreamTaskId": "vendor_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expectedError": "extend"
+    },
+    {
+      "name": "rejects crop beyond source duration",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "crop",
+          "requestBody": {
+            "task_id": "song",
+            "start_s": 0,
+            "end_s": 181
+          },
+          "originTasks": [
+            {
+              "taskId": "song",
+              "upstreamTaskId": "vendor_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expectedError": "end_s"
+    },
+    {
+      "name": "uses both songs from a deduplicated same-task mashup source",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "mashup",
+          "requestBody": {
+            "task_ids": [
+              "song",
+              "song"
+            ],
+            "audio_indexes": [
+              2,
+              1
+            ],
+            "tags": "jazz"
+          },
+          "originTasks": [
+            {
+              "taskId": "song",
+              "upstreamTaskId": "vendor_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/mashup",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "task_ids": [
+            "vendor_song",
+            "vendor_song"
+          ],
+          "audio_indexes": [
+            2,
+            1
+          ],
+          "tags": "jazz",
+          "custom": true,
+          "version": "v5.5",
+          "model": "suno"
+        },
+        "action": "mashup"
+      }
+    },
+    {
+      "name": "resolves Vox resource and original vocal interval for Persona",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "persona",
+          "requestBody": {
+            "task_id": "song",
+            "name": "Voice",
+            "vox_task_id": "vox"
+          },
+          "originTasks": [
+            {
+              "taskId": "song",
+              "upstreamTaskId": "vendor_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "taskId": "vox",
+              "upstreamTaskId": "vendor_vox",
+              "action": "vox",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "vox_audio_id": "private-vox",
+                    "vocal_start_s": 10,
+                    "vocal_end_s": 40
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/persona",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "task_id": "vendor_song",
+          "name": "Voice",
+          "vox_audio_id": "private-vox",
+          "vocal_start_s": 10,
+          "vocal_end_s": 40,
+          "model": "suno"
+        },
+        "action": "persona"
+      }
+    },
+    {
+      "name": "rejects conflicting referenced Vox interval",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "persona",
+          "requestBody": {
+            "task_id": "song",
+            "name": "Voice",
+            "vox_task_id": "vox",
+            "vocal_start_s": 0
+          },
+          "originTasks": [
+            {
+              "taskId": "song",
+              "upstreamTaskId": "vendor_song",
+              "action": "generation",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "music": [
+                      {
+                        "audio_id": "private-audio-1",
+                        "duration": 180
+                      },
+                      {
+                        "audio_id": "private-audio-2",
+                        "duration": 180
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "taskId": "vox",
+              "upstreamTaskId": "vendor_vox",
+              "action": "vox",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "vox_audio_id": "private-vox",
+                    "vocal_start_s": 10,
+                    "vocal_end_s": 40
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expectedError": "vocal_start_s"
+    },
+    {
+      "name": "rejects nonpersona resource for generation",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "generation",
+          "requestBody": {
+            "version": "v5",
+            "custom": true,
+            "prompt": "words",
+            "persona_task_id": "voice"
+          },
+          "originTasks": [
+            {
+              "taskId": "voice",
+              "upstreamTaskId": "vendor_voice",
+              "action": "createVoice",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "data": {
+                  "result": {
+                    "voice_id": "private"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expectedError": "persona"
+    },
+    {
+      "name": "does not finalize tasks on a transient query HTTP failure",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "code": 200,
+          "data": {
+            "status": "completed"
+          }
+        },
+        {
+          "statusCode": 503
+        }
+      ],
+      "expectedError": "HTTP"
+    },
+    {
+      "name": "does not finalize tasks on an upstream query error envelope",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "code": 503,
+          "data": {
+            "status": "failed"
+          }
+        }
+      ],
+      "expectedError": "query"
+    },
+    {
+      "name": "parses nested completed download envelope",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "code": 200,
+          "data": {
+            "status": "completed",
+            "result": {
+              "files": [
+                {
+                  "format": "mp3",
+                  "url": "https://media.example.com/song.mp3"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "expected": {
+        "status": "SUCCESS",
+        "progress": "100%",
+        "reason": ""
+      }
+    },
+    {
+      "name": "parses nested processing download envelope",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "code": 200,
+          "data": {
+            "status": "processing",
+            "progress": 50
+          }
+        }
+      ],
+      "expected": {
+        "status": "IN_PROGRESS",
+        "progress": "50%",
+        "reason": ""
+      }
+    },
+    {
+      "name": "keeps unknown task status nonterminal",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "status": "unexpected",
+          "data": {}
+        }
+      ],
+      "expected": {
+        "status": "UNKNOWN",
+        "reason": "unrecognized Suno task status"
+      }
+    },
+    {
+      "name": "never overlays billing from failed or missing completion",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {},
+        {},
+        {
+          "status": "failed",
+          "data": {
+            "error": {
+              "message": "failed"
+            }
+          }
+        }
+      ],
+      "expected": null
+    },
+    {
+      "name": "charges one download request regardless of selected format count",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "download",
+          "requestBody": {
+            "task_id": "song",
+            "formats": [
+              "mp3",
+              "wav",
+              "m4a"
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "requests": 1,
+        "action": "download",
+        "version": "none"
+      }
+    },
+    {
+      "name": "publishes only the public submission task ID",
+      "hook": "native",
+      "member": "renderSubmitted",
+      "args": [
+        {},
+        {
+          "task_id": "task_public",
+          "data": {
+            "task_id": "vendor_private"
+          }
+        }
+      ],
+      "expected": {
+        "code": 200,
+        "data": [
+          {
+            "status": "submitted",
+            "task_id": "task_public"
+          }
+        ]
+      }
+    },
+    {
+      "name": "retains text analysis and nested metadata while stripping resource identifiers",
+      "hook": "native",
+      "member": "renderTask",
+      "args": [
+        {},
+        {
+          "task_id": "task_public",
+          "status": "SUCCESS",
+          "data": {
+            "result": {
+              "upsampled_tags": "jazzy",
+              "bpm": 120,
+              "lyrics": [
+                {
+                  "text": "hello",
+                  "start": 0,
+                  "end": 1,
+                  "audio_id": "private"
+                }
+              ],
+              "persona": {
+                "id": "private-persona",
+                "name": "Style"
+              },
+              "cost": 99
+            }
+          }
+        }
+      ],
+      "expected": {
+        "task_id": "task_public",
+        "status": "completed",
+        "progress": 100,
+        "data": {
+          "result": {
+            "upsampled_tags": "jazzy",
+            "bpm": 120,
+            "lyrics": [
+              {
+                "text": "hello",
+                "start": 0,
+                "end": 1
+              }
+            ],
+            "persona": {
+              "name": "Style"
+            }
+          }
+        }
+      }
+    }
+  ]
+}
