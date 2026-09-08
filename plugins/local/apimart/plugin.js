@@ -1,5 +1,19 @@
 // APIMart image-task integration. Keep this outside plugins/tasks: it is a
 // local, uploadable extension rather than an embedded upstream plugin.
+const nanoBananaModels = new Map([
+  ["nano-banana-am", { upstream: "gemini-2.5-flash-image-preview-official", resolutions: ["1k"], maxImages: 1, credits: { "1k": 0.312 } }],
+  ["nano-banana-2-am", { upstream: "gemini-3.1-flash-image-preview-official", resolutions: ["0.5k", "1k", "2k", "4k"], maxImages: 1, credits: { "0.5k": 0.536, "1k": 0.536, "2k": 0.808, "4k": 1.208 } }],
+  ["nano-banana-pro-am", { upstream: "gemini-3-pro-image-preview-official", resolutions: ["1k", "2k", "4k"], maxImages: 1, credits: { "1k": 1.072, "2k": 1.072, "4k": 1.92 } }],
+  ["nano-banana-2-lite-am", { upstream: "gemini-3.1-flash-lite-image", resolutions: ["1k"], maxImages: 4, credits: { "1k": 0.32 } }],
+  ["nano-banana-ext-am", { upstream: "gemini-2.5-flash-image-preview", resolutions: ["1k"], maxImages: 1 }],
+  ["nano-banana-2-ext-am", { upstream: "gemini-3.1-flash-image-preview", resolutions: ["0.5k", "1k", "2k", "4k"], maxImages: 1 }],
+  ["nano-banana-pro-ext-am", { upstream: "gemini-3-pro-image-preview", resolutions: ["1k", "2k", "4k"], maxImages: 1 }],
+  ["nano-banana-2-lite-ext-am", { upstream: "gemini-3.1-flash-lite-image-ext", resolutions: ["1k"], maxImages: 4 }],
+]);
+const nanoBananaRatios = new Set(["auto", "1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"]);
+const nanoBanana2Ratios = new Set([...nanoBananaRatios, "1:4", "4:1", "1:8", "8:1"]);
+const nanoBananaFields = new Set(["model", "prompt", "size", "resolution", "n", "image_urls", "nsfw_check", "official_fallback", "google_search", "google_image_search"]);
+
 export const meta = {
   apiVersion: 1,
   key: "apimart",
@@ -9,10 +23,38 @@ export const meta = {
     en: "APIMart asynchronous image generation tasks",
     zh: "APIMart 异步图片生成任务",
   },
-  version: "0.8.13",
+  version: "0.8.15",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   usageSchemaByModel: {
+    "nano-banana-am": {
+      upstream_credits: { type: "number", unit: "credit", description: { en: "Estimated credits at submission, replaced by validated actual task deduction at completion.", zh: "提交时预扣估算积分，完成后按已校验的任务实际扣费多退少补。" } },
+    },
+    "nano-banana-2-am": {
+      upstream_credits: { type: "number", unit: "credit", description: { en: "Estimated credits at submission, replaced by validated actual task deduction at completion.", zh: "提交时预扣估算积分，完成后按已校验的任务实际扣费多退少补。" } },
+    },
+    "nano-banana-pro-am": {
+      upstream_credits: { type: "number", unit: "credit", description: { en: "Estimated credits at submission, replaced by validated actual task deduction at completion.", zh: "提交时预扣估算积分，完成后按已校验的任务实际扣费多退少补。" } },
+    },
+    "nano-banana-2-lite-am": {
+      upstream_credits: { type: "number", unit: "credit", description: { en: "Estimated credits at submission, replaced by validated actual task deduction at completion.", zh: "提交时预扣估算积分，完成后按已校验的任务实际扣费多退少补。" } },
+    },
+    "nano-banana-ext-am": {
+      images: { type: "number", unit: "count", description: { en: "Requested images, replaced by successful output count at completion.", zh: "提交时请求张数，完成后按实际成功张数结算。" } },
+      resolution: { enum: ["1k"], description: { en: "Validated output resolution tier.", zh: "已校验的输出分辨率档位。" } },
+    },
+    "nano-banana-2-ext-am": {
+      images: { type: "number", unit: "count", description: { en: "Requested images, replaced by successful output count at completion.", zh: "提交时请求张数，完成后按实际成功张数结算。" } },
+      resolution: { enum: ["0.5k", "1k", "2k", "4k"], description: { en: "Validated output resolution tier.", zh: "已校验的输出分辨率档位。" } },
+    },
+    "nano-banana-pro-ext-am": {
+      images: { type: "number", unit: "count", description: { en: "Requested images, replaced by successful output count at completion.", zh: "提交时请求张数，完成后按实际成功张数结算。" } },
+      resolution: { enum: ["1k", "2k", "4k"], description: { en: "Validated output resolution tier.", zh: "已校验的输出分辨率档位。" } },
+    },
+    "nano-banana-2-lite-ext-am": {
+      images: { type: "number", unit: "count", description: { en: "Requested images, replaced by successful output count at completion.", zh: "提交时请求张数，完成后按实际成功张数结算。" } },
+      resolution: { enum: ["1k"], description: { en: "Lite always outputs and bills at 1K.", zh: "Lite 始终按 1K 输出和计费。" } },
+    },
     "gpt-image-2-am": {
       images: { type: "number", unit: "count", description: { en: "Number of successfully generated images.", zh: "成功生成图片的数量。" } },
       resolution: { enum: ["default", "1k", "2k", "4k"], description: { en: "Requested output resolution tier.", zh: "请求的输出分辨率档位。" } },
@@ -39,6 +81,32 @@ export const meta = {
     },
   },
   usageExamplesByModel: {
+    "nano-banana-am": [{ label: "1K · 1 image (estimate)", facts: { upstream_credits: 0.312 } }],
+    "nano-banana-2-am": [
+      { label: "0.5K · 1 image (estimate)", facts: { upstream_credits: 0.536 } },
+      { label: "1K · 1 image (estimate)", facts: { upstream_credits: 0.536 } },
+      { label: "2K · 1 image (estimate)", facts: { upstream_credits: 0.808 } },
+      { label: "4K · 1 image (estimate)", facts: { upstream_credits: 1.208 } },
+    ],
+    "nano-banana-pro-am": [
+      { label: "1K · 1 image (estimate)", facts: { upstream_credits: 1.072 } },
+      { label: "2K · 1 image (estimate)", facts: { upstream_credits: 1.072 } },
+      { label: "4K · 1 image (estimate)", facts: { upstream_credits: 1.92 } },
+    ],
+    "nano-banana-2-lite-am": [{ label: "1K · 1 image (estimate)", facts: { upstream_credits: 0.32 } }, { label: "1K · 4 images (estimate)", facts: { upstream_credits: 1.28 } }],
+    "nano-banana-ext-am": [{ label: "1K · 1 image", facts: { images: 1, resolution: "1k" } }],
+    "nano-banana-2-ext-am": [
+      { label: "0.5K · 1 image", facts: { images: 1, resolution: "0.5k" } },
+      { label: "1K · 1 image", facts: { images: 1, resolution: "1k" } },
+      { label: "2K · 1 image", facts: { images: 1, resolution: "2k" } },
+      { label: "4K · 1 image", facts: { images: 1, resolution: "4k" } },
+    ],
+    "nano-banana-pro-ext-am": [
+      { label: "1K · 1 image", facts: { images: 1, resolution: "1k" } },
+      { label: "2K · 1 image", facts: { images: 1, resolution: "2k" } },
+      { label: "4K · 1 image", facts: { images: 1, resolution: "4k" } },
+    ],
+    "nano-banana-2-lite-ext-am": [{ label: "1K · 1 image", facts: { images: 1, resolution: "1k" } }, { label: "1K · 4 images", facts: { images: 4, resolution: "1k" } }],
     "seedream-5-0-lite-am": [{ label: "2K · 1 image", facts: { images: 1, resolution: "2k", input_images: 0 } }],
     "seedream-5-0-pro-am": [{ label: "Standard · 1K", facts: { resolution: "1k", standard_images: 1, layer_images: 0, reference_images: 0 } }, { label: "Standard · 1.5K", facts: { resolution: "1.5k", standard_images: 1, layer_images: 0, reference_images: 0 } }, { label: "Standard · 2K", facts: { resolution: "2k", standard_images: 1, layer_images: 0, reference_images: 0 } }, { label: "Layer · 1K", facts: { resolution: "1k", standard_images: 0, layer_images: 17, reference_images: 1 } }, { label: "Layer · 1.5K", facts: { resolution: "1.5k", standard_images: 0, layer_images: 17, reference_images: 1 } }, { label: "Layer · 2K", facts: { resolution: "2k", standard_images: 0, layer_images: 17, reference_images: 1 } }],
     "z-image-turbo-am": [{ label: "1K · 1 image", facts: { images: 1, resolution: "1k", prompt_extend: false } }],
@@ -49,6 +117,14 @@ export const meta = {
   // Keep only explicit APIMart aliases here. Standard model names must remain
   // available to ordinary channels without being classified as task models.
   models: [
+    "nano-banana-am",
+    "nano-banana-2-am",
+    "nano-banana-pro-am",
+    "nano-banana-2-lite-am",
+    "nano-banana-ext-am",
+    "nano-banana-2-ext-am",
+    "nano-banana-pro-ext-am",
+    "nano-banana-2-lite-ext-am",
     "gpt-image-2-am",
     "gpt-image-2-official-am",
     "seedream-5-0-lite-am",
@@ -157,6 +233,39 @@ function normalizedProSize(value) {
 }
 
 function normalizeAPIMartModelRequest(model, request) {
+  const banana = nanoBananaModels.get(model);
+  if (banana) {
+    for (const key of Object.keys(request)) {
+      if (!nanoBananaFields.has(key) || (banana.credits && key === "official_fallback")) throw new Error("unsupported field for " + model + ": " + key);
+    }
+    const prompt = trimmed(request.prompt);
+    if (!prompt) throw new Error("prompt is required");
+    if ((model === "nano-banana-ext-am" || model === "nano-banana-am") && Array.from(prompt).length > 1000) throw new Error("prompt must not exceed 1000 characters");
+    const count = request.n === undefined ? 1 : request.n;
+    if (!Number.isInteger(count) || count < 1 || count > banana.maxImages) {
+      throw new Error(banana.maxImages === 1 ? "n must be 1" : "n must be an integer between 1 and 4");
+    }
+    const resolution = request.resolution === undefined ? "1k" : trimmed(request.resolution).toLowerCase();
+    const acceptedResolutions = banana.maxImages === 4 ? ["0.5k", "1k", "2k", "4k"] : banana.resolutions;
+    if (!acceptedResolutions.includes(resolution)) throw new Error("unsupported Nano Banana resolution");
+    const output = {
+      model: model,
+      prompt: prompt,
+      n: count,
+      size: request.size === undefined ? "1:1" : normalizedRatio(request.size, model === "nano-banana-2-ext-am" || model === "nano-banana-2-am" ? nanoBanana2Ratios : nanoBananaRatios, "unsupported Nano Banana ratio"),
+      resolution: banana.maxImages === 4 ? "1k" : resolution,
+    };
+    const images = imageURLs(request.image_urls, 14);
+    if (images) output.image_urls = images;
+    // Keep optional moderation/search disabled; official fallback must never
+    // change the selected model's billing contract.
+    for (const key of ["nsfw_check", "official_fallback", "google_search", "google_image_search"]) {
+      if (request[key] === undefined) continue;
+      if (boolean(request[key], key)) throw new Error(key + (banana.credits ? " must be false for Nano Banana credit billing" : " must be false for per-image Nano Banana billing"));
+      output[key] = false;
+    }
+    return output;
+  }
   if (!["seedream-5-0-lite-am", "seedream-5-0-pro-am", "z-image-turbo-am"].includes(model)) return request;
   const allowed = model === "seedream-5-0-lite-am"
     ? new Set(["model", "prompt", "size", "resolution", "n", "image_urls", "output_format", "watermark"])
@@ -238,6 +347,11 @@ function proUsage(resolution, standardImages, layerImages, referenceImages) {
 }
 
 function apimartUsage(request, model) {
+  const banana = nanoBananaModels.get(model);
+  if (banana) {
+    if (banana.credits) return { upstream_credits: banana.credits[request.resolution] * request.n };
+    return { images: request.n, resolution: request.resolution };
+  }
   if (model === "seedream-5-0-lite-am") return { images: request.n, resolution: request.resolution, input_images: inputImageCount(request) };
   if (model === "seedream-5-0-pro-am") {
     if (request.layer_decomposition === true) {
@@ -299,6 +413,50 @@ function proCompletedUsage(ctx, body) {
   return proUsage(submission.resolution, 0, urls.size, submission.reference_images);
 }
 
+function nanoBananaCompletedUsage(ctx, model, body) {
+  const config = nanoBananaModels.get(model);
+  const data = proCompletionData(body);
+  const status = trimmed(data.status).toLowerCase();
+  if (config.credits) {
+    if (body && body.code !== undefined && body.code !== 200) return null;
+    if (["failed", "failure", "cancelled", "canceled"].includes(status)) return { upstream_credits: 0 };
+    if (!["completed", "success"].includes(status)) return null;
+    // The user-selected contract is actual task cost, not reconstructed tokens.
+    // Reuse the existing APIMart official-credit safety ceiling (64 credits).
+    // Missing/malformed values must not coerce to zero or refund the reservation.
+    if (data.credits_cost !== undefined) {
+      const credits = data.credits_cost;
+      if (typeof credits !== "number" || !Number.isFinite(credits) || credits < 0 || credits > 64) return null;
+      return { upstream_credits: credits };
+    }
+    const cost = data.cost;
+    if (typeof cost !== "number" || !Number.isFinite(cost) || cost < 0 || cost > 6.4) return null;
+    return { upstream_credits: cost * 10 };
+  }
+  let submission = ctx.state && ctx.state.billing_usage;
+  if (!submission || !Number.isInteger(submission.images) || submission.images < 1 || submission.images > config.maxImages || !config.resolutions.includes(submission.resolution)) {
+    submission = ctx.requestBody ? apimartUsage(normalizeAPIMartModelRequest(model, ctx.requestBody), model) : null;
+  }
+  if (!submission) return null;
+  if (["failed", "failure", "cancelled", "canceled"].includes(status)) return { images: 0, resolution: submission.resolution };
+  if (!["completed", "success"].includes(status)) return null;
+  const images = data.result && data.result.images;
+  if (!Array.isArray(images)) return null;
+  const urls = new Set();
+  for (const image of images) {
+    if (!image || typeof image !== "object" || Array.isArray(image)) return null;
+    const values = Array.isArray(image.url) ? image.url : typeof image.url === "string" ? [image.url] : null;
+    if (!values || values.length === 0) return null;
+    for (const value of values) {
+      const url = trimmed(value);
+      if (!/^https?:\/\/[^/\s]+(?:[/?#][^\s]*)?$/i.test(url)) return null;
+      urls.add(url);
+      if (urls.size > submission.images) return null;
+    }
+  }
+  return { images: urls.size, resolution: submission.resolution };
+}
+
 function imageTaskData(task) {
   const snapshot = task && task.data;
   if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return {};
@@ -348,7 +506,12 @@ function artifactKey(index, url) {
 export function buildSubmitRequest(ctx) {
   const request = object(ctx.requestBody, "image generation request is required");
   const publicModel = trimmed(ctx.model || request.model);
-  const model = trimmed(ctx.upstreamModel || publicModel);
+  const banana = nanoBananaModels.get(publicModel);
+  const upstreamModel = trimmed(ctx.upstreamModel);
+  const model = banana && (!upstreamModel || upstreamModel === publicModel) ? banana.upstream : upstreamModel || publicModel;
+  if (banana && ![banana.upstream, publicModel.slice(0, -3)].includes(model)) {
+    throw new Error("upstream model must match the Nano Banana " + (banana.credits ? "credit" : "ext") + " alias");
+  }
   if (!isDeclaredModel(publicModel)) throw new Error("unsupported APIMart image model");
   const body = Object.assign({}, normalizeAPIMartModelRequest(publicModel, request), { model: model });
   return {
@@ -373,7 +536,7 @@ export function parseSubmitResponse(ctx, response) {
   if (!taskId) throw new Error("APIMart submit response is missing task_id");
   const request = ctx && ctx.requestBody && typeof ctx.requestBody === "object" ? ctx.requestBody : {};
   const publicModel = trimmed(ctx && ctx.model || request.model);
-  const normalized = publicModel === "seedream-5-0-pro-am" ? normalizeAPIMartModelRequest(publicModel, request) : null;
+  const normalized = publicModel === "seedream-5-0-pro-am" || nanoBananaModels.has(publicModel) ? normalizeAPIMartModelRequest(publicModel, request) : null;
   const billingUsage = normalized ? apimartUsage(normalized, publicModel) : null;
   return billingUsage
     ? { taskId: taskId, taskData: body, state: { billing_usage: billingUsage } }
@@ -402,6 +565,7 @@ export function extractUsage(ctx) {
 export function extractUsageOnComplete(ctx, _taskResult, body) {
   const publicModel = trimmed(ctx.model || (ctx.requestBody || {}).model);
   if (publicModel === "seedream-5-0-pro-am") return proCompletedUsage(ctx, body);
+  if (nanoBananaModels.has(publicModel)) return nanoBananaCompletedUsage(ctx, publicModel, body);
   if (!isOfficialGPTImage2(ctx.upstreamModel || ctx.model)) return null;
   const data = body && body.data;
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
@@ -476,7 +640,7 @@ export const native = {
     const request = object(ctx.body.value, "request body must be an object");
     const model = trimmed(request.model);
     if (!isDeclaredModel(model)) throw new Error("unsupported APIMart image model");
-    if (["seedream-5-0-lite-am", "seedream-5-0-pro-am", "z-image-turbo-am"].includes(model)) {
+    if (nanoBananaModels.has(model) || ["seedream-5-0-lite-am", "seedream-5-0-pro-am", "z-image-turbo-am"].includes(model)) {
       const normalized = normalizeAPIMartModelRequest(model, request);
       return { kind: "submit", model: model, action: "image_generation", requestBody: normalized };
     }

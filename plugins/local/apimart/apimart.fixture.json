@@ -434,6 +434,732 @@
       "member": "decodeImageGeneration",
       "args": [{"body": {"kind": "json", "value": {"model": "z-image-turbo-am", "prompt": "cat", "nsfw_check": true}}}],
       "expectedError": "unsupported field for z-image-turbo-am: nsfw_check"
+    },
+    {
+      "name": "defaults and trims Nano Banana ext native requests",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-ext-am", "prompt": "  cat  "}}}],
+      "expected": {"kind": "submit", "model": "nano-banana-ext-am", "action": "image_generation", "requestBody": {"model": "nano-banana-ext-am", "prompt": "cat", "n": 1, "size": "1:1", "resolution": "1k"}}
+    },
+    {
+      "name": "normalizes Nano Banana 2 half-K extreme-ratio requests",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-2-ext-am", "prompt": "  banner  ", "resolution": "0.5K", "size": "8:1", "image_urls": ["https://example.test/ref.png"]}}}],
+      "expected": {"kind": "submit", "model": "nano-banana-2-ext-am", "action": "image_generation", "requestBody": {"model": "nano-banana-2-ext-am", "prompt": "banner", "n": 1, "size": "8:1", "resolution": "0.5k", "image_urls": ["https://example.test/ref.png"]}}
+    },
+    {
+      "name": "normalizes Nano Banana Pro 4K and preserves disabled options",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-pro-ext-am", "prompt": "cat", "resolution": "4K", "size": "auto", "nsfw_check": false, "official_fallback": false, "google_search": false, "google_image_search": false}}}],
+      "expected": {"kind": "submit", "model": "nano-banana-pro-ext-am", "action": "image_generation", "requestBody": {"model": "nano-banana-pro-ext-am", "prompt": "cat", "n": 1, "size": "auto", "resolution": "4k", "nsfw_check": false, "official_fallback": false, "google_search": false, "google_image_search": false}}
+    },
+    {
+      "name": "normalizes Nano Banana Lite four requested 4K outputs to 1K",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-2-lite-ext-am", "prompt": "cat", "resolution": "4K", "n": 4}}}],
+      "expected": {"kind": "submit", "model": "nano-banana-2-lite-ext-am", "action": "image_generation", "requestBody": {"model": "nano-banana-2-lite-ext-am", "prompt": "cat", "n": 4, "size": "1:1", "resolution": "1k"}}
+    },
+    {
+      "name": "uses the canonical base Nano model without a channel mapping",
+      "hook": "buildSubmitRequest",
+      "args": [{"baseUrl": "https://api.apib.ai", "apiKey": "test-token", "model": "nano-banana-ext-am", "requestBody": {"model": "nano-banana-ext-am", "prompt": "cat"}}],
+      "expected": {"url": "https://api.apib.ai/v1/images/generations", "method": "POST", "headers": {"Accept": "application/json", "Content-Type": "application/json", "Authorization": "Bearer test-token"}, "body": {"model": "gemini-2.5-flash-image-preview", "prompt": "cat", "n": 1, "size": "1:1", "resolution": "1k"}, "action": "image_generation"}
+    },
+    {
+      "name": "accepts the matching Nano Banana 2 vendor ext mapping",
+      "hook": "buildSubmitRequest",
+      "args": [{"baseUrl": "https://api.apib.ai", "apiKey": "test-token", "model": "nano-banana-2-ext-am", "upstreamModel": "nano-banana-2-ext", "requestBody": {"model": "nano-banana-2-ext-am", "prompt": "banner", "size": "1:8", "resolution": "2K"}}],
+      "expected": {"url": "https://api.apib.ai/v1/images/generations", "method": "POST", "headers": {"Accept": "application/json", "Content-Type": "application/json", "Authorization": "Bearer test-token"}, "body": {"model": "nano-banana-2-ext", "prompt": "banner", "n": 1, "size": "1:8", "resolution": "2k"}, "action": "image_generation"}
+    },
+    {
+      "name": "accepts the matching Nano Banana Pro canonical mapping",
+      "hook": "buildSubmitRequest",
+      "args": [{"baseUrl": "https://api.apib.ai", "apiKey": "test-token", "model": "nano-banana-pro-ext-am", "upstreamModel": "gemini-3-pro-image-preview", "requestBody": {"model": "nano-banana-pro-ext-am", "prompt": "cat", "resolution": "4K"}}],
+      "expected": {"url": "https://api.apib.ai/v1/images/generations", "method": "POST", "headers": {"Accept": "application/json", "Content-Type": "application/json", "Authorization": "Bearer test-token"}, "body": {"model": "gemini-3-pro-image-preview", "prompt": "cat", "n": 1, "size": "1:1", "resolution": "4k"}, "action": "image_generation"}
+    },
+    {
+      "name": "submits Nano Banana Lite on its ext canonical model at 1K",
+      "hook": "buildSubmitRequest",
+      "args": [{"baseUrl": "https://api.apib.ai", "apiKey": "test-token", "model": "nano-banana-2-lite-ext-am", "requestBody": {"model": "nano-banana-2-lite-ext-am", "prompt": "cat", "n": 4, "resolution": "4K"}}],
+      "expected": {"url": "https://api.apib.ai/v1/images/generations", "method": "POST", "headers": {"Accept": "application/json", "Content-Type": "application/json", "Authorization": "Bearer test-token"}, "body": {"model": "gemini-3.1-flash-lite-image-ext", "prompt": "cat", "n": 4, "size": "1:1", "resolution": "1k"}, "action": "image_generation"}
+    },
+    {
+      "name": "rejects official token mapping on a Nano Banana per-image alias",
+      "hook": "buildSubmitRequest",
+      "args": [{"model": "nano-banana-2-ext-am", "upstreamModel": "gemini-3.1-flash-image-preview-official", "requestBody": {"model": "nano-banana-2-ext-am", "prompt": "cat"}}],
+      "expectedError": "upstream model must match the Nano Banana ext alias"
+    },
+    {
+      "name": "rejects cross-model Nano Banana ext mapping",
+      "hook": "buildSubmitRequest",
+      "args": [{"model": "nano-banana-ext-am", "upstreamModel": "nano-banana-pro-ext", "requestBody": {"model": "nano-banana-ext-am", "prompt": "cat"}}],
+      "expectedError": "upstream model must match the Nano Banana ext alias"
+    },
+    {
+      "name": "rejects the non-ext Lite token mapping",
+      "hook": "buildSubmitRequest",
+      "args": [{"model": "nano-banana-2-lite-ext-am", "upstreamModel": "gemini-3.1-flash-lite-image", "requestBody": {"model": "nano-banana-2-lite-ext-am", "prompt": "cat"}}],
+      "expectedError": "upstream model must match the Nano Banana ext alias"
+    },
+    {
+      "name": "extracts only base Nano Banana per-image billing facts",
+      "hook": "extractUsage",
+      "args": [{"requestBody": {"model": "nano-banana-ext-am", "prompt": "cat", "image_urls": ["https://example.test/ref.png"]}}],
+      "expected": {"images": 1, "resolution": "1k"}
+    },
+    {
+      "name": "extracts the Nano Banana 2 half-K billing tier",
+      "hook": "extractUsage",
+      "args": [{"requestBody": {"model": "nano-banana-2-ext-am", "prompt": "cat", "resolution": "0.5K"}}],
+      "expected": {"images": 1, "resolution": "0.5k"}
+    },
+    {
+      "name": "extracts the Nano Banana Pro 4K billing tier",
+      "hook": "extractUsage",
+      "args": [{"requestBody": {"model": "nano-banana-pro-ext-am", "prompt": "cat", "resolution": "4K"}}],
+      "expected": {"images": 1, "resolution": "4k"}
+    },
+    {
+      "name": "bills four Nano Banana Lite outputs only at normalized 1K",
+      "hook": "extractUsage",
+      "args": [{"requestBody": {"model": "nano-banana-2-lite-ext-am", "prompt": "cat", "n": 4, "resolution": "4K"}}],
+      "expected": {"images": 4, "resolution": "1k"}
+    },
+    {
+      "name": "rejects zero Nano Banana image counts",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-ext-am", "prompt": "cat", "n": 0}}}],
+      "expectedError": "n must be 1"
+    },
+    {
+      "name": "rejects negative Nano Banana Lite image counts",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-2-lite-ext-am", "prompt": "cat", "n": -1}}}],
+      "expectedError": "n must be an integer between 1 and 4"
+    },
+    {
+      "name": "rejects string Nano Banana 2 image counts",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-2-ext-am", "prompt": "cat", "n": "1"}}}],
+      "expectedError": "n must be 1"
+    },
+    {
+      "name": "rejects multiple Nano Banana Pro images",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-pro-ext-am", "prompt": "cat", "n": 2}}}],
+      "expectedError": "n must be 1"
+    },
+    {
+      "name": "rejects five Nano Banana Lite outputs before billing",
+      "hook": "extractUsage",
+      "args": [{"requestBody": {"model": "nano-banana-2-lite-ext-am", "prompt": "cat", "n": 5}}],
+      "expectedError": "n must be an integer between 1 and 4"
+    },
+    {
+      "name": "rejects fractional Nano Banana Lite image counts",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-2-lite-ext-am", "prompt": "cat", "n": 1.5}}}],
+      "expectedError": "n must be an integer between 1 and 4"
+    },
+    {
+      "name": "rejects fifteen Nano Banana reference images",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-2-ext-am", "prompt": "cat", "image_urls": ["https://example.test/1.png", "https://example.test/2.png", "https://example.test/3.png", "https://example.test/4.png", "https://example.test/5.png", "https://example.test/6.png", "https://example.test/7.png", "https://example.test/8.png", "https://example.test/9.png", "https://example.test/10.png", "https://example.test/11.png", "https://example.test/12.png", "https://example.test/13.png", "https://example.test/14.png", "https://example.test/15.png"]}}}],
+      "expectedError": "image_urls must contain at most 14 non-empty URLs"
+    },
+    {
+      "name": "rejects base Nano Banana higher resolution",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-ext-am", "prompt": "cat", "resolution": "2K"}}}],
+      "expectedError": "unsupported Nano Banana resolution"
+    },
+    {
+      "name": "rejects half-K Nano Banana Pro resolution",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-pro-ext-am", "prompt": "cat", "resolution": "0.5K"}}}],
+      "expectedError": "unsupported Nano Banana resolution"
+    },
+    {
+      "name": "rejects unsupported Nano Banana Lite resolution instead of downgrading it",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-2-lite-ext-am", "prompt": "cat", "resolution": "8K"}}}],
+      "expectedError": "unsupported Nano Banana resolution"
+    },
+    {
+      "name": "rejects Nano Banana 2 extreme ratios on Lite",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-2-lite-ext-am", "prompt": "cat", "size": "1:8"}}}],
+      "expectedError": "unsupported Nano Banana ratio"
+    },
+    {
+      "name": "rejects Nano Banana metadata billing bypass",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-2-ext-am", "prompt": "cat", "metadata": {"n": 4}}}}],
+      "expectedError": "unsupported field for nano-banana-2-ext-am: metadata"
+    },
+    {
+      "name": "rejects Nano Banana extra parameter passthrough",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-2-ext-am", "prompt": "cat", "extra": {"official_fallback": true}}}}],
+      "expectedError": "unsupported field for nano-banana-2-ext-am: extra"
+    },
+    {
+      "name": "rejects unsupported Nano Banana masks",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-pro-ext-am", "prompt": "cat", "mask_url": "https://example.test/mask.png"}}}],
+      "expectedError": "unsupported field for nano-banana-pro-ext-am: mask_url"
+    },
+    {
+      "name": "rejects paid Nano Banana moderation",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-ext-am", "prompt": "cat", "nsfw_check": true}}}],
+      "expectedError": "nsfw_check must be false for per-image Nano Banana billing"
+    },
+    {
+      "name": "rejects Nano Banana official fallback",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-pro-ext-am", "prompt": "cat", "official_fallback": true}}}],
+      "expectedError": "official_fallback must be false for per-image Nano Banana billing"
+    },
+    {
+      "name": "rejects Nano Banana text search",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-2-ext-am", "prompt": "cat", "google_search": true}}}],
+      "expectedError": "google_search must be false for per-image Nano Banana billing"
+    },
+    {
+      "name": "rejects Nano Banana image search",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-2-ext-am", "prompt": "cat", "google_image_search": true}}}],
+      "expectedError": "google_image_search must be false for per-image Nano Banana billing"
+    },
+    {
+      "name": "rejects string Nano Banana cost flags",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-2-lite-ext-am", "prompt": "cat", "nsfw_check": "false"}}}],
+      "expectedError": "nsfw_check must be a boolean"
+    },
+    {
+      "name": "persists Nano Banana Lite normalized billing facts on submit",
+      "hook": "parseSubmitResponse",
+      "args": [{"model": "nano-banana-2-lite-ext-am", "requestBody": {"model": "nano-banana-2-lite-ext-am", "prompt": "cat", "n": 4, "resolution": "4K"}}, {"body": {"code": 200, "data": [{"status": "submitted", "task_id": "task_nano_lite"}]}}],
+      "expected": {"taskId": "task_nano_lite", "taskData": {"code": 200, "data": [{"status": "submitted", "task_id": "task_nano_lite"}]}, "state": {"billing_usage": {"images": 4, "resolution": "1k"}}}
+    },
+    {
+      "name": "persists Nano Banana Pro non-default resolution on submit",
+      "hook": "parseSubmitResponse",
+      "args": [{"model": "nano-banana-pro-ext-am", "requestBody": {"model": "nano-banana-pro-ext-am", "prompt": "cat", "resolution": "4K"}}, {"body": {"code": 200, "data": [{"status": "submitted", "task_id": "task_nano_pro"}]}}],
+      "expected": {"taskId": "task_nano_pro", "taskData": {"code": 200, "data": [{"status": "submitted", "task_id": "task_nano_pro"}]}, "state": {"billing_usage": {"images": 1, "resolution": "4k"}}}
+    },
+    {
+      "name": "settles two unique Lite outputs from persisted state without a request body",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-2-lite-ext-am", "state": {"billing_usage": {"images": 4, "resolution": "1k"}}}, {}, {"data": {"status": "completed", "cost": 999, "credits_cost": 999, "result": {"images": [{"url": ["https://example.test/a.png", "https://example.test/b.png"]}, {"url": "https://example.test/a.png"}]}}}],
+      "expected": {"images": 2, "resolution": "1k"}
+    },
+    {
+      "name": "preserves persisted Pro 4K over a conflicting request-body estimate",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-pro-ext-am", "state": {"billing_usage": {"images": 1, "resolution": "4k"}}, "requestBody": {"model": "nano-banana-pro-ext-am", "prompt": "cat", "resolution": "1k"}}, {}, {"status": "success", "result": {"images": [{"url": "https://example.test/a.png"}]}}],
+      "expected": {"images": 1, "resolution": "4k"}
+    },
+    {
+      "name": "falls back to validated Nano Banana request facts when state is invalid",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-2-ext-am", "state": {"billing_usage": {"images": -1, "resolution": "4k"}}, "requestBody": {"model": "nano-banana-2-ext-am", "prompt": "cat", "resolution": "0.5K"}}, {}, {"status": "completed", "result": {"images": [{"url": ["https://example.test/a.png"]}]}}],
+      "expected": {"images": 1, "resolution": "0.5k"}
+    },
+    {
+      "name": "settles an explicit empty Nano Banana output array as zero",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-ext-am", "requestBody": {"model": "nano-banana-ext-am", "prompt": "cat"}}, {}, {"data": {"status": "completed", "result": {"images": []}}}],
+      "expected": {"images": 0, "resolution": "1k"}
+    },
+    {
+      "name": "keeps Nano Banana estimates when output images are missing",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-pro-ext-am", "state": {"billing_usage": {"images": 1, "resolution": "4k"}}}, {}, {"status": "completed", "cost": 0, "credits_cost": 0, "result": {}}],
+      "expected": null
+    },
+    {
+      "name": "keeps Nano Banana estimates when any result URL is invalid",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-2-lite-ext-am", "state": {"billing_usage": {"images": 4, "resolution": "1k"}}}, {}, {"status": "completed", "result": {"images": [{"url": ["https://example.test/a.png", "javascript:alert(1)"]}]}}],
+      "expected": null
+    },
+    {
+      "name": "keeps Nano Banana estimates for malformed image objects",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-ext-am", "state": {"billing_usage": {"images": 1, "resolution": "1k"}}}, {}, {"status": "success", "result": {"images": ["https://example.test/a.png"]}}],
+      "expected": null
+    },
+    {
+      "name": "does not mistake an empty image URL list for explicit zero outputs",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-ext-am", "state": {"billing_usage": {"images": 1, "resolution": "1k"}}}, {}, {"status": "completed", "result": {"images": [{"url": []}]}}],
+      "expected": null
+    },
+    {
+      "name": "keeps Nano Banana estimates when distinct outputs exceed requested images",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-2-lite-ext-am", "state": {"billing_usage": {"images": 1, "resolution": "1k"}}}, {}, {"status": "completed", "result": {"images": [{"url": ["https://example.test/a.png", "https://example.test/b.png"]}]}}],
+      "expected": null
+    },
+    {
+      "name": "rejects invalid persisted Nano Banana facts without a request fallback",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-2-lite-ext-am", "state": {"billing_usage": {"images": 4, "resolution": "4k"}}}, {}, {"status": "completed", "result": {"images": []}}],
+      "expected": null
+    },
+    {
+      "name": "zeros failed Nano Banana usage while preserving the persisted resolution",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-pro-ext-am", "state": {"billing_usage": {"images": 1, "resolution": "4k"}}}, {}, {"data": {"status": "failed"}}],
+      "expected": {"images": 0, "resolution": "4k"}
+    },
+    {
+      "name": "zeros cancelled Nano Banana Lite batches",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-2-lite-ext-am", "state": {"billing_usage": {"images": 4, "resolution": "1k"}}}, {}, {"status": "cancelled"}],
+      "expected": {"images": 0, "resolution": "1k"}
+    },
+    {
+      "name": "does not settle pending Nano Banana outputs",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-ext-am", "state": {"billing_usage": {"images": 1, "resolution": "1k"}}}, {}, {"status": "pending", "result": {"images": []}}],
+      "expected": null
+    },
+    {
+      "name": "defaults an unmapped host Nano Banana model context to the canonical model",
+      "hook": "buildSubmitRequest",
+      "args": [{"baseUrl": "https://api.apib.ai", "apiKey": "test-token", "model": "nano-banana-2-ext-am", "upstreamModel": "nano-banana-2-ext-am", "requestBody": {"model": "nano-banana-2-ext-am", "prompt": "cat"}}],
+      "expected": {"url": "https://api.apib.ai/v1/images/generations", "method": "POST", "headers": {"Accept": "application/json", "Content-Type": "application/json", "Authorization": "Bearer test-token"}, "body": {"model": "gemini-3.1-flash-image-preview", "prompt": "cat", "n": 1, "size": "1:1", "resolution": "1k"}, "action": "image_generation"}
+    },
+    {
+      "name": "defaults and trims Nano Banana credit native requests",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-am", "prompt": "  cat  "}}}],
+      "expected": {"kind": "submit", "model": "nano-banana-am", "action": "image_generation", "requestBody": {"model": "nano-banana-am", "prompt": "cat", "n": 1, "size": "1:1", "resolution": "1k"}}
+    },
+    {
+      "name": "normalizes Nano Banana 2 credit half-K extreme ratios",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-2-am", "prompt": "  banner  ", "resolution": "0.5K", "size": "8:1", "image_urls": ["https://example.test/ref.png"]}}}],
+      "expected": {"kind": "submit", "model": "nano-banana-2-am", "action": "image_generation", "requestBody": {"model": "nano-banana-2-am", "prompt": "banner", "n": 1, "size": "8:1", "resolution": "0.5k", "image_urls": ["https://example.test/ref.png"]}}
+    },
+    {
+      "name": "normalizes Nano Banana Pro credit 4K and preserves disabled options",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-pro-am", "prompt": "cat", "resolution": "4K", "size": "auto", "nsfw_check": false, "google_search": false, "google_image_search": false}}}],
+      "expected": {"kind": "submit", "model": "nano-banana-pro-am", "action": "image_generation", "requestBody": {"model": "nano-banana-pro-am", "prompt": "cat", "n": 1, "size": "auto", "resolution": "4k", "nsfw_check": false, "google_search": false, "google_image_search": false}}
+    },
+    {
+      "name": "normalizes Nano Banana credit Lite four requested 4K outputs to 1K",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-2-lite-am", "prompt": "cat", "resolution": "4K", "n": 4}}}],
+      "expected": {"kind": "submit", "model": "nano-banana-2-lite-am", "action": "image_generation", "requestBody": {"model": "nano-banana-2-lite-am", "prompt": "cat", "n": 4, "size": "1:1", "resolution": "1k"}}
+    },
+    {
+      "name": "defaults base Nano Banana credit mapping to its canonical model",
+      "hook": "buildSubmitRequest",
+      "args": [{"baseUrl": "https://api.apib.ai", "apiKey": "test-token", "model": "nano-banana-am", "requestBody": {"model": "nano-banana-am", "prompt": "cat"}}],
+      "expected": {"url": "https://api.apib.ai/v1/images/generations", "method": "POST", "headers": {"Accept": "application/json", "Content-Type": "application/json", "Authorization": "Bearer test-token"}, "body": {"model": "gemini-2.5-flash-image-preview-official", "prompt": "cat", "n": 1, "size": "1:1", "resolution": "1k"}, "action": "image_generation"}
+    },
+    {
+      "name": "defaults Nano Banana 2 credit mapping to its canonical model",
+      "hook": "buildSubmitRequest",
+      "args": [{"baseUrl": "https://api.apib.ai", "apiKey": "test-token", "model": "nano-banana-2-am", "requestBody": {"model": "nano-banana-2-am", "prompt": "cat"}}],
+      "expected": {"url": "https://api.apib.ai/v1/images/generations", "method": "POST", "headers": {"Accept": "application/json", "Content-Type": "application/json", "Authorization": "Bearer test-token"}, "body": {"model": "gemini-3.1-flash-image-preview-official", "prompt": "cat", "n": 1, "size": "1:1", "resolution": "1k"}, "action": "image_generation"}
+    },
+    {
+      "name": "defaults Nano Banana Pro credit mapping to its canonical model",
+      "hook": "buildSubmitRequest",
+      "args": [{"baseUrl": "https://api.apib.ai", "apiKey": "test-token", "model": "nano-banana-pro-am", "requestBody": {"model": "nano-banana-pro-am", "prompt": "cat"}}],
+      "expected": {"url": "https://api.apib.ai/v1/images/generations", "method": "POST", "headers": {"Accept": "application/json", "Content-Type": "application/json", "Authorization": "Bearer test-token"}, "body": {"model": "gemini-3-pro-image-preview-official", "prompt": "cat", "n": 1, "size": "1:1", "resolution": "1k"}, "action": "image_generation"}
+    },
+    {
+      "name": "defaults Nano Banana credit Lite mapping and submits normalized 1K",
+      "hook": "buildSubmitRequest",
+      "args": [{"baseUrl": "https://api.apib.ai", "apiKey": "test-token", "model": "nano-banana-2-lite-am", "requestBody": {"model": "nano-banana-2-lite-am", "prompt": "cat", "n": 4, "resolution": "4K"}}],
+      "expected": {"url": "https://api.apib.ai/v1/images/generations", "method": "POST", "headers": {"Accept": "application/json", "Content-Type": "application/json", "Authorization": "Bearer test-token"}, "body": {"model": "gemini-3.1-flash-lite-image", "prompt": "cat", "n": 4, "size": "1:1", "resolution": "1k"}, "action": "image_generation"}
+    },
+    {
+      "name": "defaults a public Nano Banana credit upstream context to canonical",
+      "hook": "buildSubmitRequest",
+      "args": [{"baseUrl": "https://api.apib.ai", "apiKey": "test-token", "model": "nano-banana-2-am", "upstreamModel": "nano-banana-2-am", "requestBody": {"model": "nano-banana-2-am", "prompt": "cat"}}],
+      "expected": {"url": "https://api.apib.ai/v1/images/generations", "method": "POST", "headers": {"Accept": "application/json", "Content-Type": "application/json", "Authorization": "Bearer test-token"}, "body": {"model": "gemini-3.1-flash-image-preview-official", "prompt": "cat", "n": 1, "size": "1:1", "resolution": "1k"}, "action": "image_generation"}
+    },
+    {
+      "name": "accepts explicit canonical Nano Banana Pro credit mapping",
+      "hook": "buildSubmitRequest",
+      "args": [{"baseUrl": "https://api.apib.ai", "apiKey": "test-token", "model": "nano-banana-pro-am", "upstreamModel": "gemini-3-pro-image-preview-official", "requestBody": {"model": "nano-banana-pro-am", "prompt": "cat", "resolution": "4K"}}],
+      "expected": {"url": "https://api.apib.ai/v1/images/generations", "method": "POST", "headers": {"Accept": "application/json", "Content-Type": "application/json", "Authorization": "Bearer test-token"}, "body": {"model": "gemini-3-pro-image-preview-official", "prompt": "cat", "n": 1, "size": "1:1", "resolution": "4k"}, "action": "image_generation"}
+    },
+    {
+      "name": "accepts base Nano Banana credit vendor alias mapping",
+      "hook": "buildSubmitRequest",
+      "args": [{"baseUrl": "https://api.apib.ai", "apiKey": "test-token", "model": "nano-banana-am", "upstreamModel": "nano-banana", "requestBody": {"model": "nano-banana-am", "prompt": "cat"}}],
+      "expected": {"url": "https://api.apib.ai/v1/images/generations", "method": "POST", "headers": {"Accept": "application/json", "Content-Type": "application/json", "Authorization": "Bearer test-token"}, "body": {"model": "nano-banana", "prompt": "cat", "n": 1, "size": "1:1", "resolution": "1k"}, "action": "image_generation"}
+    },
+    {
+      "name": "accepts Nano Banana 2 credit vendor alias mapping",
+      "hook": "buildSubmitRequest",
+      "args": [{"baseUrl": "https://api.apib.ai", "apiKey": "test-token", "model": "nano-banana-2-am", "upstreamModel": "nano-banana-2", "requestBody": {"model": "nano-banana-2-am", "prompt": "cat", "resolution": "2K"}}],
+      "expected": {"url": "https://api.apib.ai/v1/images/generations", "method": "POST", "headers": {"Accept": "application/json", "Content-Type": "application/json", "Authorization": "Bearer test-token"}, "body": {"model": "nano-banana-2", "prompt": "cat", "n": 1, "size": "1:1", "resolution": "2k"}, "action": "image_generation"}
+    },
+    {
+      "name": "accepts Nano Banana Pro credit vendor alias mapping",
+      "hook": "buildSubmitRequest",
+      "args": [{"baseUrl": "https://api.apib.ai", "apiKey": "test-token", "model": "nano-banana-pro-am", "upstreamModel": "nano-banana-pro", "requestBody": {"model": "nano-banana-pro-am", "prompt": "cat"}}],
+      "expected": {"url": "https://api.apib.ai/v1/images/generations", "method": "POST", "headers": {"Accept": "application/json", "Content-Type": "application/json", "Authorization": "Bearer test-token"}, "body": {"model": "nano-banana-pro", "prompt": "cat", "n": 1, "size": "1:1", "resolution": "1k"}, "action": "image_generation"}
+    },
+    {
+      "name": "accepts Nano Banana credit Lite vendor alias mapping",
+      "hook": "buildSubmitRequest",
+      "args": [{"baseUrl": "https://api.apib.ai", "apiKey": "test-token", "model": "nano-banana-2-lite-am", "upstreamModel": "nano-banana-2-lite", "requestBody": {"model": "nano-banana-2-lite-am", "prompt": "cat", "resolution": "0.5K"}}],
+      "expected": {"url": "https://api.apib.ai/v1/images/generations", "method": "POST", "headers": {"Accept": "application/json", "Content-Type": "application/json", "Authorization": "Bearer test-token"}, "body": {"model": "nano-banana-2-lite", "prompt": "cat", "n": 1, "size": "1:1", "resolution": "1k"}, "action": "image_generation"}
+    },
+    {
+      "name": "rejects ext canonical mapping on a Nano Banana credit alias",
+      "hook": "buildSubmitRequest",
+      "args": [{"model": "nano-banana-am", "upstreamModel": "gemini-2.5-flash-image-preview", "requestBody": {"model": "nano-banana-am", "prompt": "cat"}}],
+      "expectedError": "upstream model must match the Nano Banana credit alias"
+    },
+    {
+      "name": "rejects ext vendor mapping on a Nano Banana credit alias",
+      "hook": "buildSubmitRequest",
+      "args": [{"model": "nano-banana-2-am", "upstreamModel": "nano-banana-2-ext", "requestBody": {"model": "nano-banana-2-am", "prompt": "cat"}}],
+      "expectedError": "upstream model must match the Nano Banana credit alias"
+    },
+    {
+      "name": "rejects cross-model Nano Banana credit mappings",
+      "hook": "buildSubmitRequest",
+      "args": [{"model": "nano-banana-pro-am", "upstreamModel": "gemini-3.1-flash-image-preview-official", "requestBody": {"model": "nano-banana-pro-am", "prompt": "cat"}}],
+      "expectedError": "upstream model must match the Nano Banana credit alias"
+    },
+    {
+      "name": "rejects ext Lite mapping on the Nano Banana credit Lite alias",
+      "hook": "buildSubmitRequest",
+      "args": [{"model": "nano-banana-2-lite-am", "upstreamModel": "gemini-3.1-flash-lite-image-ext", "requestBody": {"model": "nano-banana-2-lite-am", "prompt": "cat"}}],
+      "expectedError": "upstream model must match the Nano Banana credit alias"
+    },
+    {
+      "name": "estimates only base Nano Banana default credits without a second discount",
+      "hook": "extractUsage",
+      "args": [{"requestBody": {"model": "nano-banana-am", "prompt": "cat", "image_urls": ["https://example.test/ref.png"]}}],
+      "expected": {"upstream_credits": 0.312}
+    },
+    {
+      "name": "estimates Nano Banana 2 default credits",
+      "hook": "extractUsage",
+      "args": [{"requestBody": {"model": "nano-banana-2-am", "prompt": "cat"}}],
+      "expected": {"upstream_credits": 0.536}
+    },
+    {
+      "name": "estimates Nano Banana 2 half-K credits",
+      "hook": "extractUsage",
+      "args": [{"requestBody": {"model": "nano-banana-2-am", "prompt": "cat", "resolution": "0.5K"}}],
+      "expected": {"upstream_credits": 0.536}
+    },
+    {
+      "name": "estimates Nano Banana 2 explicit 1K credits",
+      "hook": "extractUsage",
+      "args": [{"requestBody": {"model": "nano-banana-2-am", "prompt": "cat", "resolution": "1K"}}],
+      "expected": {"upstream_credits": 0.536}
+    },
+    {
+      "name": "estimates Nano Banana 2 2K credits",
+      "hook": "extractUsage",
+      "args": [{"requestBody": {"model": "nano-banana-2-am", "prompt": "cat", "resolution": "2K"}}],
+      "expected": {"upstream_credits": 0.808}
+    },
+    {
+      "name": "estimates Nano Banana 2 4K credits",
+      "hook": "extractUsage",
+      "args": [{"requestBody": {"model": "nano-banana-2-am", "prompt": "cat", "resolution": "4K"}}],
+      "expected": {"upstream_credits": 1.208}
+    },
+    {
+      "name": "estimates Nano Banana Pro default credits",
+      "hook": "extractUsage",
+      "args": [{"requestBody": {"model": "nano-banana-pro-am", "prompt": "cat"}}],
+      "expected": {"upstream_credits": 1.072}
+    },
+    {
+      "name": "estimates Nano Banana Pro explicit 1K credits",
+      "hook": "extractUsage",
+      "args": [{"requestBody": {"model": "nano-banana-pro-am", "prompt": "cat", "resolution": "1K"}}],
+      "expected": {"upstream_credits": 1.072}
+    },
+    {
+      "name": "estimates Nano Banana Pro 2K credits",
+      "hook": "extractUsage",
+      "args": [{"requestBody": {"model": "nano-banana-pro-am", "prompt": "cat", "resolution": "2K"}}],
+      "expected": {"upstream_credits": 1.072}
+    },
+    {
+      "name": "estimates Nano Banana Pro 4K credits",
+      "hook": "extractUsage",
+      "args": [{"requestBody": {"model": "nano-banana-pro-am", "prompt": "cat", "resolution": "4K"}}],
+      "expected": {"upstream_credits": 1.92}
+    },
+    {
+      "name": "estimates Nano Banana credit Lite default credits",
+      "hook": "extractUsage",
+      "args": [{"requestBody": {"model": "nano-banana-2-lite-am", "prompt": "cat"}}],
+      "expected": {"upstream_credits": 0.32}
+    },
+    {
+      "name": "estimates four downgraded Nano Banana credit Lite outputs",
+      "hook": "extractUsage",
+      "args": [{"requestBody": {"model": "nano-banana-2-lite-am", "prompt": "cat", "n": 4, "resolution": "4K"}}],
+      "expected": {"upstream_credits": 1.28}
+    },
+    {
+      "name": "persists Nano Banana Pro estimated credits after successful submission",
+      "hook": "parseSubmitResponse",
+      "args": [{"model": "nano-banana-pro-am", "requestBody": {"model": "nano-banana-pro-am", "prompt": "cat"}}, {"body": {"code": 200, "data": [{"status": "submitted", "task_id": "task_nano_credit_pro"}]}}],
+      "expected": {"taskId": "task_nano_credit_pro", "taskData": {"code": 200, "data": [{"status": "submitted", "task_id": "task_nano_credit_pro"}]}, "state": {"billing_usage": {"upstream_credits": 1.072}}}
+    },
+    {
+      "name": "persists normalized Nano Banana credit Lite batch estimated credits",
+      "hook": "parseSubmitResponse",
+      "args": [{"model": "nano-banana-2-lite-am", "requestBody": {"model": "nano-banana-2-lite-am", "prompt": "cat", "n": 4, "resolution": "4K"}}, {"body": {"code": 200, "data": [{"status": "submitted", "task_id": "task_nano_credit_lite"}]}}],
+      "expected": {"taskId": "task_nano_credit_lite", "taskData": {"code": 200, "data": [{"status": "submitted", "task_id": "task_nano_credit_lite"}]}, "state": {"billing_usage": {"upstream_credits": 1.28}}}
+    },
+    {
+      "name": "settles Nano Banana Pro below its 1.072 credit estimate",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-pro-am", "state": {"billing_usage": {"upstream_credits": 1.072}}}, {}, {"code": 200, "data": {"status": "completed", "credits_cost": 0.5}}],
+      "expected": {"upstream_credits": 0.5}
+    },
+    {
+      "name": "settles raw Nano Banana Pro success above its 1.072 credit estimate",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-pro-am", "state": {"billing_usage": {"upstream_credits": 1.072}}}, {}, {"status": "success", "credits_cost": 2.5}],
+      "expected": {"upstream_credits": 2.5}
+    },
+    {
+      "name": "settles explicit zero Nano Banana actual credits",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-am"}, {}, {"data": {"status": "completed", "credits_cost": 0, "cost": 0.15}}],
+      "expected": {"upstream_credits": 0}
+    },
+    {
+      "name": "does not multiply Nano Banana credit Lite actual task total by n",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-2-lite-am", "requestBody": {"model": "nano-banana-2-lite-am", "prompt": "cat", "n": 4, "resolution": "4K"}, "state": {"billing_usage": {"upstream_credits": 1.28}}}, {}, {"status": "completed", "credits_cost": 0.5}],
+      "expected": {"upstream_credits": 0.5}
+    },
+    {
+      "name": "converts Nano Banana cost-only USD to actual credits",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-2-am"}, {}, {"code": 200, "data": {"status": "completed", "cost": 0.15}}],
+      "expected": {"upstream_credits": 1.5}
+    },
+    {
+      "name": "prefers authoritative Nano Banana credits over conflicting valid USD cost",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-pro-am"}, {}, {"status": "completed", "credits_cost": 0.5, "cost": 0.15}],
+      "expected": {"upstream_credits": 0.5}
+    },
+    {
+      "name": "ignores malformed USD cost when Nano Banana actual credits are valid",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-pro-am"}, {}, {"status": "success", "credits_cost": 0.5, "cost": "invalid"}],
+      "expected": {"upstream_credits": 0.5}
+    },
+    {
+      "name": "accepts the Nano Banana actual credit safety cap boundary",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-am"}, {}, {"status": "completed", "credits_cost": 64}],
+      "expected": {"upstream_credits": 64}
+    },
+    {
+      "name": "accepts the Nano Banana USD fallback safety cap boundary",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-am"}, {}, {"status": "completed", "cost": 6.4}],
+      "expected": {"upstream_credits": 64}
+    },
+    {
+      "name": "accepts explicit zero Nano Banana USD fallback",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-am"}, {}, {"status": "success", "cost": 0}],
+      "expected": {"upstream_credits": 0}
+    },
+    {
+      "name": "retains Nano Banana estimate for null credits without USD fallback",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-pro-am"}, {}, {"status": "completed", "credits_cost": null, "cost": 0.15}],
+      "expected": null
+    },
+    {
+      "name": "retains Nano Banana estimate for string credits without USD fallback",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-pro-am"}, {}, {"status": "completed", "credits_cost": "0.5", "cost": 0.15}],
+      "expected": null
+    },
+    {
+      "name": "retains Nano Banana estimate for boolean credits without USD fallback",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-pro-am"}, {}, {"status": "completed", "credits_cost": false, "cost": 0.15}],
+      "expected": null
+    },
+    {
+      "name": "retains Nano Banana estimate for negative credits without USD fallback",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-pro-am"}, {}, {"status": "completed", "credits_cost": -0.5, "cost": 0.15}],
+      "expected": null
+    },
+    {
+      "name": "retains Nano Banana estimate for credits over the safety cap",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-pro-am"}, {}, {"status": "completed", "credits_cost": 64.001, "cost": 0.15}],
+      "expected": null
+    },
+    {
+      "name": "retains Nano Banana estimate for null USD cost",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-am"}, {}, {"status": "completed", "cost": null}],
+      "expected": null
+    },
+    {
+      "name": "retains Nano Banana estimate for string USD cost",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-am"}, {}, {"status": "completed", "cost": "0.15"}],
+      "expected": null
+    },
+    {
+      "name": "retains Nano Banana estimate for boolean USD cost",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-am"}, {}, {"status": "completed", "cost": false}],
+      "expected": null
+    },
+    {
+      "name": "retains Nano Banana estimate for negative USD cost",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-am"}, {}, {"status": "completed", "cost": -0.15}],
+      "expected": null
+    },
+    {
+      "name": "retains Nano Banana estimate for USD cost over the safety cap",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-am"}, {}, {"status": "completed", "cost": 6.401}],
+      "expected": null
+    },
+    {
+      "name": "never infers free Nano Banana usage from missing completed costs",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-pro-am", "state": {"billing_usage": {"upstream_credits": 1.072}}}, {}, {"status": "completed", "result": {"images": []}}],
+      "expected": null
+    },
+    {
+      "name": "retains Nano Banana estimates while pending even with explicit zero cost",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-pro-am", "state": {"billing_usage": {"upstream_credits": 1.072}}}, {}, {"data": {"status": "pending", "credits_cost": 0}}],
+      "expected": null
+    },
+    {
+      "name": "retains Nano Banana estimates on null task data",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-pro-am"}, {}, {"code": 200, "data": null}],
+      "expected": null
+    },
+    {
+      "name": "retains Nano Banana estimates on a null response",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-pro-am"}, {}, null],
+      "expected": null
+    },
+    {
+      "name": "retains Nano Banana estimates on non-200 response codes",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-pro-am"}, {}, {"code": 500, "data": {"status": "completed", "credits_cost": 0}}],
+      "expected": null
+    },
+    {
+      "name": "rejects string success codes before Nano Banana settlement",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-pro-am"}, {}, {"code": "200", "data": {"status": "completed", "credits_cost": 0.5}}],
+      "expected": null
+    },
+    {
+      "name": "zeros failed Nano Banana credit tasks regardless of reported costs",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-am"}, {}, {"code": 200, "data": {"status": "failed", "credits_cost": 2.5}}],
+      "expected": {"upstream_credits": 0}
+    },
+    {
+      "name": "zeros Nano Banana credit tasks with failure status",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-2-am"}, {}, {"status": "failure"}],
+      "expected": {"upstream_credits": 0}
+    },
+    {
+      "name": "zeros cancelled Nano Banana credit Lite batches",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-2-lite-am", "state": {"billing_usage": {"upstream_credits": 1.28}}}, {}, {"status": "cancelled"}],
+      "expected": {"upstream_credits": 0}
+    },
+    {
+      "name": "zeros canceled Nano Banana Pro credit tasks",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model": "nano-banana-pro-am"}, {}, {"data": {"status": "canceled"}}],
+      "expected": {"upstream_credits": 0}
+    },
+    {
+      "name": "rejects enabled official fallback on Nano Banana credit aliases",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-am", "prompt": "cat", "official_fallback": true}}}],
+      "expectedError": "unsupported field for nano-banana-am: official_fallback"
+    },
+    {
+      "name": "rejects even disabled official fallback on Nano Banana credit aliases",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-pro-am", "prompt": "cat", "official_fallback": false}}}],
+      "expectedError": "unsupported field for nano-banana-pro-am: official_fallback"
+    },
+    {
+      "name": "rejects null official fallback on Nano Banana credit aliases",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-2-lite-am", "prompt": "cat", "official_fallback": null}}}],
+      "expectedError": "unsupported field for nano-banana-2-lite-am: official_fallback"
+    },
+    {
+      "name": "rejects paid moderation on Nano Banana credit aliases",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-am", "prompt": "cat", "nsfw_check": true}}}],
+      "expectedError": "nsfw_check must be false for Nano Banana credit billing"
+    },
+    {
+      "name": "rejects paid text search on Nano Banana credit aliases",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-2-am", "prompt": "cat", "google_search": true}}}],
+      "expectedError": "google_search must be false for Nano Banana credit billing"
+    },
+    {
+      "name": "rejects paid image search on Nano Banana credit aliases",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-pro-am", "prompt": "cat", "google_image_search": true}}}],
+      "expectedError": "google_image_search must be false for Nano Banana credit billing"
+    },
+    {
+      "name": "rejects nonboolean flags on Nano Banana credit aliases",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-2-lite-am", "prompt": "cat", "nsfw_check": "false"}}}],
+      "expectedError": "nsfw_check must be a boolean"
+    },
+    {
+      "name": "rejects multiple Nano Banana Pro credit images",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body": {"kind": "json", "value": {"model": "nano-banana-pro-am", "prompt": "cat", "n": 2}}}],
+      "expectedError": "n must be 1"
+    },
+    {
+      "name": "rejects too many Nano Banana credit Lite outputs before precharge",
+      "hook": "extractUsage",
+      "args": [{"requestBody": {"model": "nano-banana-2-lite-am", "prompt": "cat", "n": 5}}],
+      "expectedError": "n must be an integer between 1 and 4"
     }
   ]
 }
