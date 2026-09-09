@@ -10,7 +10,7 @@
 2. 创建类型为 `Task Plugin` 的渠道，选择本插件：
 
    ```text
-   插件键：apimart-suno
+   插件键：am-suno
    基础地址：https://api.apib.ai
    渠道模型：suno-am
    模型映射：留空，或 {"suno-am":"suno"}
@@ -35,11 +35,13 @@ GET  /am/suno/v1/tasks/:task_id
 
 下表覆盖全部 31 个提交操作。`generation` 是基础生成接口的内部 action，**不追加 `/generation`**。
 
+`0.1.1` 修复原生提交路由解码：宿主的解码上下文提供 `path`、`method`、`params`、`query`、`body`，不提供 `action`。插件按声明的精确 POST 路径确定操作，不从请求体或查询参数读取操作名。`0.1.0` 错误依赖 `ctx.action`，会在创建任务前返回 `unsupported Suno action`。已有安装需上传并激活新版本；仅修改本地源码不会更新运行中的插件。
+
 版本组：
 
 - **全部**：`v3.5`、`v4`、`v4.5`、`v4.5+`、`v4.5-all`、`v5`、`v5.5`。
 - **v4 起**：全部版本去掉 `v3.5`。
-- **无**：请求不能携带 `version`，计费用量中的版本为 `none`。
+- **无**：请求不能携带 `version`。
 - 基础生成必须显式传 `version`；其他有版本的操作缺省为 `v5.5`。
 
 | action / 操作后缀 | 功能 | 支持版本 | 关键输入与来源要求 |
@@ -202,9 +204,12 @@ GET  /am/suno/v1/tasks/:task_id
 | --- | --- | --- |
 | `requests` | number / count | 每次操作固定为 `1`，不按输出歌曲数或文件格式数增加 |
 | `action` | enum | 上述 31 个 action，包括基础生成的 `generation` |
-| `version` | enum | 已验证并归一的 Suno 版本，无版本操作为 `none` |
 
 表达式读取 `u("字段")`，结果是**单次请求的美元金额，不除以一百万**。宿主处理预扣、结算、分组倍率及失败退款；成功完成时保留一次请求的用量。上游的 `cost` / `credits_cost` 不是可信的用户扣费输入，不用于覆盖用量。
+
+`0.2.0` 将计费 schema 收敛为 `action` 和 `requests`，不再声明或返回计费用量 `version`。同一动作的已列版本价格相同，因此可视化编辑器仅生成 31 个动作价格项，不再展开 248 个动作/版本组合。请求中的 `version`、支持版本校验、缺省版本和上游转发保持不变。
+
+从 `0.1.x` 升级前，先把管理员定价中的 `u("version")` 条件迁移为仅按 `action` 的表达式；不要将不同版本的管理员自定义售价自动合并。已经仅使用 `u("action")`、`u("requests")` 的表达式无需迁移。上传并激活 `0.2.0` 后刷新定价页面，再打开可视化编辑器，确认 31 个动作及其价格正确后保存。插件不自动设置售价，历史任务与日志的冻结计费快照不改写。
 
 ### 公开价格快照
 
@@ -266,7 +271,7 @@ u("action") == "download" ? tier("download", u("requests") * 0.002) :
 tier("generation", u("requests") * 0.0625)
 ```
 
-如果以后操作价格按版本分化，使用 `u("action") == "generation" && u("version") == "v5.5"` 这样的条件细分，并为其余支持组合保留明确价格。增加新操作时也必须同步更新完整表达式，不能让新操作无意落入基础生成价格。
+如果以后同一操作出现按版本区分的价格，需要先发布重新声明该计费字段的插件版本，再配置分档表达式；当前 `0.2.0` 不支持 `u("version")`。增加新操作时也必须同步更新完整表达式，不能让新操作无意落入基础生成价格。
 
 ## 本地校验与验证范围
 
@@ -276,9 +281,14 @@ tier("generation", u("requests") * 0.0625)
 go run . plugin lint plugins/local/apimart-suno/plugin.js
 go run . plugin test plugins/local/apimart-suno/plugin.js --fixture plugins/local/apimart-suno/apimart-suno.fixture.json
 go test ./middleware -run 'TestApplyOriginTask' -count=1
+go test ./middleware -run '^TestAPIMartSunoNativeRouteActions$' -count=1
 ```
 
 当前实现已通过插件 lint、100 条契约 fixtures 及宿主源任务回归。本地 HTTP 上游配合真实 Go adaptor 的烟测覆盖了提交、轮询、双歌曲公共结果、第二首来源解析、三格式下载、用量计费、暂时查询错误与失败状态，以及混合媒体产物访问。
+
+原生提交 fixtures 使用真实宿主上下文字段，不再人工注入 `ctx.action`。`TestAPIMartSunoNativeRouteActions` 通过实际请求解析及 Go 插件引擎覆盖全部 31 个提交路由，并检查错误方法、未知后缀、大小写及客户端操作覆盖；无需来源任务的操作进一步经过完整路由准备中间件，不访问外部供应商。
+
+`0.2.0` 已通过上述插件与原生路由回归；另以实际前端定价解析、矩阵生成和表达式回写逻辑验证 31 个动作价格保持不变，且回写不引入版本条件。七个基础生成版本仍原样进入上游请求，非法版本仍被拒绝；此项为无网络本地 smoke，未操作运行中的管理界面。
 
 这些是本地契约验证，不是供应商线上验证：未部署、未调用真实收费接口，也未验证真实账户的端点可用性、所有资源结果字段或实际账单。Persona/Vox 等特殊资源响应仍需上线前联调确认。插件不自行修改核心服务、数据库结构或钱包逻辑。
 

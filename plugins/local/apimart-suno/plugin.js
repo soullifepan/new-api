@@ -1,7 +1,7 @@
 // APIMart/APIB Suno music tasks, isolated from both the image plugin and Suno-API.
-// Setup: Task Plugin channel, key apimart-suno, model suno-am, base https://api.apib.ai.
+// Setup: Task Plugin channel, key am-suno, model suno-am, base https://api.apib.ai.
 // Leave model mapping empty or map suno-am -> suno. Configure an administrator task
-// expression over requests/action/version. Each operation is one request, not two
+// expression over requests/action. Each operation is one request, not two
 // songs or one request per download format. Provider costs are not billing inputs.
 // Primary contract: https://docs.apib.ai/cn/api-reference/audios/suno/overview
 // Public source IDs are resolved by the host (owner/plugin/channel) before these
@@ -32,7 +32,7 @@
 // These published version prices currently match within each action. Preserve
 // administrator overrides and recheck rates before activation; do not apply the
 // ambiguous discount_percent=20 alongside discount_rate=1 automatically.
-// Use action/version tiers returning USD, with tier() on every branch.
+// Use action tiers returning USD, with tier() on every branch. Version is request-only.
 // The download tier body, for example, is tier("download", u("requests") * 0.002).
 // Fill ALL action tiers using the task pricing editor; no /1000000 conversion.
 // Completed tasks preserve one request even with two songs or three formats.
@@ -107,18 +107,22 @@ export const meta = {
   usageSchema: {
     requests: { type: "number", unit: "count", description: { en: "Operations, independent of output track or format count.", zh: "操作次数，不按输出歌曲或下载格式数量重复计费。" } },
     action: { enum: Object.keys(ACTIONS), description: { en: "Suno operation.", zh: "Suno 操作。" } },
-    version: { enum: [...VERSIONS, "none"], description: { en: "Explicitly normalized version; none for unversioned operations.", zh: "显式归一的版本，无版本操作为 none。" } },
   },
   usageExamples: [
-    { label: "Music v5", facts: { requests: 1, action: "generation", version: "v5" } },
-    { label: "Inspiration v5.5", facts: { requests: 1, action: "inspo", version: "v5.5" } },
-    { label: "All stems", facts: { requests: 1, action: "stemsAll", version: "none" } },
-    { label: "Multi-format download", facts: { requests: 1, action: "download", version: "none" } },
+    { label: "Music", facts: { requests: 1, action: "generation" } },
+    { label: "Inspiration", facts: { requests: 1, action: "inspo" } },
+    { label: "All stems", facts: { requests: 1, action: "stemsAll" } },
+    { label: "Multi-format download", facts: { requests: 1, action: "download" } },
   ],
   routes: Object.keys(ACTIONS).map(function (action) {
     return { method: "POST", path: "/am/suno/v1/generations" + (action === "generation" ? "" : "/" + action), type: "submit", action: action, decode: "decodeSubmit", render: "renderSubmitted" };
   }).concat([{ method: "GET", path: "/am/suno/v1/tasks/:task_id", type: "query", render: "renderTask" }]),
 };
+
+const SUBMIT_ACTIONS = new Map();
+for (const route of meta.routes) {
+  if (route.type === "submit" && route.method === "POST") SUBMIT_ACTIONS.set(route.path, route.action);
+}
 
 function object(value, field) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(field + " must be an object");
@@ -439,10 +443,12 @@ function publicResult(value, depth = 0) {
 
 export const native = {
   decodeSubmit: function (ctx) {
+    const action = ctx.method === "POST" ? SUBMIT_ACTIONS.get(ctx.path) : undefined;
+    if (!action) throw new Error("unsupported Suno route");
     if (!ctx.body || ctx.body.kind !== "json") throw new Error("JSON body required");
-    const body = normalizedRequest(ctx.action, ctx.body.value);
-    const ids = originIDs(ctx.action, body);
-    const intent = { kind: "submit", model: "suno-am", action: ctx.action, requestBody: body };
+    const body = normalizedRequest(action, ctx.body.value);
+    const ids = originIDs(action, body);
+    const intent = { kind: "submit", model: "suno-am", action: action, requestBody: body };
     if (ids.length) intent.originTaskIds = ids;
     return intent;
   },
@@ -478,8 +484,8 @@ export function buildContentRequest(ctx) {
 
 export function extractUsage(ctx) {
   if (ctx.usagePurpose === "billing_ratios") return null;
-  const body = normalizedRequest(ctx.action, ctx.requestBody);
-  return { requests: 1, action: ctx.action, version: body.version || "none" };
+  normalizedRequest(ctx.action, ctx.requestBody);
+  return { requests: 1, action: ctx.action };
 }
 
 export function extractUsageOnComplete(_ctx, _result, body) {

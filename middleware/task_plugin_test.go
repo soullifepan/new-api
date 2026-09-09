@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/textproto"
+	"os"
 	"strings"
 	"testing"
 
@@ -95,6 +96,98 @@ export function parseTaskResult() { return {status: "SUCCESS"}; }
 
 	assert.True(t, reachedSubmit)
 	assert.Equal(t, http.StatusNoContent, recorder.Code)
+}
+
+func TestAPIMartSunoNativeRouteActions(t *testing.T) {
+	source, err := os.ReadFile("../plugins/local/apimart-suno/plugin.js")
+	require.NoError(t, err)
+	plugin := compileTaskRoutePlugin(t, string(source))
+	fixtureJSON, err := os.ReadFile("../plugins/local/apimart-suno/apimart-suno.fixture.json")
+	require.NoError(t, err)
+	var fixture struct {
+		Cases []struct {
+			Hook string `json:"hook"`
+			Args []struct {
+				Action      string         `json:"action"`
+				RequestBody map[string]any `json:"requestBody"`
+			} `json:"args"`
+			ExpectedError string `json:"expectedError"`
+		} `json:"cases"`
+	}
+	require.NoError(t, common.Unmarshal(fixtureJSON, &fixture))
+	requests := make(map[string]map[string]any)
+	for _, testCase := range fixture.Cases {
+		if testCase.Hook != "buildSubmitRequest" || testCase.ExpectedError != "" || len(testCase.Args) == 0 {
+			continue
+		}
+		input := testCase.Args[0]
+		if _, exists := requests[input.Action]; !exists {
+			requests[input.Action] = input.RequestBody
+		}
+	}
+
+	for routeIndex, route := range plugin.Meta.Routes {
+		if route.Type != jsplugin.RouteTypeSubmit {
+			continue
+		}
+		t.Run(route.Action, func(t *testing.T) {
+			body, exists := requests[route.Action]
+			require.True(t, exists, "missing request fixture for %s", route.Action)
+			encoded, err := common.Marshal(body)
+			require.NoError(t, err)
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(route.Method, route.Path+"?action=not-a-route-action", bytes.NewReader(encoded))
+			c.Request.Header.Set("Content-Type", "application/json")
+			requestContext, err := buildTaskPluginRouteRequest(c)
+			require.NoError(t, err)
+
+			// Use the host's actual context rather than fabricating ctx.action.
+			value, err := plugin.Engine.CallMember(context.Background(), "native", route.Decode, requestContext.JSValue())
+			require.NoError(t, err)
+			intent, ok := value.(map[string]any)
+			require.True(t, ok)
+			assert.Equal(t, "submit", intent["kind"])
+			assert.Equal(t, "suno-am", intent["model"])
+			assert.Equal(t, route.Action, intent["action"])
+
+			// Source-free operations also traverse the complete route middleware;
+			// source ownership is covered separately without a database here.
+			if _, hasOrigins := intent["originTaskIds"]; hasOrigins {
+				return
+			}
+			router := gin.New()
+			router.Handle(route.Method, route.Path, pinTaskPluginRoute(plugin, routeIndex), PrepareTaskPluginRoute(), func(c *gin.Context) {
+				assert.Equal(t, route.Action, c.GetString("task_action"))
+				assert.Equal(t, "suno-am", c.GetString("resolved_task_model"))
+				c.Status(http.StatusNoContent)
+			})
+			request := httptest.NewRequest(route.Method, route.Path, bytes.NewReader(encoded))
+			request.Header.Set("Content-Type", "application/json")
+			router.ServeHTTP(recorder, request)
+			assert.Equal(t, http.StatusNoContent, recorder.Code, recorder.Body.String())
+		})
+	}
+
+	for _, testCase := range []struct {
+		name, method, path, body string
+	}{
+		{"wrong method", http.MethodGet, "/apimart/suno/v1/generations/sounds", `{"prompt":"fixture"}`},
+		{"unknown suffix", http.MethodPost, "/apimart/suno/v1/generations/unknown", `{"prompt":"fixture"}`},
+		{"case sensitive suffix", http.MethodPost, "/apimart/suno/v1/generations/Sounds", `{"prompt":"fixture"}`},
+		{"body cannot override route", http.MethodPost, "/apimart/suno/v1/generations/sounds", `{"prompt":"fixture","action":"generation"}`},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(testCase.method, testCase.path, strings.NewReader(testCase.body))
+			c.Request.Header.Set("Content-Type", "application/json")
+			requestContext, err := buildTaskPluginRouteRequest(c)
+			require.NoError(t, err)
+			_, err = plugin.Engine.CallMember(context.Background(), "native", "decodeSubmit", requestContext.JSValue())
+			require.Error(t, err)
+		})
+	}
 }
 
 func TestPrepareTaskPluginNativeRouteRejectsMultipartBeforeDecoder(t *testing.T) {

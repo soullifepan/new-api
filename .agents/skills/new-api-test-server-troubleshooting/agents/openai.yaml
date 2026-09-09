@@ -1,0 +1,4 @@
+interface:
+  display_name: "New API 测试服务器排查"
+  short_description: "定位测试服务器任务、数据库日志、插件版本及计费退款问题"
+  default_prompt: "使用 $new-api-test-server-troubleshooting 排查 Tapcomfy New API 测试服务器的最新任务、数据库日志与计费结算。"
