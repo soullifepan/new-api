@@ -1,0 +1,2656 @@
+{
+  "cases": [
+    {
+      "name": "decodes actual host generate route",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "path": "/apimart/flow-music/v1/generations",
+          "method": "POST",
+          "params": {},
+          "query": {
+            "action": ["not-the-action"]
+          },
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "flowmusic-am",
+              "sound_prompt": "fixture melody",
+              "length": 60,
+              "bpm": "120",
+              "seed": "0"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "flowmusic-am",
+        "action": "generate",
+        "requestBody": {
+          "sound_prompt": "fixture melody",
+          "length": 60,
+          "bpm": "120",
+          "seed": "0"
+        }
+      }
+    },
+    {
+      "name": "maps generate to documented upstream request",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "action": "generate",
+          "requestBody": {
+            "sound_prompt": "fixture melody",
+            "length": 60,
+            "bpm": "120",
+            "seed": "0"
+          },
+          "originTasks": [
+            {
+              "taskId": "public-origin",
+              "upstreamTaskId": "provider-origin-task",
+              "status": "SUCCESS",
+              "action": "generate",
+              "data": {
+                "code": 200,
+                "data": {
+                  "status": "completed",
+                  "result": {
+                    "music": [
+                      {
+                        "clip_id": "private-clip-one",
+                        "duration_seconds": "120.5",
+                        "audio_url": "https://media.example.test/one.m4a"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ],
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "upstreamModel": "flowmusic"
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "sound_prompt": "fixture melody",
+          "length": 60,
+          "bpm": "120",
+          "seed": "0",
+          "model": "flowmusic"
+        },
+        "action": "generate"
+      }
+    },
+    {
+      "name": "bills generate as one action without version",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "generate",
+          "requestBody": {
+            "sound_prompt": "fixture melody",
+            "length": 60,
+            "bpm": "120",
+            "seed": "0"
+          },
+          "usagePurpose": "facts"
+        }
+      ],
+      "expected": {
+        "requests": 1,
+        "action": "generate"
+      }
+    },
+    {
+      "name": "decodes actual host lyrics route",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "path": "/apimart/flow-music/v1/generations/lyricsFlowMusic",
+          "method": "POST",
+          "params": {},
+          "query": {
+            "action": ["not-the-action"]
+          },
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "flowmusic-am",
+              "prompt": "fixture lyric theme"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "flowmusic-am",
+        "action": "lyrics",
+        "requestBody": {
+          "prompt": "fixture lyric theme"
+        }
+      }
+    },
+    {
+      "name": "maps lyrics to documented upstream request",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "action": "lyrics",
+          "requestBody": {
+            "prompt": "fixture lyric theme"
+          },
+          "originTasks": [
+            {
+              "taskId": "public-origin",
+              "upstreamTaskId": "provider-origin-task",
+              "status": "SUCCESS",
+              "action": "generate",
+              "data": {
+                "code": 200,
+                "data": {
+                  "status": "completed",
+                  "result": {
+                    "music": [
+                      {
+                        "clip_id": "private-clip-one",
+                        "duration_seconds": "120.5",
+                        "audio_url": "https://media.example.test/one.m4a"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ],
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "upstreamModel": "flowmusic"
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/lyricsFlowMusic",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "prompt": "fixture lyric theme",
+          "model": "flowmusic"
+        },
+        "action": "lyrics"
+      }
+    },
+    {
+      "name": "bills lyrics as one action without version",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "lyrics",
+          "requestBody": {
+            "prompt": "fixture lyric theme"
+          },
+          "usagePurpose": "facts"
+        }
+      ],
+      "expected": {
+        "requests": 1,
+        "action": "lyrics"
+      }
+    },
+    {
+      "name": "decodes actual host extend route",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "path": "/apimart/flow-music/v1/generations/extendFlowMusic",
+          "method": "POST",
+          "params": {},
+          "query": {
+            "action": ["not-the-action"]
+          },
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "flowmusic-am",
+              "task_id": "public-origin",
+              "extend_from_s": 0,
+              "extend_s": 164,
+              "instruction": "fixture extend",
+              "seed": "0"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "flowmusic-am",
+        "action": "extend",
+        "requestBody": {
+          "task_id": "public-origin",
+          "extend_from_s": 0,
+          "extend_s": 164,
+          "instruction": "fixture extend",
+          "seed": "0",
+          "audio_index": 1
+        },
+        "originTaskIds": ["public-origin"]
+      }
+    },
+    {
+      "name": "maps extend to documented upstream request",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "action": "extend",
+          "requestBody": {
+            "task_id": "public-origin",
+            "extend_from_s": 0,
+            "extend_s": 164,
+            "instruction": "fixture extend",
+            "seed": "0"
+          },
+          "originTasks": [
+            {
+              "taskId": "public-origin",
+              "upstreamTaskId": "provider-origin-task",
+              "status": "SUCCESS",
+              "action": "generate",
+              "data": {
+                "code": 200,
+                "data": {
+                  "status": "completed",
+                  "result": {
+                    "music": [
+                      {
+                        "clip_id": "private-clip-one",
+                        "duration_seconds": "120.5",
+                        "audio_url": "https://media.example.test/one.m4a"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ],
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "upstreamModel": "flowmusic"
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/extendFlowMusic",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "extend_from_s": 0,
+          "extend_s": 164,
+          "instruction": "fixture extend",
+          "seed": "0",
+          "model": "flowmusic",
+          "clip_id": "private-clip-one"
+        },
+        "action": "extend"
+      }
+    },
+    {
+      "name": "bills extend as one action without version",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "extend",
+          "requestBody": {
+            "task_id": "public-origin",
+            "extend_from_s": 0,
+            "extend_s": 164,
+            "instruction": "fixture extend",
+            "seed": "0"
+          },
+          "usagePurpose": "facts"
+        }
+      ],
+      "expected": {
+        "requests": 1,
+        "action": "extend"
+      }
+    },
+    {
+      "name": "decodes actual host replace route",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "path": "/apimart/flow-music/v1/generations/replaceFlowMusic",
+          "method": "POST",
+          "params": {},
+          "query": {
+            "action": ["not-the-action"]
+          },
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "flowmusic-am",
+              "task_id": "public-origin",
+              "start_s": 0,
+              "end_s": 30,
+              "instruction": "fixture replace",
+              "seed": 0
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "flowmusic-am",
+        "action": "replace",
+        "requestBody": {
+          "task_id": "public-origin",
+          "start_s": 0,
+          "end_s": 30,
+          "instruction": "fixture replace",
+          "seed": 0,
+          "audio_index": 1
+        },
+        "originTaskIds": ["public-origin"]
+      }
+    },
+    {
+      "name": "maps replace to documented upstream request",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "action": "replace",
+          "requestBody": {
+            "task_id": "public-origin",
+            "start_s": 0,
+            "end_s": 30,
+            "instruction": "fixture replace",
+            "seed": 0
+          },
+          "originTasks": [
+            {
+              "taskId": "public-origin",
+              "upstreamTaskId": "provider-origin-task",
+              "status": "SUCCESS",
+              "action": "generate",
+              "data": {
+                "code": 200,
+                "data": {
+                  "status": "completed",
+                  "result": {
+                    "music": [
+                      {
+                        "clip_id": "private-clip-one",
+                        "duration_seconds": "120.5",
+                        "audio_url": "https://media.example.test/one.m4a"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ],
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "upstreamModel": "flowmusic"
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/replaceFlowMusic",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "start_s": 0,
+          "end_s": 30,
+          "instruction": "fixture replace",
+          "seed": 0,
+          "model": "flowmusic",
+          "clip_id": "private-clip-one"
+        },
+        "action": "replace"
+      }
+    },
+    {
+      "name": "bills replace as one action without version",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "replace",
+          "requestBody": {
+            "task_id": "public-origin",
+            "start_s": 0,
+            "end_s": 30,
+            "instruction": "fixture replace",
+            "seed": 0
+          },
+          "usagePurpose": "facts"
+        }
+      ],
+      "expected": {
+        "requests": 1,
+        "action": "replace"
+      }
+    },
+    {
+      "name": "decodes actual host cover route",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "path": "/apimart/flow-music/v1/generations/coverFlowMusic",
+          "method": "POST",
+          "params": {},
+          "query": {
+            "action": ["not-the-action"]
+          },
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "flowmusic-am",
+              "task_id": "public-origin",
+              "strength": 0,
+              "instruction": "fixture cover"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "flowmusic-am",
+        "action": "cover",
+        "requestBody": {
+          "task_id": "public-origin",
+          "strength": 0,
+          "instruction": "fixture cover",
+          "audio_index": 1
+        },
+        "originTaskIds": ["public-origin"]
+      }
+    },
+    {
+      "name": "maps cover to documented upstream request",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "action": "cover",
+          "requestBody": {
+            "task_id": "public-origin",
+            "strength": 0,
+            "instruction": "fixture cover"
+          },
+          "originTasks": [
+            {
+              "taskId": "public-origin",
+              "upstreamTaskId": "provider-origin-task",
+              "status": "SUCCESS",
+              "action": "generate",
+              "data": {
+                "code": 200,
+                "data": {
+                  "status": "completed",
+                  "result": {
+                    "music": [
+                      {
+                        "clip_id": "private-clip-one",
+                        "duration_seconds": "120.5",
+                        "audio_url": "https://media.example.test/one.m4a"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ],
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "upstreamModel": "flowmusic"
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/coverFlowMusic",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "strength": 0,
+          "instruction": "fixture cover",
+          "model": "flowmusic",
+          "clip_id": "private-clip-one"
+        },
+        "action": "cover"
+      }
+    },
+    {
+      "name": "bills cover as one action without version",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "cover",
+          "requestBody": {
+            "task_id": "public-origin",
+            "strength": 0,
+            "instruction": "fixture cover"
+          },
+          "usagePurpose": "facts"
+        }
+      ],
+      "expected": {
+        "requests": 1,
+        "action": "cover"
+      }
+    },
+    {
+      "name": "decodes actual host stems route",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "path": "/apimart/flow-music/v1/generations/stemsFlowMusic",
+          "method": "POST",
+          "params": {},
+          "query": {
+            "action": ["not-the-action"]
+          },
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "flowmusic-am",
+              "task_id": "public-origin"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "flowmusic-am",
+        "action": "stems",
+        "requestBody": {
+          "task_id": "public-origin",
+          "audio_index": 1
+        },
+        "originTaskIds": ["public-origin"]
+      }
+    },
+    {
+      "name": "maps stems to documented upstream request",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "action": "stems",
+          "requestBody": {
+            "task_id": "public-origin"
+          },
+          "originTasks": [
+            {
+              "taskId": "public-origin",
+              "upstreamTaskId": "provider-origin-task",
+              "status": "SUCCESS",
+              "action": "generate",
+              "data": {
+                "code": 200,
+                "data": {
+                  "status": "completed",
+                  "result": {
+                    "music": [
+                      {
+                        "clip_id": "private-clip-one",
+                        "duration_seconds": "120.5",
+                        "audio_url": "https://media.example.test/one.m4a"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ],
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "upstreamModel": "flowmusic"
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/stemsFlowMusic",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "model": "flowmusic",
+          "clip_id": "private-clip-one"
+        },
+        "action": "stems"
+      }
+    },
+    {
+      "name": "bills stems as one action without version",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "stems",
+          "requestBody": {
+            "task_id": "public-origin"
+          },
+          "usagePurpose": "facts"
+        }
+      ],
+      "expected": {
+        "requests": 1,
+        "action": "stems"
+      }
+    },
+    {
+      "name": "decodes actual host upload_audio route",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "path": "/apimart/flow-music/v1/generations/uploadAudioFlowMusic",
+          "method": "POST",
+          "params": {},
+          "query": {
+            "action": ["not-the-action"]
+          },
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "flowmusic-am",
+              "audio_url": "https://media.example.test/input.wav?signature=fixture"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "flowmusic-am",
+        "action": "upload_audio",
+        "requestBody": {
+          "audio_url": "https://media.example.test/input.wav?signature=fixture"
+        }
+      }
+    },
+    {
+      "name": "maps upload_audio to documented upstream request",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "action": "upload_audio",
+          "requestBody": {
+            "audio_url": "https://media.example.test/input.wav?signature=fixture"
+          },
+          "originTasks": [
+            {
+              "taskId": "public-origin",
+              "upstreamTaskId": "provider-origin-task",
+              "status": "SUCCESS",
+              "action": "generate",
+              "data": {
+                "code": 200,
+                "data": {
+                  "status": "completed",
+                  "result": {
+                    "music": [
+                      {
+                        "clip_id": "private-clip-one",
+                        "duration_seconds": "120.5",
+                        "audio_url": "https://media.example.test/one.m4a"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ],
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "upstreamModel": "flowmusic"
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/uploadAudioFlowMusic",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "audio_url": "https://media.example.test/input.wav?signature=fixture",
+          "model": "flowmusic"
+        },
+        "action": "upload_audio"
+      }
+    },
+    {
+      "name": "bills upload_audio as one action without version",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "upload_audio",
+          "requestBody": {
+            "audio_url": "https://media.example.test/input.wav?signature=fixture"
+          },
+          "usagePurpose": "facts"
+        }
+      ],
+      "expected": {
+        "requests": 1,
+        "action": "upload_audio"
+      }
+    },
+    {
+      "name": "decodes actual host download_audio route",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "path": "/apimart/flow-music/v1/generations/downloadAudioFlowMusic",
+          "method": "POST",
+          "params": {},
+          "query": {
+            "action": ["not-the-action"]
+          },
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "flowmusic-am",
+              "task_id": "public-origin",
+              "format": "mp3"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "flowmusic-am",
+        "action": "download_audio",
+        "requestBody": {
+          "task_id": "public-origin",
+          "format": "mp3",
+          "audio_index": 1
+        },
+        "originTaskIds": ["public-origin"]
+      }
+    },
+    {
+      "name": "maps download_audio to documented upstream request",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "action": "download_audio",
+          "requestBody": {
+            "task_id": "public-origin",
+            "format": "mp3"
+          },
+          "originTasks": [
+            {
+              "taskId": "public-origin",
+              "upstreamTaskId": "provider-origin-task",
+              "status": "SUCCESS",
+              "action": "generate",
+              "data": {
+                "code": 200,
+                "data": {
+                  "status": "completed",
+                  "result": {
+                    "music": [
+                      {
+                        "clip_id": "private-clip-one",
+                        "duration_seconds": "120.5",
+                        "audio_url": "https://media.example.test/one.m4a"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ],
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "upstreamModel": "flowmusic"
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/downloadAudioFlowMusic",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "format": "mp3",
+          "model": "flowmusic",
+          "clip_id": "private-clip-one"
+        },
+        "action": "download_audio"
+      }
+    },
+    {
+      "name": "bills download_audio as one action without version",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "download_audio",
+          "requestBody": {
+            "task_id": "public-origin",
+            "format": "mp3"
+          },
+          "usagePurpose": "facts"
+        }
+      ],
+      "expected": {
+        "requests": 1,
+        "action": "download_audio"
+      }
+    },
+    {
+      "name": "decodes actual host video_clip route",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "path": "/apimart/flow-music/v1/generations/videoClipFlowMusic",
+          "method": "POST",
+          "params": {},
+          "query": {
+            "action": ["not-the-action"]
+          },
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "flowmusic-am",
+              "task_id": "public-origin"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "flowmusic-am",
+        "action": "video_clip",
+        "requestBody": {
+          "task_id": "public-origin",
+          "audio_index": 1,
+          "preset": "simple"
+        },
+        "originTaskIds": ["public-origin"]
+      }
+    },
+    {
+      "name": "maps video_clip to documented upstream request",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "action": "video_clip",
+          "requestBody": {
+            "task_id": "public-origin"
+          },
+          "originTasks": [
+            {
+              "taskId": "public-origin",
+              "upstreamTaskId": "provider-origin-task",
+              "status": "SUCCESS",
+              "action": "generate",
+              "data": {
+                "code": 200,
+                "data": {
+                  "status": "completed",
+                  "result": {
+                    "music": [
+                      {
+                        "clip_id": "private-clip-one",
+                        "duration_seconds": "120.5",
+                        "audio_url": "https://media.example.test/one.m4a"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ],
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "upstreamModel": "flowmusic"
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/videoClipFlowMusic",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "model": "flowmusic",
+          "clip_id": "private-clip-one",
+          "preset": "simple"
+        },
+        "action": "video_clip"
+      }
+    },
+    {
+      "name": "bills video_clip as one action without version",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "video_clip",
+          "requestBody": {
+            "task_id": "public-origin"
+          },
+          "usagePurpose": "facts"
+        }
+      ],
+      "expected": {
+        "requests": 1,
+        "action": "video_clip"
+      }
+    },
+    {
+      "name": "forwards Lyria 3.5 for generate",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "action": "generate",
+          "requestBody": {
+            "sound_prompt": "fixture melody",
+            "length": 60,
+            "bpm": "120",
+            "seed": "0",
+            "version": "lyria-3.5"
+          },
+          "originTasks": [
+            {
+              "taskId": "public-origin",
+              "upstreamTaskId": "provider-origin-task",
+              "status": "SUCCESS",
+              "action": "generate",
+              "data": {
+                "code": 200,
+                "data": {
+                  "status": "completed",
+                  "result": {
+                    "music": [
+                      {
+                        "clip_id": "private-clip-one",
+                        "duration_seconds": "120.5",
+                        "audio_url": "https://media.example.test/one.m4a"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ],
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "upstreamModel": "flowmusic"
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "sound_prompt": "fixture melody",
+          "length": 60,
+          "bpm": "120",
+          "seed": "0",
+          "version": "lyria-3.5",
+          "model": "flowmusic"
+        },
+        "action": "generate"
+      }
+    },
+    {
+      "name": "forwards Lyria 3.5 for extend",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "action": "extend",
+          "requestBody": {
+            "task_id": "public-origin",
+            "extend_from_s": 0,
+            "extend_s": 164,
+            "instruction": "fixture extend",
+            "seed": "0",
+            "version": "lyria-3.5"
+          },
+          "originTasks": [
+            {
+              "taskId": "public-origin",
+              "upstreamTaskId": "provider-origin-task",
+              "status": "SUCCESS",
+              "action": "generate",
+              "data": {
+                "code": 200,
+                "data": {
+                  "status": "completed",
+                  "result": {
+                    "music": [
+                      {
+                        "clip_id": "private-clip-one",
+                        "duration_seconds": "120.5",
+                        "audio_url": "https://media.example.test/one.m4a"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ],
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "upstreamModel": "flowmusic"
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/extendFlowMusic",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "extend_from_s": 0,
+          "extend_s": 164,
+          "instruction": "fixture extend",
+          "seed": "0",
+          "version": "lyria-3.5",
+          "model": "flowmusic",
+          "clip_id": "private-clip-one"
+        },
+        "action": "extend"
+      }
+    },
+    {
+      "name": "forwards Lyria 3.5 for replace",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "action": "replace",
+          "requestBody": {
+            "task_id": "public-origin",
+            "start_s": 0,
+            "end_s": 30,
+            "instruction": "fixture replace",
+            "seed": 0,
+            "version": "lyria-3.5"
+          },
+          "originTasks": [
+            {
+              "taskId": "public-origin",
+              "upstreamTaskId": "provider-origin-task",
+              "status": "SUCCESS",
+              "action": "generate",
+              "data": {
+                "code": 200,
+                "data": {
+                  "status": "completed",
+                  "result": {
+                    "music": [
+                      {
+                        "clip_id": "private-clip-one",
+                        "duration_seconds": "120.5",
+                        "audio_url": "https://media.example.test/one.m4a"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ],
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "upstreamModel": "flowmusic"
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/replaceFlowMusic",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "start_s": 0,
+          "end_s": 30,
+          "instruction": "fixture replace",
+          "seed": 0,
+          "version": "lyria-3.5",
+          "model": "flowmusic",
+          "clip_id": "private-clip-one"
+        },
+        "action": "replace"
+      }
+    },
+    {
+      "name": "forwards Lyria 3.5 for cover",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "action": "cover",
+          "requestBody": {
+            "task_id": "public-origin",
+            "strength": 0,
+            "instruction": "fixture cover",
+            "version": "lyria-3.5"
+          },
+          "originTasks": [
+            {
+              "taskId": "public-origin",
+              "upstreamTaskId": "provider-origin-task",
+              "status": "SUCCESS",
+              "action": "generate",
+              "data": {
+                "code": 200,
+                "data": {
+                  "status": "completed",
+                  "result": {
+                    "music": [
+                      {
+                        "clip_id": "private-clip-one",
+                        "duration_seconds": "120.5",
+                        "audio_url": "https://media.example.test/one.m4a"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ],
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "upstreamModel": "flowmusic"
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/coverFlowMusic",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "strength": 0,
+          "instruction": "fixture cover",
+          "version": "lyria-3.5",
+          "model": "flowmusic",
+          "clip_id": "private-clip-one"
+        },
+        "action": "cover"
+      }
+    },
+    {
+      "name": "accepts lyrics-only music generation",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "generate",
+          "requestBody": {
+            "lyrics": "fixture lyrics"
+          }
+        }
+      ],
+      "expected": {
+        "requests": 1,
+        "action": "generate"
+      }
+    },
+    {
+      "name": "does not expose usage facts as numeric ratios",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "usagePurpose": "billing_ratios"
+        }
+      ],
+      "expected": null
+    },
+    {
+      "name": "rejects invalid generate request 1",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "generate",
+          "requestBody": {}
+        }
+      ],
+      "expectedError": "cannot both be empty"
+    },
+    {
+      "name": "rejects invalid generate request 2",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "generate",
+          "requestBody": {
+            "sound_prompt": "x",
+            "length": 0
+          }
+        }
+      ],
+      "expectedError": "length"
+    },
+    {
+      "name": "rejects invalid generate request 3",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "generate",
+          "requestBody": {
+            "sound_prompt": "x",
+            "length": 241
+          }
+        }
+      ],
+      "expectedError": "length"
+    },
+    {
+      "name": "rejects invalid generate request 4",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "generate",
+          "requestBody": {
+            "sound_prompt": "x",
+            "length": 1.5
+          }
+        }
+      ],
+      "expectedError": "length"
+    },
+    {
+      "name": "rejects invalid generate request 5",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "generate",
+          "requestBody": {
+            "sound_prompt": "x",
+            "bpm": "0"
+          }
+        }
+      ],
+      "expectedError": "bpm"
+    },
+    {
+      "name": "rejects invalid generate request 6",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "generate",
+          "requestBody": {
+            "sound_prompt": "x",
+            "bpm": 120
+          }
+        }
+      ],
+      "expectedError": "bpm"
+    },
+    {
+      "name": "rejects invalid generate request 7",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "generate",
+          "requestBody": {
+            "sound_prompt": "x",
+            "bpm": "1e100"
+          }
+        }
+      ],
+      "expectedError": "bpm"
+    },
+    {
+      "name": "rejects invalid generate request 8",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "generate",
+          "requestBody": {
+            "sound_prompt": "x",
+            "version": "v5.5"
+          }
+        }
+      ],
+      "expectedError": "version"
+    },
+    {
+      "name": "rejects invalid generate request 9",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "generate",
+          "requestBody": {
+            "sound_prompt": "x",
+            "model": "lyria-3.5"
+          }
+        }
+      ],
+      "expectedError": "model"
+    },
+    {
+      "name": "rejects invalid generate request 10",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "generate",
+          "requestBody": {
+            "sound_prompt": "x",
+            "requests": 9
+          }
+        }
+      ],
+      "expectedError": "unsupported field"
+    },
+    {
+      "name": "rejects invalid lyrics request 11",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "lyrics",
+          "requestBody": {
+            "prompt": "  "
+          }
+        }
+      ],
+      "expectedError": "prompt"
+    },
+    {
+      "name": "rejects invalid lyrics request 12",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "lyrics",
+          "requestBody": {
+            "prompt": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          }
+        }
+      ],
+      "expectedError": "prompt"
+    },
+    {
+      "name": "rejects invalid lyrics request 13",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "lyrics",
+          "requestBody": {
+            "prompt": "x",
+            "version": "lyria-3.5"
+          }
+        }
+      ],
+      "expectedError": "unsupported field"
+    },
+    {
+      "name": "rejects invalid extend request 14",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "extend",
+          "requestBody": {
+            "task_id": "public-origin",
+            "extend_from_s": -1,
+            "extend_s": 10,
+            "instruction": "x"
+          }
+        }
+      ],
+      "expectedError": "extend_from_s"
+    },
+    {
+      "name": "rejects invalid extend request 15",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "extend",
+          "requestBody": {
+            "task_id": "public-origin",
+            "extend_from_s": 0,
+            "extend_s": 165,
+            "instruction": "x"
+          }
+        }
+      ],
+      "expectedError": "extend_s"
+    },
+    {
+      "name": "rejects invalid extend request 16",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "extend",
+          "requestBody": {
+            "task_id": "public-origin",
+            "extend_from_s": 0,
+            "extend_s": 0,
+            "instruction": "x"
+          }
+        }
+      ],
+      "expectedError": "extend_s"
+    },
+    {
+      "name": "rejects invalid replace request 17",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "replace",
+          "requestBody": {
+            "task_id": "public-origin",
+            "start_s": 10,
+            "end_s": 10,
+            "instruction": "x"
+          }
+        }
+      ],
+      "expectedError": "end_s"
+    },
+    {
+      "name": "rejects invalid replace request 18",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "replace",
+          "requestBody": {
+            "task_id": "public-origin",
+            "start_s": 0,
+            "end_s": 3601,
+            "instruction": "x"
+          }
+        }
+      ],
+      "expectedError": "end_s"
+    },
+    {
+      "name": "rejects invalid replace request 19",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "replace",
+          "requestBody": {
+            "task_id": "public-origin",
+            "start_s": 0,
+            "end_s": 1,
+            "instruction": "x",
+            "seed": "0"
+          }
+        }
+      ],
+      "expectedError": "seed"
+    },
+    {
+      "name": "rejects invalid cover request 20",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "cover",
+          "requestBody": {
+            "task_id": "public-origin",
+            "instruction": "x",
+            "strength": 1.01
+          }
+        }
+      ],
+      "expectedError": "strength"
+    },
+    {
+      "name": "rejects invalid cover request 21",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "cover",
+          "requestBody": {
+            "task_id": "public-origin",
+            "instruction": "x",
+            "strength": -1
+          }
+        }
+      ],
+      "expectedError": "strength"
+    },
+    {
+      "name": "rejects invalid cover request 22",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "cover",
+          "requestBody": {
+            "task_id": "public-origin",
+            "instruction": "x",
+            "strength": 0,
+            "seed": 0
+          }
+        }
+      ],
+      "expectedError": "seed"
+    },
+    {
+      "name": "rejects invalid stems request 23",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "stems",
+          "requestBody": {
+            "clip_id": "raw-provider-id"
+          }
+        }
+      ],
+      "expectedError": "unsupported field"
+    },
+    {
+      "name": "rejects invalid stems request 24",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "stems",
+          "requestBody": {
+            "task_id": "public-origin",
+            "audio_index": 0
+          }
+        }
+      ],
+      "expectedError": "audio_index"
+    },
+    {
+      "name": "rejects invalid stems request 25",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "stems",
+          "requestBody": {
+            "task_id": "public-origin",
+            "audio_index": 65
+          }
+        }
+      ],
+      "expectedError": "audio_index"
+    },
+    {
+      "name": "rejects invalid upload_audio request 26",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "upload_audio",
+          "requestBody": {
+            "audio_url": "file:///private/audio.wav"
+          }
+        }
+      ],
+      "expectedError": "audio_url"
+    },
+    {
+      "name": "rejects invalid upload_audio request 27",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "upload_audio",
+          "requestBody": {
+            "audio_url": "https://user:password@media.example.test/audio.wav"
+          }
+        }
+      ],
+      "expectedError": "audio_url"
+    },
+    {
+      "name": "rejects invalid download_audio request 28",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "download_audio",
+          "requestBody": {
+            "task_id": "public-origin",
+            "format": "flac"
+          }
+        }
+      ],
+      "expectedError": "format"
+    },
+    {
+      "name": "rejects invalid video_clip request 29",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "video_clip",
+          "requestBody": {
+            "task_id": "public-origin",
+            "preset": "unrecognized"
+          }
+        }
+      ],
+      "expectedError": "preset"
+    },
+    {
+      "name": "wrong method",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "path": "/apimart/flow-music/v1/generations",
+          "method": "GET",
+          "params": {},
+          "query": {
+            "action": ["not-the-action"]
+          },
+          "body": {
+            "kind": "json",
+            "value": {
+              "sound_prompt": "x"
+            }
+          }
+        }
+      ],
+      "expectedError": "unsupported Flow Music route"
+    },
+    {
+      "name": "unknown route",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "path": "/apimart/flow-music/v1/generations/generate",
+          "method": "POST",
+          "params": {},
+          "query": {
+            "action": ["not-the-action"]
+          },
+          "body": {
+            "kind": "json",
+            "value": {
+              "sound_prompt": "x"
+            }
+          }
+        }
+      ],
+      "expectedError": "unsupported Flow Music route"
+    },
+    {
+      "name": "wrong suffix case",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "path": "/apimart/flow-music/v1/generations/coverflowmusic",
+          "method": "POST",
+          "params": {},
+          "query": {
+            "action": ["not-the-action"]
+          },
+          "body": {
+            "kind": "json",
+            "value": {
+              "sound_prompt": "x"
+            }
+          }
+        }
+      ],
+      "expectedError": "unsupported Flow Music route"
+    },
+    {
+      "name": "requires JSON native request",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "path": "/apimart/flow-music/v1/generations",
+          "method": "POST",
+          "params": {},
+          "query": {
+            "action": ["not-the-action"]
+          },
+          "body": {
+            "kind": "text",
+            "value": "x"
+          }
+        }
+      ],
+      "expectedError": "JSON body required"
+    },
+    {
+      "name": "body cannot override native action",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "path": "/apimart/flow-music/v1/generations",
+          "method": "POST",
+          "params": {},
+          "query": {
+            "action": ["not-the-action"]
+          },
+          "body": {
+            "kind": "json",
+            "value": {
+              "sound_prompt": "x",
+              "action": "cover"
+            }
+          }
+        }
+      ],
+      "expectedError": "unsupported field"
+    },
+    {
+      "name": "rejects unresolved source",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "action": "stems",
+          "requestBody": {
+            "task_id": "public-origin"
+          },
+          "originTasks": [],
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "upstreamModel": "flowmusic"
+        }
+      ],
+      "expectedError": "resolved by the host"
+    },
+    {
+      "name": "rejects unfinished source",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "action": "stems",
+          "requestBody": {
+            "task_id": "public-origin"
+          },
+          "originTasks": [
+            {
+              "taskId": "public-origin",
+              "upstreamTaskId": "provider-origin-task",
+              "status": "IN_PROGRESS",
+              "action": "generate",
+              "data": {
+                "code": 200,
+                "data": {
+                  "status": "completed",
+                  "result": {
+                    "music": [
+                      {
+                        "clip_id": "private-clip-one",
+                        "duration_seconds": "120.5",
+                        "audio_url": "https://media.example.test/one.m4a"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ],
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "upstreamModel": "flowmusic"
+        }
+      ],
+      "expectedError": "resolved by the host"
+    },
+    {
+      "name": "rejects wrong public ID source",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "action": "stems",
+          "requestBody": {
+            "task_id": "public-origin"
+          },
+          "originTasks": [
+            {
+              "taskId": "someone-else",
+              "upstreamTaskId": "provider-origin-task",
+              "status": "SUCCESS",
+              "action": "generate",
+              "data": {
+                "code": 200,
+                "data": {
+                  "status": "completed",
+                  "result": {
+                    "music": [
+                      {
+                        "clip_id": "private-clip-one",
+                        "duration_seconds": "120.5",
+                        "audio_url": "https://media.example.test/one.m4a"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ],
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "upstreamModel": "flowmusic"
+        }
+      ],
+      "expectedError": "resolved by the host"
+    },
+    {
+      "name": "rejects missing clip source",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "action": "stems",
+          "requestBody": {
+            "task_id": "public-origin"
+          },
+          "originTasks": [
+            {
+              "taskId": "public-origin",
+              "upstreamTaskId": "provider-origin-task",
+              "status": "SUCCESS",
+              "action": "generate",
+              "data": {
+                "result": {
+                  "music": [
+                    {
+                      "audio_url": "https://media.example.test/one.wav"
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "upstreamModel": "flowmusic"
+        }
+      ],
+      "expectedError": "clip_id"
+    },
+    {
+      "name": "rejects missing second audio",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "action": "stems",
+          "requestBody": {
+            "task_id": "public-origin",
+            "audio_index": 2
+          },
+          "originTasks": [
+            {
+              "taskId": "public-origin",
+              "upstreamTaskId": "provider-origin-task",
+              "status": "SUCCESS",
+              "action": "generate",
+              "data": {
+                "code": 200,
+                "data": {
+                  "status": "completed",
+                  "result": {
+                    "music": [
+                      {
+                        "clip_id": "private-clip-one",
+                        "duration_seconds": "120.5",
+                        "audio_url": "https://media.example.test/one.m4a"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ],
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "upstreamModel": "flowmusic"
+        }
+      ],
+      "expectedError": "audio_index"
+    },
+    {
+      "name": "resolves one-based second clip rather than upstream task ID",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "action": "cover",
+          "requestBody": {
+            "task_id": "public-origin",
+            "audio_index": 2,
+            "strength": 1,
+            "instruction": "fixture second"
+          },
+          "originTasks": [
+            {
+              "taskId": "public-origin",
+              "upstreamTaskId": "provider-origin-task",
+              "status": "SUCCESS",
+              "action": "generate",
+              "data": {
+                "code": 200,
+                "data": {
+                  "status": "completed",
+                  "result": {
+                    "music": [
+                      {
+                        "clip_id": "private-clip-one",
+                        "duration_seconds": "120.5",
+                        "audio_url": "https://media.example.test/one.m4a"
+                      },
+                      {
+                        "clip_id": "private-clip-two",
+                        "duration_seconds": "45",
+                        "audio_url": "https://media.example.test/two.wav"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ],
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "upstreamModel": "flowmusic"
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/coverFlowMusic",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "strength": 1,
+          "instruction": "fixture second",
+          "clip_id": "private-clip-two",
+          "model": "flowmusic"
+        },
+        "action": "cover"
+      }
+    },
+    {
+      "name": "rejects extension past recorded duration",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "action": "extend",
+          "requestBody": {
+            "task_id": "public-origin",
+            "extend_from_s": 121,
+            "extend_s": 1,
+            "instruction": "x"
+          },
+          "originTasks": [
+            {
+              "taskId": "public-origin",
+              "upstreamTaskId": "provider-origin-task",
+              "status": "SUCCESS",
+              "action": "generate",
+              "data": {
+                "code": 200,
+                "data": {
+                  "status": "completed",
+                  "result": {
+                    "music": [
+                      {
+                        "clip_id": "private-clip-one",
+                        "duration_seconds": "120.5",
+                        "audio_url": "https://media.example.test/one.m4a"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ],
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "upstreamModel": "flowmusic"
+        }
+      ],
+      "expectedError": "exceeds"
+    },
+    {
+      "name": "rejects replacement past recorded duration",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "action": "replace",
+          "requestBody": {
+            "task_id": "public-origin",
+            "start_s": 0,
+            "end_s": 121,
+            "instruction": "x"
+          },
+          "originTasks": [
+            {
+              "taskId": "public-origin",
+              "upstreamTaskId": "provider-origin-task",
+              "status": "SUCCESS",
+              "action": "generate",
+              "data": {
+                "code": 200,
+                "data": {
+                  "status": "completed",
+                  "result": {
+                    "music": [
+                      {
+                        "clip_id": "private-clip-one",
+                        "duration_seconds": "120.5",
+                        "audio_url": "https://media.example.test/one.m4a"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ],
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "upstreamModel": "flowmusic"
+        }
+      ],
+      "expectedError": "exceeds"
+    },
+    {
+      "name": "rejects unsupported upstream mapping",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "action": "generate",
+          "requestBody": {
+            "sound_prompt": "x"
+          },
+          "originTasks": [
+            {
+              "taskId": "public-origin",
+              "upstreamTaskId": "provider-origin-task",
+              "status": "SUCCESS",
+              "action": "generate",
+              "data": {
+                "code": 200,
+                "data": {
+                  "status": "completed",
+                  "result": {
+                    "music": [
+                      {
+                        "clip_id": "private-clip-one",
+                        "duration_seconds": "120.5",
+                        "audio_url": "https://media.example.test/one.m4a"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ],
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "upstreamModel": "suno"
+        }
+      ],
+      "expectedError": "upstream model"
+    },
+    {
+      "name": "parses documented asynchronous submission",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {},
+        {
+          "statusCode": 200,
+          "body": {
+            "code": 200,
+            "data": [
+              {
+                "status": "submitted",
+                "task_id": "provider-task"
+              }
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "taskId": "provider-task",
+        "taskData": {
+          "code": 200,
+          "data": [
+            {
+              "status": "submitted",
+              "task_id": "provider-task"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "does not accept HTTP submission error",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {},
+        {
+          "statusCode": 429,
+          "body": {
+            "code": 200,
+            "data": [
+              {
+                "status": "submitted",
+                "task_id": "provider-task"
+              }
+            ]
+          }
+        }
+      ],
+      "expectedError": "HTTP error"
+    },
+    {
+      "name": "rejects submission error body",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {},
+        {
+          "statusCode": 200,
+          "body": {
+            "code": 403,
+            "error": {
+              "message": "fixture balance"
+            }
+          }
+        }
+      ],
+      "expectedError": "submission failed"
+    },
+    {
+      "name": "rejects ambiguous multiple submitted tasks",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {},
+        {
+          "body": {
+            "code": 200,
+            "data": [
+              {
+                "task_id": "a"
+              },
+              {
+                "task_id": "b"
+              }
+            ]
+          }
+        }
+      ],
+      "expectedError": "one task_id"
+    },
+    {
+      "name": "queries an escaped private upstream task ID",
+      "hook": "buildQueryRequest",
+      "args": [
+        {
+          "taskId": "provider/task?x",
+          "baseUrl": "https://api.apib.ai/",
+          "apiKey": "fixture-key"
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/tasks/provider%2Ftask%3Fx",
+        "method": "GET",
+        "headers": {
+          "Accept": "application/json",
+          "Authorization": "Bearer fixture-key"
+        }
+      }
+    },
+    {
+      "name": "maps submitted task lifecycle",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "code": 200,
+          "data": {
+            "status": "submitted",
+            "progress": 25,
+            "error": {
+              "message": "fixture failure"
+            }
+          }
+        },
+        {
+          "statusCode": 200
+        }
+      ],
+      "expected": {
+        "status": "SUBMITTED",
+        "progress": "25%",
+        "reason": ""
+      }
+    },
+    {
+      "name": "maps pending task lifecycle",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "code": 200,
+          "data": {
+            "status": "pending",
+            "progress": 25,
+            "error": {
+              "message": "fixture failure"
+            }
+          }
+        },
+        {
+          "statusCode": 200
+        }
+      ],
+      "expected": {
+        "status": "SUBMITTED",
+        "progress": "25%",
+        "reason": ""
+      }
+    },
+    {
+      "name": "maps processing task lifecycle",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "code": 200,
+          "data": {
+            "status": "processing",
+            "progress": 25,
+            "error": {
+              "message": "fixture failure"
+            }
+          }
+        },
+        {
+          "statusCode": 200
+        }
+      ],
+      "expected": {
+        "status": "IN_PROGRESS",
+        "progress": "25%",
+        "reason": ""
+      }
+    },
+    {
+      "name": "maps completed task lifecycle",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "code": 200,
+          "data": {
+            "status": "completed",
+            "progress": 25,
+            "error": {
+              "message": "fixture failure"
+            }
+          }
+        },
+        {
+          "statusCode": 200
+        }
+      ],
+      "expected": {
+        "status": "SUCCESS",
+        "progress": "100%",
+        "reason": ""
+      }
+    },
+    {
+      "name": "maps failed task lifecycle",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "code": 200,
+          "data": {
+            "status": "failed",
+            "progress": 25,
+            "error": {
+              "message": "fixture failure"
+            }
+          }
+        },
+        {
+          "statusCode": 200
+        }
+      ],
+      "expected": {
+        "status": "FAILURE",
+        "progress": "100%",
+        "reason": "fixture failure"
+      }
+    },
+    {
+      "name": "keeps unknown statuses nonterminal",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "code": 200,
+          "data": {
+            "status": "constructor"
+          }
+        }
+      ],
+      "expected": {
+        "status": "UNKNOWN",
+        "reason": "unrecognized Flow Music task status"
+      }
+    },
+    {
+      "name": "query transport error does not become terminal failure",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "code": 200,
+          "data": {
+            "status": "failed"
+          }
+        },
+        {
+          "statusCode": 503
+        }
+      ],
+      "expectedError": "HTTP error"
+    },
+    {
+      "name": "query API rejection does not become terminal failure",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "code": 429,
+          "error": {
+            "message": "retry later"
+          }
+        }
+      ],
+      "expectedError": "query failed"
+    },
+    {
+      "name": "completion keeps one request ignoring provider costs",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {},
+        {},
+        {
+          "code": 200,
+          "data": {
+            "status": "completed",
+            "cost": 999999,
+            "credits_cost": -100
+          }
+        }
+      ],
+      "expected": {
+        "requests": 1
+      }
+    },
+    {
+      "name": "failure does not override host refund accounting",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {},
+        {},
+        {
+          "code": 200,
+          "data": {
+            "status": "failed",
+            "cost": 999999
+          }
+        }
+      ],
+      "expected": null
+    },
+    {
+      "name": "does not publish unfinished media artifacts",
+      "hook": "listArtifacts",
+      "args": [
+        {
+          "status": "IN_PROGRESS",
+          "data": {
+            "code": 200,
+            "data": {
+              "status": "completed",
+              "result": {
+                "music": [
+                  {
+                    "clip_id": "private-clip-one",
+                    "duration_seconds": "120.5",
+                    "audio_url": "https://media.example.test/one.m4a"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "expected": []
+    },
+    {
+      "name": "lyrics-only tasks have no downloadable artifact",
+      "hook": "listArtifacts",
+      "args": [
+        {
+          "status": "SUCCESS",
+          "data": {
+            "code": 200,
+            "data": {
+              "status": "completed",
+              "result": {
+                "lyrics": [
+                  {
+                    "title": "fixture",
+                    "lyrics": "fixture words"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "expected": []
+    },
+    {
+      "name": "rejects arbitrary client artifact URLs",
+      "hook": "buildContentRequest",
+      "args": [
+        {
+          "status": "SUCCESS",
+          "data": {
+            "code": 200,
+            "data": {
+              "status": "completed",
+              "result": {
+                "music": [
+                  {
+                    "clip_id": "private-clip-one",
+                    "duration_seconds": "120.5",
+                    "audio_url": "https://media.example.test/one.m4a"
+                  }
+                ]
+              }
+            }
+          },
+          "artifactKey": "https://attacker.example.test"
+        }
+      ],
+      "expectedError": "artifact_not_found"
+    },
+    {
+      "name": "rejects non-read artifact methods",
+      "hook": "buildContentRequest",
+      "args": [
+        {
+          "status": "SUCCESS",
+          "data": {
+            "code": 200,
+            "data": {
+              "status": "completed",
+              "result": {
+                "music": [
+                  {
+                    "clip_id": "private-clip-one",
+                    "duration_seconds": "120.5",
+                    "audio_url": "https://media.example.test/one.m4a"
+                  }
+                ]
+              }
+            }
+          },
+          "clientRequest": {
+            "method": "POST"
+          }
+        }
+      ],
+      "expectedError": "unsupported artifact method"
+    },
+    {
+      "name": "publishes public submission ID only",
+      "hook": "native",
+      "member": "renderSubmitted",
+      "args": [
+        {},
+        {
+          "task_id": "public-task",
+          "private_data": {
+            "upstream_task_id": "provider-task"
+          }
+        }
+      ],
+      "expected": {
+        "code": 200,
+        "data": [
+          {
+            "status": "submitted",
+            "task_id": "public-task"
+          }
+        ]
+      }
+    },
+    {
+      "name": "preserves text and media while stripping private IDs and billing inputs",
+      "hook": "native",
+      "member": "renderTask",
+      "args": [
+        {},
+        {
+          "task_id": "public-task",
+          "status": "SUCCESS",
+          "data": {
+            "code": 200,
+            "data": {
+              "id": "provider-task",
+              "status": "completed",
+              "cost": 999,
+              "result": {
+                "music": [
+                  {
+                    "clip_id": "private-clip",
+                    "lyrics_id": "private-lyrics",
+                    "title": "fixture",
+                    "audio_url": "https://media.example.test/song.wav",
+                    "wav_url": "https://media.example.test/song-lossless.wav",
+                    "lyrics_timing_markers": [[0, 12]],
+                    "unsafe_url": "https://not-published.example.test",
+                    "secret": "fixture-secret"
+                  }
+                ],
+                "lyrics": [
+                  {
+                    "title": "fixture words",
+                    "lyrics": "fixture text"
+                  }
+                ],
+                "cost": 100,
+                "credits_cost": 100
+              }
+            }
+          }
+        }
+      ],
+      "expected": {
+        "code": 200,
+        "data": {
+          "id": "public-task",
+          "status": "completed",
+          "progress": 100,
+          "result": {
+            "music": [
+              {
+                "title": "fixture",
+                "audio_url": "https://media.example.test/song.wav",
+                "wav_url": "https://media.example.test/song-lossless.wav",
+                "lyrics_timing_markers": [[0, 12]]
+              }
+            ],
+            "lyrics": [
+              {
+                "title": "fixture words",
+                "lyrics": "fixture text"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "renders failed task without upstream IDs",
+      "hook": "native",
+      "member": "renderTask",
+      "args": [
+        {},
+        {
+          "task_id": "public-task",
+          "status": "FAILURE",
+          "fail_reason": "fixture failure"
+        }
+      ],
+      "expected": {
+        "code": 200,
+        "data": {
+          "id": "public-task",
+          "status": "failed",
+          "progress": 100,
+          "error": {
+            "message": "fixture failure"
+          }
+        }
+      }
+    }
+  ]
+}
