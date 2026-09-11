@@ -1,0 +1,144 @@
+{
+  "cases": [
+    {
+      "name": "decodes a documented Grok video request with defaults",
+      "hook": "native",
+      "member": "decodeVideoGeneration",
+      "args": [{"body":{"kind":"json","value":{"model":"grok-imagine-1.5-video-am","prompt":"ocean sunrise"}}}],
+      "expected": {"kind":"submit","model":"grok-imagine-1.5-video-am","action":"video_generation","requestBody":{"model":"grok-imagine-1.5-video-am","prompt":"ocean sunrise","duration":6,"resolution":"480p","size":"16:9"}}
+    },
+    {
+      "name": "maps the public Grok alias to the documented upstream model",
+      "hook": "buildSubmitRequest",
+      "args": [{"baseUrl":"https://api.apib.ai","apiKey":"fixture-key","model":"grok-imagine-1.5-video-am","requestBody":{"model":"grok-imagine-1.5-video-am","prompt":"ocean sunrise","duration":10,"resolution":"720p","size":"9:16"}}],
+      "expected": {"url":"https://api.apib.ai/v1/videos/generations","method":"POST","headers":{"Accept":"application/json","Content-Type":"application/json","Authorization":"Bearer fixture-key"},"body":{"model":"grok-imagine-1.5-video-ext","prompt":"ocean sunrise","duration":10,"resolution":"720p","size":"9:16"},"action":"video_generation"}
+    },
+    {
+      "name": "extracts bounded Grok billing facts",
+      "hook": "extractUsage",
+      "args": [{"model":"grok-imagine-1.5-video-am","requestBody":{"model":"grok-imagine-1.5-video-am","prompt":"ocean sunrise","duration":15,"resolution":"720P","size":"16:9"}}],
+      "expected": {"resolution":"720p","seconds":15}
+    },
+    {
+      "name": "rejects an oversized Grok duration",
+      "hook": "native",
+      "member": "decodeVideoGeneration",
+      "args": [{"body":{"kind":"json","value":{"model":"grok-imagine-1.5-video-am","prompt":"ocean sunrise","duration":16}}}],
+      "expectedError": "duration must be an integer between 6 and 15"
+    },
+    {
+      "name": "accepts Kling 3 Turbo image to video",
+      "hook": "native",
+      "member": "decodeVideoGeneration",
+      "args": [{"body":{"kind":"json","value":{"model":"kling-3.0-turbo-am","prompt":"a dog runs","first_frame_image":"https://media.example/cat.png","duration":3,"resolution":"1080p"}}}],
+      "expected": {"kind":"submit","model":"kling-3.0-turbo-am","action":"video_generation","requestBody":{"model":"kling-3.0-turbo-am","prompt":"a dog runs","duration":3,"resolution":"1080p","first_frame_image":"https://media.example/cat.png"}}
+    },
+    {
+      "name": "enforces Hailuo Fast first frame",
+      "hook": "native",
+      "member": "decodeVideoGeneration",
+      "args": [{"body":{"kind":"json","value":{"model":"minimax-hailuo-2.3-fast-am","prompt":"a waterfall"}}}],
+      "expectedError": "first_frame_image is required"
+    },
+    {
+      "name": "enforces Hailuo 1080p duration combination",
+      "hook": "native",
+      "member": "decodeVideoGeneration",
+      "args": [{"body":{"kind":"json","value":{"model":"minimax-hailuo-2.3-am","prompt":"a waterfall","duration":10,"resolution":"1080p"}}}],
+      "expectedError": "1080p Hailuo video must be 6 seconds"
+    },
+    {
+      "name": "extracts Pixverse audio pricing tier",
+      "hook": "extractUsage",
+      "args": [{"model":"pixverse-v6-am","requestBody":{"model":"pixverse-v6-am","prompt":"a neon city","duration":8,"resolution":"1080p","audio":true}}],
+      "expected": {"resolution":"1080p","seconds":8,"audio":"on"}
+    },
+    {
+      "name": "enforces Pixverse first and last frame duration",
+      "hook": "native",
+      "member": "decodeVideoGeneration",
+      "args": [{"body":{"kind":"json","value":{"model":"pixverse-v6-am","prompt":"transition","duration":7,"image_urls":["https://media.example/a.png","https://media.example/b.png"]}}}],
+      "expectedError": "Pixverse first/last-frame mode requires 5 or 8 seconds"
+    },
+    {
+      "name": "accepts Vidu first and last frame mode",
+      "hook": "native",
+      "member": "decodeVideoGeneration",
+      "args": [{"body":{"kind":"json","value":{"model":"viduq3-pro-am","image_urls":["https://media.example/a.png","https://media.example/b.png"],"duration":16,"audio":false}}}],
+      "expected": {"kind":"submit","model":"viduq3-pro-am","action":"video_generation","requestBody":{"model":"viduq3-pro-am","duration":16,"resolution":"720p","image_urls":["https://media.example/a.png","https://media.example/b.png"],"audio":false}}
+    },
+    {
+      "name": "accepts Wan role-based first and last frames",
+      "hook": "native",
+      "member": "decodeVideoGeneration",
+      "args": [{"body":{"kind":"json","value":{"model":"wan2.7-am","prompt":"day becomes night","image_with_roles":[{"url":"https://media.example/a.png","role":"first_frame"},{"url":"https://media.example/b.png","role":"last_frame"}],"duration":10}}}],
+      "expected": {"kind":"submit","model":"wan2.7-am","action":"video_generation","requestBody":{"model":"wan2.7-am","prompt":"day becomes night","duration":10,"resolution":"1080p","image_with_roles":[{"url":"https://media.example/a.png","role":"first_frame"},{"url":"https://media.example/b.png","role":"last_frame"}]}}
+    },
+    {
+      "name": "rejects conflicting Wan video and first frame inputs",
+      "hook": "native",
+      "member": "decodeVideoGeneration",
+      "args": [{"body":{"kind":"json","value":{"model":"wan2.7-am","prompt":"continue","image_urls":["https://media.example/a.png"],"video_urls":["https://media.example/a.mp4"]}}}],
+      "expectedError": "video_urls conflicts with first-frame input"
+    },
+    {
+      "name": "accepts HappyHorse reference images",
+      "hook": "native",
+      "member": "decodeVideoGeneration",
+      "args": [{"body":{"kind":"json","value":{"model":"happyhorse-1.0-am","prompt":"consistent character","image_urls":["https://media.example/a.png"],"resolution":"1080P","duration":15}}}],
+      "expected": {"kind":"submit","model":"happyhorse-1.0-am","action":"video_generation","requestBody":{"model":"happyhorse-1.0-am","prompt":"consistent character","duration":15,"resolution":"1080p","size":"16:9","image_urls":["https://media.example/a.png"]}}
+    },
+    {
+      "name": "rejects unsupported HappyHorse edit field until duration can be verified",
+      "hook": "native",
+      "member": "decodeVideoGeneration",
+      "args": [{"body":{"kind":"json","value":{"model":"happyhorse-1.0-am","prompt":"restyle","video_url":"https://media.example/source.mp4"}}}],
+      "expectedError": "unsupported field for happyhorse-1.0-am: video_url"
+    },
+    {
+      "name": "accepts basic SkyReels generation",
+      "hook": "native",
+      "member": "decodeVideoGeneration",
+      "args": [{"body":{"kind":"json","value":{"model":"skyreels-v4-fast-am","prompt":"forest sunset","duration":5,"resolution":"1080p","aspect_ratio":"16:9","prompt_optimizer":true}}}],
+      "expected": {"kind":"submit","model":"skyreels-v4-fast-am","action":"video_generation","requestBody":{"model":"skyreels-v4-fast-am","prompt":"forest sunset","duration":5,"resolution":"1080p","aspect_ratio":"16:9","prompt_optimizer":true}}
+    },
+    {
+      "name": "extracts fixed-request Veo pricing facts",
+      "hook": "extractUsage",
+      "args": [{"model":"veo3.1-fast-am","requestBody":{"model":"veo3.1-fast-am","prompt":"a dolphin","resolution":"4K"}}],
+      "expected": {"resolution":"4k","requests":1}
+    },
+    {
+      "name": "enforces Veo frame image count",
+      "hook": "native",
+      "member": "decodeVideoGeneration",
+      "args": [{"body":{"kind":"json","value":{"model":"veo3.1-fast-am","prompt":"transition","generation_type":"frame","image_urls":["https://media.example/a.png"]}}}],
+      "expectedError": "Veo frame mode requires exactly 2 images"
+    },
+    {
+      "name": "parses a documented submission envelope",
+      "hook": "parseSubmitResponse",
+      "args": [{}, {"body":{"code":200,"data":[{"status":"submitted","task_id":"vendor-task-1"}]}}],
+      "expected": {"taskId":"vendor-task-1","taskData":{"code":200,"data":[{"status":"submitted","task_id":"vendor-task-1"}]}}
+    },
+    {
+      "name": "maps completed task status",
+      "hook": "parseTaskResult",
+      "args": [{}, {"code":200,"data":{"status":"completed","progress":"100%","result":{"videos":[{"url":["https://cdn.example/out.mp4"]}]}}}],
+      "expected": {"status":"SUCCESS","progress":"100%","reason":""}
+    },
+    {
+      "name": "lists completed video artifacts without exposing provider identifiers",
+      "hook": "listArtifacts",
+      "args": [{"status":"SUCCESS","data":{"response":{"code":200,"data":{"status":"completed","result":{"videos":[{"url":["https://cdn.example/out.mp4"]}]}}}}}],
+      "expected": [{"key":"video-0-801f4a1dc3abf2115c4167c2522a382d49d156a36c51284ffbbc4db4b71dad6a","type":"video"}]
+    },
+    {
+      "name": "renders only the public task identifier",
+      "hook": "native",
+      "member": "renderTask",
+      "args": [{}, {"task_id":"public-task-1","status":"SUCCESS","progress":"100%","data":{"response":{"code":200,"data":{"task_id":"vendor-task-1","status":"completed","result":{"video_url":"https://cdn.example/out.mp4"}}}}}],
+      "expected": {"code":200,"data":{"id":"public-task-1","status":"completed","progress":100,"result":{"video_url":"https://cdn.example/out.mp4"}}}
+    }
+  ]
+}
