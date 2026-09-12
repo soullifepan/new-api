@@ -1676,7 +1676,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations/extend",
+          "path": "/am/suno/v1/generations/extend",
           "method": "POST",
           "params": {},
           "query": {},
@@ -1717,7 +1717,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations/addVocals",
+          "path": "/am/suno/v1/generations/addVocals",
           "method": "POST",
           "params": {},
           "query": {},
@@ -1756,7 +1756,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations/concat",
+          "path": "/am/suno/v1/generations/concat",
           "method": "POST",
           "params": {},
           "query": {},
@@ -1789,7 +1789,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations/mashup",
+          "path": "/am/suno/v1/generations/mashup",
           "method": "POST",
           "params": {},
           "query": {},
@@ -1841,7 +1841,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations",
+          "path": "/am/suno/v1/generations",
           "method": "POST",
           "params": {},
           "query": {},
@@ -1861,7 +1861,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations",
+          "path": "/am/suno/v1/generations",
           "method": "POST",
           "params": {},
           "query": {},
@@ -1882,7 +1882,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations",
+          "path": "/am/suno/v1/generations",
           "method": "POST",
           "params": {},
           "query": {},
@@ -1923,7 +1923,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations/sounds",
+          "path": "/am/suno/v1/generations/sounds",
           "method": "POST",
           "params": {},
           "query": {},
@@ -1945,7 +1945,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations/stems",
+          "path": "/am/suno/v1/generations/stems",
           "method": "POST",
           "params": {},
           "query": {},
@@ -1966,7 +1966,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations/lyrics",
+          "path": "/am/suno/v1/generations/lyrics",
           "method": "POST",
           "params": {},
           "query": {},
@@ -2006,7 +2006,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations/mashup",
+          "path": "/am/suno/v1/generations/mashup",
           "method": "POST",
           "params": {},
           "query": {},
@@ -2494,7 +2494,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations",
+          "path": "/am/suno/v1/generations",
           "method": "POST",
           "params": {},
           "query": {},
@@ -2518,7 +2518,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations/download",
+          "path": "/am/suno/v1/generations/download",
           "method": "POST",
           "params": {},
           "query": {},
@@ -2559,7 +2559,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations/download",
+          "path": "/am/suno/v1/generations/download",
           "method": "POST",
           "params": {},
           "query": {},
@@ -2579,7 +2579,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations/download",
+          "path": "/am/suno/v1/generations/download",
           "method": "POST",
           "params": {},
           "query": {},
@@ -2600,7 +2600,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations",
+          "path": "/am/suno/v1/generations",
           "method": "POST",
           "params": {},
           "query": {},
@@ -2634,7 +2634,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations",
+          "path": "/am/suno/v1/generations",
           "method": "POST",
           "params": {},
           "query": {},
@@ -2665,7 +2665,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations/coverSong",
+          "path": "/am/suno/v1/generations/coverSong",
           "method": "POST",
           "params": {},
           "query": {},
@@ -2699,7 +2699,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations/coverSong",
+          "path": "/am/suno/v1/generations/coverSong",
           "method": "POST",
           "params": {},
           "query": {},
@@ -2719,7 +2719,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations/extend",
+          "path": "/am/suno/v1/generations/extend",
           "method": "POST",
           "params": {},
           "query": {},
@@ -2756,7 +2756,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations/extend",
+          "path": "/am/suno/v1/generations/extend",
           "method": "POST",
           "params": {},
           "query": {},
@@ -2780,7 +2780,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations",
+          "path": "/am/suno/v1/generations",
           "method": "POST",
           "params": {},
           "query": {},
@@ -2803,7 +2803,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations/crop",
+          "path": "/am/suno/v1/generations/crop",
           "method": "POST",
           "params": {},
           "query": {},
@@ -2825,7 +2825,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations/extend",
+          "path": "/am/suno/v1/generations/extend",
           "method": "POST",
           "params": {},
           "query": {},
@@ -2846,7 +2846,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations/adjustSpeed",
+          "path": "/am/suno/v1/generations/adjustSpeed",
           "method": "POST",
           "params": {},
           "query": {},
@@ -2867,7 +2867,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations",
+          "path": "/am/suno/v1/generations",
           "method": "POST",
           "params": {},
           "query": {},
@@ -2889,7 +2889,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations/inspo",
+          "path": "/am/suno/v1/generations/inspo",
           "method": "POST",
           "params": {},
           "query": {},
@@ -2915,7 +2915,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations/uploadTask",
+          "path": "/am/suno/v1/generations/uploadTask",
           "method": "POST",
           "params": {},
           "query": {},
@@ -2935,7 +2935,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations/sounds",
+          "path": "/am/suno/v1/generations/sounds",
           "method": "POST",
           "params": {},
           "query": {},
@@ -2956,7 +2956,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations/inspo",
+          "path": "/am/suno/v1/generations/inspo",
           "method": "POST",
           "params": {},
           "query": {},
@@ -2979,7 +2979,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations/sounds",
+          "path": "/am/suno/v1/generations/sounds",
           "method": "POST",
           "params": {},
           "query": {},
@@ -3000,7 +3000,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations/remaster",
+          "path": "/am/suno/v1/generations/remaster",
           "method": "POST",
           "params": {},
           "query": {},
@@ -3021,7 +3021,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations/addVocals",
+          "path": "/am/suno/v1/generations/addVocals",
           "method": "POST",
           "params": {},
           "query": {},
@@ -3044,7 +3044,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations/addStem",
+          "path": "/am/suno/v1/generations/addStem",
           "method": "POST",
           "params": {},
           "query": {},
@@ -3066,7 +3066,7 @@
       "member": "decodeSubmit",
       "args": [
         {
-          "path": "/apimart/suno/v1/generations/replaceMusic",
+          "path": "/am/suno/v1/generations/replaceMusic",
           "method": "POST",
           "params": {},
           "query": {},

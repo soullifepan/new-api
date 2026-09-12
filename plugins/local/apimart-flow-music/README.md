@@ -1,6 +1,6 @@
-# APIMart Flow Music 任务插件
+# AM Flow Music 任务插件
 
-本地插件键为 `apimart-flow-music`，版本为 `0.1.0`，对外模型为 `flowmusic-am`，上游模型固定为 `flowmusic`。插件将 APIMart/APIB 的 Flow Music 与 Lyria 3.5 音乐任务接入 New API 任务宿主。
+本地插件键为 `am-flow-music`，版本为 `0.2.0`，对外模型为 `flowmusic-am`，上游模型固定为 `flowmusic`。插件通过 AM 提供 Flow Music 与 Lyria 3.5 音乐任务。
 
 本插件独立于 APIMart 图片插件、APIMart Suno 插件及内置音频渠道。虽然使用相同的上游音乐 API 前缀，但请求字段、操作后缀、源音轨标识及结果结构不同，不能只替换 Suno 插件的模型名。
 
@@ -29,7 +29,7 @@
 所有提交请求都是 JSON，所有操作均为异步任务。公共提交前缀为：
 
 ```text
-POST /apimart/flow-music/v1/generations
+POST /am/flow-music/v1/generations
 ```
 
 下表中的后缀追加到该前缀；上游对应前缀为 `/v1/music/generations`，后缀保持相同。计费用的 `action` 与 URL 后缀不一定相同。
@@ -49,7 +49,7 @@ POST /apimart/flow-music/v1/generations
 公共查询路由为：
 
 ```text
-GET /apimart/flow-music/v1/tasks/:task_id
+GET /am/flow-music/v1/tasks/:task_id
 ```
 
 不要为基础生成追加 `/generate`，也不要用计费 action 替代上表中的大小写敏感后缀。
@@ -101,7 +101,7 @@ GET /apimart/flow-music/v1/tasks/:task_id
 
 ### 生成 Lyria 3.5 音乐
 
-请求 `POST /apimart/flow-music/v1/generations`：
+请求 `POST /am/flow-music/v1/generations`：
 
 ```json
 {
@@ -119,7 +119,7 @@ GET /apimart/flow-music/v1/tasks/:task_id
 
 ### 导入外部音频
 
-请求 `POST /apimart/flow-music/v1/generations/uploadAudioFlowMusic`：
+请求 `POST /am/flow-music/v1/generations/uploadAudioFlowMusic`：
 
 ```json
 {
@@ -130,7 +130,7 @@ GET /apimart/flow-music/v1/tasks/:task_id
 
 ### 改编已成功的来源音频
 
-请求 `POST /apimart/flow-music/v1/generations/coverFlowMusic`：
+请求 `POST /am/flow-music/v1/generations/coverFlowMusic`：
 
 ```json
 {
@@ -145,7 +145,7 @@ GET /apimart/flow-music/v1/tasks/:task_id
 
 ### 下载 WAV
 
-请求 `POST /apimart/flow-music/v1/generations/downloadAudioFlowMusic`：
+请求 `POST /am/flow-music/v1/generations/downloadAudioFlowMusic`：
 
 ```json
 {

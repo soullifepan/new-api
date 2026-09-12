@@ -1,9 +1,9 @@
 // APIMart/APIB Flow Music tasks. Independent of the Suno and image plugins.
-// Plugin: apimart-flow-music@0.1.0; public model: flowmusic-am; upstream: flowmusic.
+// Plugin: am-flow-music@0.2.0; public model: flowmusic-am; upstream: flowmusic.
 // Channel: Task Plugin, base https://api.apib.ai or https://api.apimart.ai.
 // Model mapping: empty or flowmusic-am -> flowmusic. No ordinary audio endpoints.
-// Public POST /apimart/flow-music/v1/generations, plus the provider suffixes below.
-// Public GET /apimart/flow-music/v1/tasks/:task_id returns only the public task ID.
+// Public POST /am/flow-music/v1/generations, plus the provider suffixes below.
+// Public GET /am/flow-music/v1/tasks/:task_id returns only the public task ID.
 // A source is a public task_id + optional 1-based audio_index (default 1), NEVER
 // a client clip_id. The host checks owner/plugin/channel and supplies originTasks;
 // this plugin reads the selected completed music entry's private clip_id.
@@ -70,13 +70,13 @@ for (const spec of Object.values(ACTIONS)) {
 
 export const meta = {
   apiVersion: 1,
-  key: "apimart-flow-music",
-  name: "APIMart Flow Music",
-  version: "0.1.0",
+  key: "am-flow-music",
+  name: "AM Flow Music",
+  version: "0.2.0",
   author: { name: "Tapcomfy" },
   description: {
-    en: "Flow Music and Lyria 3.5 music, editing, lyrics and audio tasks via APIMart/APIB.",
-    zh: "APIMart/APIB Flow Music 与 Lyria 3.5 音乐生成、编辑、歌词和音频任务。",
+    en: "Flow Music and Lyria 3.5 music, editing, lyrics and audio tasks via AM.",
+    zh: "通过 AM 提供 Flow Music 与 Lyria 3.5 音乐生成、编辑、歌词和音频任务。",
   },
   fetchMode: "per_task",
   allowedHosts: ["api.apib.ai", "api.apimart.ai"],
@@ -94,14 +94,14 @@ export const meta = {
     .map(function ([action, spec]) {
       return {
         method: "POST",
-        path: "/apimart/flow-music/v1/generations" + spec.suffix,
+        path: "/am/flow-music/v1/generations" + spec.suffix,
         type: "submit",
         action: action,
         decode: "decodeSubmit",
         render: "renderSubmitted",
       };
     })
-    .concat([{ method: "GET", path: "/apimart/flow-music/v1/tasks/:task_id", type: "query", render: "renderTask" }]),
+    .concat([{ method: "GET", path: "/am/flow-music/v1/tasks/:task_id", type: "query", render: "renderTask" }]),
 };
 const SUBMIT_ACTIONS = new Map();
 for (const route of meta.routes) if (route.type === "submit") SUBMIT_ACTIONS.set(route.path, route.action);
@@ -113,6 +113,10 @@ function object(value, field) {
 
 function text(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function publicMessage(value) {
+  return text(value).replace(/\b(?:APIMart|APIB)\b/gi, "AM");
 }
 
 function requiredText(value, field, maximum = 65536) {
@@ -327,11 +331,11 @@ export const native = {
     const progress = status === "completed" || status === "failed" ? 100 : Number(String(task.progress || "0").replace(/%$/, ""));
     const data = { id: task.task_id, status: status, progress: Number.isFinite(progress) ? Math.min(100, Math.max(0, progress)) : 0 };
     if (status === "completed") data.result = publicResult(storedResult(task));
-    if (status === "failed") data.error = { message: text(task.fail_reason) || "Flow Music task failed" };
+    if (status === "failed") data.error = { message: publicMessage(task.fail_reason) || "Flow Music task failed" };
     return { code: 200, data: data };
   },
   error: function (_ctx, error) {
-    return { code: error.code, message: error.message };
+    return { code: error.code, message: publicMessage(error.message) };
   },
 };
 

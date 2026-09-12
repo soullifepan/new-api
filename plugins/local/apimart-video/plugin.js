@@ -99,25 +99,30 @@ for (const [model, spec] of MODELS) {
 
 export const meta = {
   apiVersion: 1,
-  key: "apimart-video",
-  name: "APIMart Video",
+  key: "am-video",
+  name: "AM Video",
   icon: "text:AV",
-  description: { en: "Validated APIMart asynchronous video generation tasks.", zh: "经过逐模型校验的 APIMart 异步视频生成任务。" },
-  version: "0.1.0",
+  description: { en: "Validated AM asynchronous video generation tasks.", zh: "经过逐模型校验的 AM 异步视频生成任务。" },
+  version: "0.2.0",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   allowedHosts: ["api.apib.ai", "api.apimart.ai", "upload.apimart.ai", "cdn.apimart.ai"],
   models: Array.from(MODELS.keys()),
-  usageSchemaByModel: schemas,
-  usageExamplesByModel: examples,
+  usageProfiles: Array.from(MODELS.keys()).map(function (model) {
+    return { models: [model], schema: schemas[model], examples: examples[model] };
+  }),
   routes: [
-    { method: "POST", path: "/apimart/video/v1/videos/generations", type: "submit", action: "video_generation", decode: "decodeVideoGeneration", render: "renderSubmitted" },
-    { method: "GET", path: "/apimart/video/v1/tasks/:task_id", type: "query", render: "renderTask" },
+    { method: "POST", path: "/am/video/v1/videos/generations", type: "submit", action: "video_generation", decode: "decodeVideoGeneration", render: "renderSubmitted" },
+    { method: "GET", path: "/am/video/v1/tasks/:task_id", type: "query", render: "renderTask" },
   ],
 };
 
 function text(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function publicMessage(value) {
+  return text(value).replace(/\b(?:APIMart|APIB)\b/gi, "AM");
 }
 
 function object(value, message) {
@@ -159,7 +164,7 @@ function urlArray(value, field, maximum) {
 function normalize(model, request) {
   object(request, "video generation request must be an object");
   const spec = MODELS.get(model);
-  if (!spec) throw new Error("unsupported APIMart video model");
+  if (!spec) throw new Error("unsupported AM video model");
   for (const field of Object.keys(request)) {
     if (!VIDEO_FIELDS.has(field) || !spec.fields.has(field)) throw new Error("unsupported field for " + model + ": " + field);
   }
@@ -249,8 +254,8 @@ function progress(value) {
 }
 
 function failure(data, fallback) {
-  if (data.error && typeof data.error === "object" && text(data.error.message)) return text(data.error.message);
-  return text(data.error) || text(data.message) || text(fallback);
+  if (data.error && typeof data.error === "object" && text(data.error.message)) return publicMessage(data.error.message);
+  return publicMessage(data.error) || publicMessage(data.message) || publicMessage(fallback);
 }
 
 function videoURLs(task) {
@@ -277,7 +282,7 @@ export function buildSubmitRequest(ctx) {
   const request = object(ctx.requestBody, "video generation request is required");
   const publicModel = text(ctx.model || request.model);
   const spec = MODELS.get(publicModel);
-  if (!spec) throw new Error("unsupported APIMart video model");
+  if (!spec) throw new Error("unsupported AM video model");
   const upstream = text(ctx.upstreamModel);
   if (upstream && upstream !== publicModel && upstream !== spec.upstream) throw new Error("upstream model does not match the public video model");
   const body = normalize(publicModel, request);
@@ -292,11 +297,11 @@ export function buildSubmitRequest(ctx) {
 }
 
 export function parseSubmitResponse(_ctx, response) {
-  const body = object(response && response.body, "invalid APIMart submit response");
-  if (Number(body.code) !== 200) throw new Error(text(body.message) || failure(body, "APIMart video task submission failed"));
+  const body = object(response && response.body, "invalid AM submit response");
+  if (Number(body.code) !== 200) throw new Error(publicMessage(body.message) || failure(body, "AM video task submission failed"));
   const entry = Array.isArray(body.data) && body.data[0] && typeof body.data[0] === "object" ? body.data[0] : {};
   const taskId = text(entry.task_id);
-  if (!taskId) throw new Error("APIMart submit response is missing task_id");
+  if (!taskId) throw new Error("AM submit response is missing task_id");
   return { taskId: taskId, taskData: body };
 }
 
@@ -319,14 +324,14 @@ export function buildQueryRequest(ctx) {
 }
 
 export function parseTaskResult(_ctx, body) {
-  const response = object(body, "invalid APIMart task response");
-  if (Number(response.code) !== 200) return { code: Number(response.code) || 0, status: "FAILURE", progress: "100%", reason: failure(response, "APIMart video task query failed") };
-  const data = object(response.data, "APIMart task response is missing data");
+  const response = object(body, "invalid AM task response");
+  if (Number(response.code) !== 200) return { code: Number(response.code) || 0, status: "FAILURE", progress: "100%", reason: failure(response, "AM video task query failed") };
+  const data = object(response.data, "AM task response is missing data");
   const statuses = { submitted: "SUBMITTED", queued: "SUBMITTED", pending: "SUBMITTED", in_progress: "IN_PROGRESS", processing: "IN_PROGRESS", running: "IN_PROGRESS", completed: "SUCCESS", succeeded: "SUCCESS", success: "SUCCESS", failed: "FAILURE", failure: "FAILURE", cancelled: "FAILURE", canceled: "FAILURE" };
   const status = statuses[text(data.status).toLowerCase()];
-  if (!status) return { status: "UNKNOWN", reason: "unrecognized APIMart task status: " + String(data.status || "") };
+  if (!status) return { status: "UNKNOWN", reason: "unrecognized AM task status: " + String(data.status || "") };
   const value = progress(data.progress);
-  return { status: status, progress: status === "SUCCESS" || status === "FAILURE" ? "100%" : value === undefined ? "" : value + "%", reason: status === "FAILURE" ? failure(data, "APIMart video task failed") : "" };
+  return { status: status, progress: status === "SUCCESS" || status === "FAILURE" ? "100%" : value === undefined ? "" : value + "%", reason: status === "FAILURE" ? failure(data, "AM video task failed") : "" };
 }
 
 export function listArtifacts(task) {
@@ -363,5 +368,5 @@ export const native = {
     if (reason) response.error = { message: reason };
     return { code: 200, data: response };
   },
-  error: function (_ctx, error) { return { code: error.code, message: error.message }; },
+  error: function (_ctx, error) { return { code: error.code, message: publicMessage(error.message) }; },
 };

@@ -1,26 +1,26 @@
-# APIMart Video Task Plugin
+# AM Video Task Plugin
 
-APIMart 异步视频生成的本地 Task Plugin。插件统一处理任务提交、轮询、公共任务 ID 和视频产物访问；每个型号仍使用独立的字段白名单、默认值、参数组合校验和计费用量结构。
+AM 异步视频生成的本地 Task Plugin。插件统一处理任务提交、轮询、公共任务 ID 和视频产物访问；每个型号仍使用独立的字段白名单、默认值、参数组合校验和计费用量结构。
 
 ## 原生路由
 
 ```text
-POST /apimart/video/v1/videos/generations
-GET  /apimart/video/v1/tasks/{task_id}
+POST /am/video/v1/videos/generations
+GET  /am/video/v1/tasks/{task_id}
 ```
 
-查询接口只接受 New API 返回的公共 `task_id`，不会把 APIMart 上游任务 ID 暴露给客户端。
+查询接口只接受 New API 返回的公共 `task_id`，不会把 AM 上游任务 ID 暴露给客户端。
 
 ## 渠道配置
 
 - 渠道类型：Task Plugin
-- 插件：`apimart-video`
+- 插件：`am-video`
 - Base URL：`https://api.apib.ai`
 - 密钥：仅配置在渠道中，不要写入插件、fixture 或仓库文件
 
 公开模型使用 `-am` 后缀。建议配置以下模型映射：
 
-| 公开模型 | APIMart 上游模型 |
+| 公开模型 | AM 上游模型 |
 | --- | --- |
 | `grok-imagine-1.5-video-am` | `grok-imagine-1.5-video-ext` |
 | `kling-3.0-turbo-am` | `kling-3.0-turbo` |
@@ -49,11 +49,11 @@ u("resolution") == "720p"
   : tier("480p", u("seconds") * 0.0102)
 ```
 
-价格属于管理员配置，不固化在插件中。激活前应重新核对 APIMart 定价并保留管理员已有覆盖。
+价格属于管理员配置，不固化在插件中。激活前应重新核对 AM 定价并保留管理员已有覆盖。
 
 ### 已核对价格快照
 
-下表为 2026-09-12 从 APIMart 定价接口核对的优惠后美元价格，仅用于管理员录入和复核：
+下表为 2026-09-12 从 AM 定价接口核对的优惠后美元价格，仅用于管理员录入和复核：
 
 | 公开模型 | 档位价格 |
 | --- | --- |
