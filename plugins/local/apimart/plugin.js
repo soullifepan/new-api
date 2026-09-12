@@ -16,17 +16,18 @@ const nanoBananaFields = new Set(["model", "prompt", "size", "resolution", "n", 
 
 export const meta = {
   apiVersion: 1,
-  key: "apimart",
-  name: "APIMart",
+  key: "am-image",
+  name: "AM Image",
   icon: "text:AP",
   description: {
-    en: "APIMart asynchronous image generation tasks",
-    zh: "APIMart 异步图片生成任务",
+    en: "AM asynchronous image generation tasks",
+    zh: "AM 异步图片生成任务",
   },
-  version: "0.8.15",
+  version: "0.9.0",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
-  usageSchemaByModel: {
+  usageProfiles: (function () {
+    const schemas = {
     "nano-banana-am": {
       upstream_credits: { type: "number", unit: "credit", description: { en: "Estimated credits at submission, replaced by validated actual task deduction at completion.", zh: "提交时预扣估算积分，完成后按已校验的任务实际扣费多退少补。" } },
     },
@@ -61,7 +62,7 @@ export const meta = {
       input_images: { type: "number", unit: "count", description: { en: "Number of input reference and mask images.", zh: "输入参考图和遮罩图数量。" } },
     },
     "gpt-image-2-official-am": {
-      upstream_credits: { type: "number", unit: "credit", description: { en: "Estimated at submission and replaced by APIMart's completed task deduction.", zh: "提交时预估，任务完成后由 APIMart 实际扣减积分覆盖。" } },
+      upstream_credits: { type: "number", unit: "credit", description: { en: "Estimated at submission and replaced by AM's completed task deduction.", zh: "提交时预估，任务完成后由 AM 实际扣减积分覆盖。" } },
     },
     "seedream-5-0-lite-am": {
       images: { type: "number", unit: "count", description: { en: "Validated requested output count.", zh: "已校验的请求输出数量。" } },
@@ -79,8 +80,8 @@ export const meta = {
       resolution: { enum: ["1k", "2k"], description: { en: "Requested output resolution tier.", zh: "请求的输出分辨率档位。" } },
       prompt_extend: { type: "boolean", description: { en: "Whether paid prompt rewriting was requested.", zh: "是否请求付费提示词改写。" } },
     },
-  },
-  usageExamplesByModel: {
+    };
+    const examples = {
     "nano-banana-am": [{ label: "1K · 1 image (estimate)", facts: { upstream_credits: 0.312 } }],
     "nano-banana-2-am": [
       { label: "0.5K · 1 image (estimate)", facts: { upstream_credits: 0.536 } },
@@ -110,7 +111,11 @@ export const meta = {
     "seedream-5-0-lite-am": [{ label: "2K · 1 image", facts: { images: 1, resolution: "2k", input_images: 0 } }],
     "seedream-5-0-pro-am": [{ label: "Standard · 1K", facts: { resolution: "1k", standard_images: 1, layer_images: 0, reference_images: 0 } }, { label: "Standard · 1.5K", facts: { resolution: "1.5k", standard_images: 1, layer_images: 0, reference_images: 0 } }, { label: "Standard · 2K", facts: { resolution: "2k", standard_images: 1, layer_images: 0, reference_images: 0 } }, { label: "Layer · 1K", facts: { resolution: "1k", standard_images: 0, layer_images: 17, reference_images: 1 } }, { label: "Layer · 1.5K", facts: { resolution: "1.5k", standard_images: 0, layer_images: 17, reference_images: 1 } }, { label: "Layer · 2K", facts: { resolution: "2k", standard_images: 0, layer_images: 17, reference_images: 1 } }],
     "z-image-turbo-am": [{ label: "1K · 1 image", facts: { images: 1, resolution: "1k", prompt_extend: false } }],
-  },
+    };
+    return Object.keys(schemas).map(function (model) {
+      return { models: [model], schema: schemas[model], examples: examples[model] || [] };
+    });
+  }()),
   // api.apib.ai is the configured API entrypoint. APIMart-compatible image
   // results may still be served from the legacy upload/CDN hosts.
   allowedHosts: ["api.apib.ai", "upload.apimart.ai", "cdn.apimart.ai"],
@@ -132,8 +137,8 @@ export const meta = {
     "z-image-turbo-am",
   ],
   routes: [
-    { method: "POST", path: "/apimart/v1/images/generations", type: "submit", decode: "decodeImageGeneration", render: "renderSubmitted" },
-    { method: "GET", path: "/apimart/v1/tasks/:task_id", type: "query", render: "renderTask" },
+    { method: "POST", path: "/am/image/v1/images/generations", type: "submit", decode: "decodeImageGeneration", render: "renderSubmitted" },
+    { method: "GET", path: "/am/image/v1/tasks/:task_id", type: "query", render: "renderTask" },
   ],
 };
 
@@ -477,8 +482,12 @@ function publicStatus(status) {
 
 function failureReason(data, fallback) {
   const error = data && data.error;
-  if (error && typeof error === "object" && trimmed(error.message)) return trimmed(error.message);
-  return trimmed(fallback);
+  if (error && typeof error === "object" && trimmed(error.message)) return publicMessage(error.message);
+  return publicMessage(fallback);
+}
+
+function publicMessage(value) {
+  return trimmed(value).replace(/\b(?:APIMart|APIB)\b/gi, "AM");
 }
 
 function progressValue(value) {
@@ -512,7 +521,7 @@ export function buildSubmitRequest(ctx) {
   if (banana && ![banana.upstream, publicModel.slice(0, -3)].includes(model)) {
     throw new Error("upstream model must match the Nano Banana " + (banana.credits ? "credit" : "ext") + " alias");
   }
-  if (!isDeclaredModel(publicModel)) throw new Error("unsupported APIMart image model");
+  if (!isDeclaredModel(publicModel)) throw new Error("unsupported AM image model");
   const body = Object.assign({}, normalizeAPIMartModelRequest(publicModel, request), { model: model });
   return {
     url: ctx.baseUrl + "/v1/images/generations",
@@ -528,12 +537,12 @@ export function buildSubmitRequest(ctx) {
 }
 
 export function parseSubmitResponse(ctx, response) {
-  const body = object(response && response.body, "invalid APIMart submit response");
-  if (Number(body.code) !== 200) throw new Error(trimmed(body.message) || "APIMart image task submission failed");
+  const body = object(response && response.body, "invalid AM submit response");
+  if (Number(body.code) !== 200) throw new Error(publicMessage(body.message) || "AM image task submission failed");
   const entries = Array.isArray(body.data) ? body.data : [];
   const submitted = entries[0] && typeof entries[0] === "object" ? entries[0] : {};
   const taskId = trimmed(submitted.task_id);
-  if (!taskId) throw new Error("APIMart submit response is missing task_id");
+  if (!taskId) throw new Error("AM submit response is missing task_id");
   const request = ctx && ctx.requestBody && typeof ctx.requestBody === "object" ? ctx.requestBody : {};
   const publicModel = trimmed(ctx && ctx.model || request.model);
   const normalized = publicModel === "seedream-5-0-pro-am" || nanoBananaModels.has(publicModel) ? normalizeAPIMartModelRequest(publicModel, request) : null;
@@ -588,11 +597,11 @@ export function buildQueryRequest(ctx) {
 }
 
 export function parseTaskResult(ctx, body) {
-  const response = object(body, "invalid APIMart task response");
+  const response = object(body, "invalid AM task response");
   if (Number(response.code) !== 200) {
-    return { code: Number(response.code) || 0, status: "FAILURE", progress: "100%", reason: trimmed(response.message) || "APIMart task query failed" };
+    return { code: Number(response.code) || 0, status: "FAILURE", progress: "100%", reason: publicMessage(response.message) || "AM task query failed" };
   }
-  const data = object(response.data, "APIMart task response is missing data");
+  const data = object(response.data, "AM task response is missing data");
   const statuses = {
     submitted: "SUBMITTED",
     queued: "SUBMITTED",
@@ -608,11 +617,11 @@ export function parseTaskResult(ctx, body) {
     canceled: "FAILURE",
   };
   const status = statuses[trimmed(data.status).toLowerCase()];
-  if (!status) return { status: "UNKNOWN", reason: "unrecognized APIMart task status: " + String(data.status || "") };
+  if (!status) return { status: "UNKNOWN", reason: "unrecognized AM task status: " + String(data.status || "") };
   const result = {
     status: status,
     progress: status === "SUCCESS" || status === "FAILURE" ? "100%" : progressValue(data.progress) !== undefined ? String(progressValue(data.progress)) + "%" : "",
-    reason: status === "FAILURE" ? failureReason(data, "APIMart image task failed") : "",
+    reason: status === "FAILURE" ? failureReason(data, "AM image task failed") : "",
   };
   return result;
 }
@@ -639,7 +648,7 @@ export const native = {
     if (!ctx.body || ctx.body.kind !== "json") throw new Error("JSON body required");
     const request = object(ctx.body.value, "request body must be an object");
     const model = trimmed(request.model);
-    if (!isDeclaredModel(model)) throw new Error("unsupported APIMart image model");
+    if (!isDeclaredModel(model)) throw new Error("unsupported AM image model");
     if (nanoBananaModels.has(model) || ["seedream-5-0-lite-am", "seedream-5-0-pro-am", "z-image-turbo-am"].includes(model)) {
       const normalized = normalizeAPIMartModelRequest(model, request);
       return { kind: "submit", model: model, action: "image_generation", requestBody: normalized };
@@ -689,6 +698,6 @@ export const native = {
     return { code: 200, data: response };
   },
   error: function (ctx, error) {
-    return { code: error.code, message: error.message };
+    return { code: error.code, message: publicMessage(error.message) };
   },
 };

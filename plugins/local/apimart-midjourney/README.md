@@ -1,16 +1,16 @@
-# APIMart Midjourney 任务插件
+# AM Midjourney 任务插件
 
-本地插件键为 `apimart-midjourney`，对外模型别名为 `midjourney-am`。它把 APIMart Midjourney 的异步工作流统一为 New API 任务，并保留来源任务的归属校验。
+本地插件键为 `am-midjourney`，对外模型别名为 `midjourney-am`。它把 AM Midjourney 的异步工作流统一为 New API 任务，并保留来源任务的归属校验。
 
 ## 已支持的原生接口
 
 ```text
-POST /apimart/midjourney/v1/generations
-POST /apimart/midjourney/v1/generations/blend
-POST /apimart/midjourney/v1/generations/edits
-POST /apimart/midjourney/v1/generations/{upscale,variation,high-variation,low-variation,reroll,zoom,pan}
-POST /apimart/midjourney/v1/generations/{remix-strong,remix-subtle,video}
-GET  /apimart/midjourney/v1/tasks/{task_id}
+POST /am/midjourney/v1/generations
+POST /am/midjourney/v1/generations/blend
+POST /am/midjourney/v1/generations/edits
+POST /am/midjourney/v1/generations/{upscale,variation,high-variation,low-variation,reroll,zoom,pan}
+POST /am/midjourney/v1/generations/{remix-strong,remix-subtle,video}
+GET  /am/midjourney/v1/tasks/{task_id}
 ```
 
 绘图、融合、编辑、后续操作和图生视频共用同一个插件、同一个模型别名与统一任务查询。后续操作所带的 `task_id` 必须是当前用户通过本插件创建的公共任务 ID；插件会在服务端替换为上游 ID，客户端不会得到上游任务 ID。
@@ -32,7 +32,7 @@ GET  /apimart/midjourney/v1/tasks/{task_id}
 
 ## 计费
 
-APIMart 的任务查询不返回可信的实际成本，因此插件按已提供的 APIMart 公开价目表固定预扣；失败任务由宿主退款。插件输出 `u("documented_credits")`，单位是 APIMart Credits：
+AM 的任务查询不返回可信的实际成本，因此插件按已提供的 AM 公开价目表固定预扣；失败任务由宿主退款。插件输出 `u("documented_credits")`，单位是 AM Credits：
 
 - Imagine：Relax `0.4504`、Fast `0.5504`、Turbo `1`；
 - Blend、Edits、放大、变体、重绘、Zoom、Pan、Remix：Relax / Fast `0.5504`、Turbo `1`；
@@ -44,7 +44,7 @@ APIMart 的任务查询不返回可信的实际成本，因此插件按已提供
 tier("documented_rate", u("documented_credits") * 0.1)
 ```
 
-这会按 `$0.1 / Credit` 换算为美元。分组倍率和用户折扣由 New API 在此基础上处理。插件的 16 条展示示例覆盖全部已支持操作与视频规格；Relax / Fast / Turbo 的实际扣费仍由插件中的同一份公开价目表计算。APIMart 以后若调整价目表，必须上传新的插件版本；不要修改已上传版本的源码。
+这会按 `$0.1 / Credit` 换算为美元。分组倍率和用户折扣由 New API 在此基础上处理。插件的 16 条展示示例覆盖全部已支持操作与视频规格；Relax / Fast / Turbo 的实际扣费仍由插件中的同一份公开价目表计算。AM 以后若调整价目表，必须上传新的插件版本；不要修改已上传版本的源码。
 
 ## 本地校验
 

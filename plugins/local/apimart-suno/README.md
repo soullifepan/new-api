@@ -1,8 +1,8 @@
-# APIMart Suno 任务插件
+# AM Suno 任务插件
 
-本地插件键为 `apimart-suno`，版本为 `0.1.0`，对外模型别名为 `suno-am`。它将 APIMart/APIB 的 Suno 音乐生成、编辑、分析与下载接入 New API 任务宿主。
+本地插件键为 `am-suno`，版本为 `0.2.0`，对外模型别名为 `suno-am`。它将 AM 的 Suno 音乐生成、编辑、分析与下载接入 New API 任务宿主。
 
-本插件独立于 APIMart 图片插件、APIMart Midjourney 插件和内置 `sunoapi`；这些接口的请求与查询协议不同，不能仅替换基础地址后混用。
+本插件独立于 AM 图片插件、AM Midjourney 插件和内置 `sunoapi`；这些接口的请求与查询协议不同，不能仅替换基础地址后混用。
 
 ## 渠道配置
 
@@ -26,9 +26,9 @@
 ## 原生接口
 
 ```text
-POST /apimart/suno/v1/generations
-POST /apimart/suno/v1/generations/<操作后缀>
-GET  /apimart/suno/v1/tasks/:task_id
+POST /am/suno/v1/generations
+POST /am/suno/v1/generations/<操作后缀>
+GET  /am/suno/v1/tasks/:task_id
 ```
 
 上游对应 `/v1/music/generations`、`/v1/music/generations/<操作后缀>` 和 `/v1/music/tasks/:task_id`。后缀区分大小写，不能把文档页面的连字符名称直接当作 API 路径。
@@ -123,7 +123,7 @@ GET  /apimart/suno/v1/tasks/:task_id
 
 ### 生成歌曲
 
-`POST /apimart/suno/v1/generations`：
+`POST /am/suno/v1/generations`：
 
 ```json
 {
@@ -149,7 +149,7 @@ GET  /apimart/suno/v1/tasks/:task_id
 
 ### 续写第 2 首歌曲
 
-`POST /apimart/suno/v1/generations/extend`：
+`POST /am/suno/v1/generations/extend`：
 
 ```json
 {
@@ -166,7 +166,7 @@ GET  /apimart/suno/v1/tasks/:task_id
 
 ### 一次下载三种格式
 
-`POST /apimart/suno/v1/generations/download`：
+`POST /am/suno/v1/generations/download`：
 
 ```json
 {
@@ -180,7 +180,7 @@ GET  /apimart/suno/v1/tasks/:task_id
 
 ## 查询、结果与产物
 
-客户端查询 `GET /apimart/suno/v1/tasks/:task_id`，读取 `status`、数值型 `progress` 和 `data.result` / `data.error`。
+客户端查询 `GET /am/suno/v1/tasks/:task_id`，读取 `status`、数值型 `progress` 和 `data.result` / `data.error`。
 
 - 正常状态为 `submitted` → `pending` → `completed` / `failed`。终态进度为 `100`。
 - 插件支持上游概览文档的顶层状态结构，以及下载文档的 `code/data` 嵌套状态结构。

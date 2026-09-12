@@ -286,7 +286,7 @@
       "name": "keeps unknown provider states retryable",
       "hook": "parseTaskResult",
       "args": [{}, {"code": 200, "data": {"status": "waiting_for_human"}}],
-      "expected": {"status": "UNKNOWN", "reason": "unrecognized APIMart task status: waiting_for_human"}
+      "expected": {"status": "UNKNOWN", "reason": "unrecognized AM task status: waiting_for_human"}
     },
     {
       "name": "rejects a non-documentary image count",

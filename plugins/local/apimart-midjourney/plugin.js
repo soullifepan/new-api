@@ -3,32 +3,31 @@
 // follow-up operations instead of an OpenAI-compatible image contract.
 export const meta = {
   apiVersion: 1,
-  key: "apimart-midjourney",
-  name: "APIMart Midjourney",
+  key: "am-midjourney",
+  name: "AM Midjourney",
   icon: "text:MJ",
   description: {
-    en: "APIMart Midjourney asynchronous image and image-to-video tasks",
-    zh: "APIMart Midjourney 异步绘图与图生视频任务",
+    en: "AM Midjourney asynchronous image and image-to-video tasks",
+    zh: "AM Midjourney 异步绘图与图生视频任务",
   },
-  version: "0.3.0",
+  version: "0.4.0",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   allowedHosts: ["api.apib.ai", "cdn.apimart.ai"],
   models: ["midjourney-am"],
-  usageSchemaByModel: {
-    "midjourney-am": {
+  usageProfiles: [{
+    models: ["midjourney-am"],
+    schema: {
       documented_credits: {
         type: "number",
         unit: "credit",
         description: {
-          en: "APIMart documented Midjourney credits reserved for this task.",
-          zh: "按 APIMart 公开价目表为本任务预扣的 Midjourney 积分。",
+          en: "AM documented Midjourney credits reserved for this task.",
+          zh: "按 AM 公开价目表为本任务预扣的 Midjourney 积分。",
         },
       },
     },
-  },
-  usageExamplesByModel: {
-    "midjourney-am": [
+    examples: [
       { label: "Imagine · Relax", facts: { documented_credits: 0.4504 } },
       { label: "Imagine · Fast", facts: { documented_credits: 0.5504 } },
       { label: "Imagine · Turbo", facts: { documented_credits: 1 } },
@@ -46,22 +45,22 @@ export const meta = {
       { label: "Video · 480p", facts: { documented_credits: 2 } },
       { label: "Video · 720p · 4 outputs", facts: { documented_credits: 16 } },
     ],
-  },
+  }],
   routes: [
-    { method: "POST", path: "/apimart/midjourney/v1/generations", type: "submit", action: "imagine", decode: "decodeSubmit", render: "renderSubmitted" },
-    { method: "POST", path: "/apimart/midjourney/v1/generations/blend", type: "submit", action: "blend", decode: "decodeSubmit", render: "renderSubmitted" },
-    { method: "POST", path: "/apimart/midjourney/v1/generations/edits", type: "submit", action: "edits", decode: "decodeSubmit", render: "renderSubmitted" },
-    { method: "POST", path: "/apimart/midjourney/v1/generations/upscale", type: "submit", action: "upscale", decode: "decodeSubmit", render: "renderSubmitted" },
-    { method: "POST", path: "/apimart/midjourney/v1/generations/variation", type: "submit", action: "variation", decode: "decodeSubmit", render: "renderSubmitted" },
-    { method: "POST", path: "/apimart/midjourney/v1/generations/high-variation", type: "submit", action: "high_variation", decode: "decodeSubmit", render: "renderSubmitted" },
-    { method: "POST", path: "/apimart/midjourney/v1/generations/low-variation", type: "submit", action: "low_variation", decode: "decodeSubmit", render: "renderSubmitted" },
-    { method: "POST", path: "/apimart/midjourney/v1/generations/reroll", type: "submit", action: "reroll", decode: "decodeSubmit", render: "renderSubmitted" },
-    { method: "POST", path: "/apimart/midjourney/v1/generations/zoom", type: "submit", action: "zoom", decode: "decodeSubmit", render: "renderSubmitted" },
-    { method: "POST", path: "/apimart/midjourney/v1/generations/pan", type: "submit", action: "pan", decode: "decodeSubmit", render: "renderSubmitted" },
-    { method: "POST", path: "/apimart/midjourney/v1/generations/remix-strong", type: "submit", action: "remix_strong", decode: "decodeSubmit", render: "renderSubmitted" },
-    { method: "POST", path: "/apimart/midjourney/v1/generations/remix-subtle", type: "submit", action: "remix_subtle", decode: "decodeSubmit", render: "renderSubmitted" },
-    { method: "POST", path: "/apimart/midjourney/v1/generations/video", type: "submit", action: "video", decode: "decodeSubmit", render: "renderSubmitted" },
-    { method: "GET", path: "/apimart/midjourney/v1/tasks/:task_id", type: "query", render: "renderTask" },
+    { method: "POST", path: "/am/midjourney/v1/generations", type: "submit", action: "imagine", decode: "decodeSubmit", render: "renderSubmitted" },
+    { method: "POST", path: "/am/midjourney/v1/generations/blend", type: "submit", action: "blend", decode: "decodeSubmit", render: "renderSubmitted" },
+    { method: "POST", path: "/am/midjourney/v1/generations/edits", type: "submit", action: "edits", decode: "decodeSubmit", render: "renderSubmitted" },
+    { method: "POST", path: "/am/midjourney/v1/generations/upscale", type: "submit", action: "upscale", decode: "decodeSubmit", render: "renderSubmitted" },
+    { method: "POST", path: "/am/midjourney/v1/generations/variation", type: "submit", action: "variation", decode: "decodeSubmit", render: "renderSubmitted" },
+    { method: "POST", path: "/am/midjourney/v1/generations/high-variation", type: "submit", action: "high_variation", decode: "decodeSubmit", render: "renderSubmitted" },
+    { method: "POST", path: "/am/midjourney/v1/generations/low-variation", type: "submit", action: "low_variation", decode: "decodeSubmit", render: "renderSubmitted" },
+    { method: "POST", path: "/am/midjourney/v1/generations/reroll", type: "submit", action: "reroll", decode: "decodeSubmit", render: "renderSubmitted" },
+    { method: "POST", path: "/am/midjourney/v1/generations/zoom", type: "submit", action: "zoom", decode: "decodeSubmit", render: "renderSubmitted" },
+    { method: "POST", path: "/am/midjourney/v1/generations/pan", type: "submit", action: "pan", decode: "decodeSubmit", render: "renderSubmitted" },
+    { method: "POST", path: "/am/midjourney/v1/generations/remix-strong", type: "submit", action: "remix_strong", decode: "decodeSubmit", render: "renderSubmitted" },
+    { method: "POST", path: "/am/midjourney/v1/generations/remix-subtle", type: "submit", action: "remix_subtle", decode: "decodeSubmit", render: "renderSubmitted" },
+    { method: "POST", path: "/am/midjourney/v1/generations/video", type: "submit", action: "video", decode: "decodeSubmit", render: "renderSubmitted" },
+    { method: "GET", path: "/am/midjourney/v1/tasks/:task_id", type: "query", render: "renderTask" },
   ],
 };
 
@@ -135,7 +134,11 @@ function normalizeStatus(value) {
 function responseError(response, fallback) {
   const body = response && response.body;
   const error = body && body.error;
-  return trimmed(error && error.message) || trimmed(body && body.message) || fallback;
+  return publicMessage(error && error.message) || publicMessage(body && body.message) || fallback;
+}
+
+function publicMessage(value) {
+  return trimmed(value).replace(/\b(?:APIMart|APIB)\b/gi, "AM");
 }
 
 function publicTaskID(task) {
@@ -248,7 +251,7 @@ export const native = {
     return publicTaskData(task);
   },
   error: function (_ctx, error) {
-    return { code: error.code, message: error.message };
+    return { code: error.code, message: publicMessage(error.message) };
   },
 };
 
@@ -272,12 +275,12 @@ export function extractUsage(ctx) {
 }
 
 export function parseSubmitResponse(_ctx, response) {
-  const body = object(response && response.body, "invalid APIMart Midjourney submission response");
-  if (Number(body.code) !== 200) throw new Error(responseError(response, "APIMart Midjourney task submission failed"));
+  const body = object(response && response.body, "invalid AM Midjourney submission response");
+  if (Number(body.code) !== 200) throw new Error(responseError(response, "AM Midjourney task submission failed"));
   const entries = Array.isArray(body.data) ? body.data : [];
   const submitted = entries[0] && typeof entries[0] === "object" ? entries[0] : {};
   const taskID = trimmed(submitted.task_id) || trimmed(submitted.id);
-  if (!taskID) throw new Error("APIMart Midjourney submission response is missing task_id");
+  if (!taskID) throw new Error("AM Midjourney submission response is missing task_id");
   return { taskId: taskID, taskData: body };
 }
 
@@ -294,17 +297,17 @@ export function buildQueryRequest(ctx) {
 }
 
 export function parseTaskResult(_ctx, body) {
-  const response = object(body, "invalid APIMart Midjourney task response");
+  const response = object(body, "invalid AM Midjourney task response");
   if (Number(response.code) && Number(response.code) !== 200) {
-    return { code: Number(response.code), status: "FAILURE", progress: "100%", reason: trimmed(response.message) || "APIMart Midjourney task query failed" };
+    return { code: Number(response.code), status: "FAILURE", progress: "100%", reason: publicMessage(response.message) || "AM Midjourney task query failed" };
   }
   const data = taskData(response);
   const status = normalizeStatus(data.status);
-  if (status === "UNKNOWN") return { status: "UNKNOWN", reason: "unrecognized APIMart Midjourney task status: " + String(data.status || "") };
+  if (status === "UNKNOWN") return { status: "UNKNOWN", reason: "unrecognized AM Midjourney task status: " + String(data.status || "") };
   return {
     status: status,
     progress: status === "SUCCESS" || status === "FAILURE" ? "100%" : trimmed(data.progress),
-    reason: status === "FAILURE" ? trimmed(data.fail_reason) || trimmed(data.message) || "APIMart Midjourney task failed" : "",
+    reason: status === "FAILURE" ? publicMessage(data.fail_reason) || publicMessage(data.message) || "AM Midjourney task failed" : "",
   };
 }
 

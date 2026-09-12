@@ -1,4 +1,4 @@
-# APIMart 异步图片任务插件
+# AM 异步图片任务插件
 
 这是一个本地、可上传的 Task Plugin；不进入 `plugins/tasks/`，因此不会改动或覆盖上游内置插件。
 
@@ -9,13 +9,13 @@
 插件创建以下鉴权后的原生任务接口：
 
 ```text
-POST /apimart/v1/images/generations
-GET  /apimart/v1/tasks/{task_id}
+POST /am/image/v1/images/generations
+GET  /am/image/v1/tasks/{task_id}
 ```
 
-创建接口接收 APIMart 的图片请求字段，例如 `model`、`prompt`、`image_urls`、`size`、`resolution`、`quality`、`n`。它立即返回 New API 的公共 `task_id`。查询接口使用这个公共 ID，永不暴露上游 `task_id`。
+创建接口接收 AM 的图片请求字段，例如 `model`、`prompt`、`image_urls`、`size`、`resolution`、`quality`、`n`。它立即返回 New API 的公共 `task_id`。查询接口使用这个公共 ID，永不暴露上游 `task_id`。
 
-插件将请求提交到 APIMart 的 `/v1/images/generations`，并轮询 `/v1/tasks/{upstream_task_id}`。完成后的图片 URL 可从查询结果的 `data.result.images[*].url[*]` 获取，也会作为 New API 的任务产物提供。
+插件将请求提交到 AM 上游的 `/v1/images/generations`，并轮询 `/v1/tasks/{upstream_task_id}`。完成后的图片 URL 可从查询结果的 `data.result.images[*].url[*]` 获取，也会作为 New API 的任务产物提供。
 
 ## 支持范围
 
@@ -53,7 +53,7 @@ go run . plugin test plugins/local/apimart/plugin.js --fixture plugins/local/api
 ```text
 插件键：apimart
 基础地址：https://api.apib.ai
-密钥：APIMart Bearer Token
+密钥：AM Bearer Token
 模型映射：gpt-image-2-am → gpt-image-2
 ```
 
@@ -81,7 +81,7 @@ nano-banana-2-lite-am      → gemini-3.1-flash-lite-image
 
 为每个渠道模型在 New API 中配置自己的定价。`gpt-image-2-am` 向表达式提供以下已校验的任务计费用量：
 
-- `u("images")`：固定为 `1`；APIMart GPT-Image-2 每个任务只允许生成一张图；
+- `u("images")`：固定为 `1`；AM GPT-Image-2 每个任务只允许生成一张图；
 - `u("resolution")`：`default`、`1k`、`2k`、`4k`。未提供或无法识别时为 `default`。
 - `u("input_images")`：参考图和遮罩图数量，没有输入图时为 `0`。
 
@@ -123,7 +123,7 @@ u("resolution") == "4k"
       : tier("default", u("images") * 0.0085)))
 ```
 
-这是每张图片的美元成本；任务表达式不会按百万 Token 换算。若要对外加价，直接将上述单价替换为目标售价即可。对于 `gpt-image-2-am`，APIMart 响应里的 `cost` 只用于上游对账，不作为用户扣费输入；Nano Banana 非 `ext` 的实际费用契约见下文。
+这是每张图片的美元成本；任务表达式不会按百万 Token 换算。若要对外加价，直接将上述单价替换为目标售价即可。对于 `gpt-image-2-am`，AM 响应里的 `cost` 只用于上游对账，不作为用户扣费输入；Nano Banana 非 `ext` 的实际费用契约见下文。
 
 `gpt-image-2-official-am` 使用上游完成任务返回的 `credits_cost` 结算。提交时插件按 `n`、`resolution`、`quality`、参考图和遮罩图数量预估并预扣；完成后以 `credits_cost` 覆盖预估值，失败时结算为零。页面展示低、中、高质量 × 1K、2K、4K 的完整九档预估价，最终仍以实际 `upstream_credits` 结算；因此定价档位会显示 `$0.1 / credit`，而不是把预估价误当成固定单价。配置渠道映射：
 
@@ -218,4 +218,4 @@ tier("upstream_actual", u("upstream_credits") * 0.1)
 
 1 Credit = $0.1；额外加价由管理员调整系数，例如 20% 加价使用 `* 0.12`，不改写上游实际 Credits，也不修改服务端已有定价。无加价、分组倍率为 1 时，Pro 缺省预扣 `1.072` Credits（$0.1072）：完成返回 `credits_cost=0.5`，最终为 $0.05，退回 $0.0572；返回 `credits_cost=2.5`，最终为 $0.25，补扣 $0.1428。同一个冻结表达式用于预扣和最终结算。
 
-APIMart 产物 URL 会过期；Tapcomfy 在任务成功后应立即下载并持久化到自己的对象存储。
+AM 产物 URL 会过期；Tapcomfy 在任务成功后应立即下载并持久化到自己的对象存储。

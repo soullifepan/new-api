@@ -8,8 +8,8 @@
 // hooks validate completion, operation and 1-based track index. Never accept a
 // provider persona/audio ID: use persona_task_id or vox_task_id instead.
 //
-// Client API: POST /apimart/suno/v1/generations[/<action>] and
-// GET /apimart/suno/v1/tasks/:task_id. Action suffixes below are case-sensitive.
+// Client API: POST /am/suno/v1/generations[/<action>] and
+// GET /am/suno/v1/tasks/:task_id. Action suffixes below are case-sensitive.
 // Configure only these native routes, not an OpenAI audio/image endpoint override.
 // Generation requires version; other versioned actions explicitly default to v5.5.
 // For follow-ups use public task_id + audio_index (1-based), or task_ids +
@@ -96,11 +96,11 @@ for (const spec of Object.values(ACTIONS)) {
 
 export const meta = {
   apiVersion: 1,
-  key: "apimart-suno",
-  name: "APIMart Suno",
-  version: "0.1.0",
+  key: "am-suno",
+  name: "AM Suno",
+  version: "0.2.0",
   author: { name: "Tapcomfy" },
-  description: { en: "Suno music generation, editing and audio tasks via APIMart/APIB.", zh: "APIMart/APIB Suno 音乐生成、编辑及音频任务。" },
+  description: { en: "Suno music generation, editing and audio tasks via AM.", zh: "通过 AM 提供 Suno 音乐生成、编辑及音频任务。" },
   fetchMode: "per_task",
   allowedHosts: ["api.apib.ai", "api.apimart.ai"],
   models: ["suno-am"],
@@ -116,8 +116,8 @@ export const meta = {
     { label: "Multi-format download", facts: { requests: 1, action: "download", version: "none" } },
   ],
   routes: Object.keys(ACTIONS).map(function (action) {
-    return { method: "POST", path: "/apimart/suno/v1/generations" + (action === "generation" ? "" : "/" + action), type: "submit", action: action, decode: "decodeSubmit", render: "renderSubmitted" };
-  }).concat([{ method: "GET", path: "/apimart/suno/v1/tasks/:task_id", type: "query", render: "renderTask" }]),
+    return { method: "POST", path: "/am/suno/v1/generations" + (action === "generation" ? "" : "/" + action), type: "submit", action: action, decode: "decodeSubmit", render: "renderSubmitted" };
+  }).concat([{ method: "GET", path: "/am/suno/v1/tasks/:task_id", type: "query", render: "renderTask" }]),
 };
 
 function object(value, field) {
@@ -127,6 +127,10 @@ function object(value, field) {
 
 function text(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function publicMessage(value) {
+  return text(value).replace(/\b(?:APIMart|APIB)\b/gi, "AM");
 }
 
 function requiredText(value, field, maximum = 65536) {
@@ -371,7 +375,7 @@ export function parseTaskResult(_ctx, body, response) {
   if (!status) return { status: "UNKNOWN", reason: "unrecognized Suno task status" };
   const terminal = status === "SUCCESS" || status === "FAILURE";
   const progress = terminal ? "100%" : typeof envelope.progress === "number" && Number.isFinite(envelope.progress) && envelope.progress >= 0 && envelope.progress <= 100 ? String(envelope.progress) + "%" : "";
-  return { status: status, progress: progress, reason: status === "FAILURE" ? text(payload.error && payload.error.message) || "Suno task failed" : "" };
+  return { status: status, progress: progress, reason: status === "FAILURE" ? publicMessage(payload.error && payload.error.message) || "Suno task failed" : "" };
 }
 
 const MEDIA_FIELDS = {
@@ -450,11 +454,11 @@ export const native = {
     const progress = status === "completed" || status === "failed" ? 100 : Number(String(task.progress || "0").replace(/%$/, ""));
     const response = { task_id: task.task_id, status: status, progress: Number.isFinite(progress) ? Math.min(100, Math.max(0, progress)) : 0, data: {} };
     if (status === "completed") response.data.result = publicResult(storedResult(task));
-    if (status === "failed") response.data.error = { message: text(task.fail_reason) || "Suno task failed" };
+    if (status === "failed") response.data.error = { message: publicMessage(task.fail_reason) || "Suno task failed" };
     return response;
   },
   error: function (_ctx, error) {
-    return { code: error.code, message: error.message };
+    return { code: error.code, message: publicMessage(error.message) };
   },
 };
 
