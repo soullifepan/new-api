@@ -16,11 +16,21 @@ description: 发布、更新或排查 Tapcomfy New API 测试服务器，包括 
 
 ## 普通应用发布
 
+测试环境的 Compose 位于 `/opt/tapcomfy/newapi`，日常运行使用
+`compose.yaml` 与 `compose.test-runtime.yaml`。覆盖文件把宿主机
+`./current/new-api` 只读挂载为容器内 `/new-api`，因此普通代码升级默认发布
+包含 Web 静态资源的 Linux Go 二进制，不重建基础镜像。
+
 1. 本地先构建和验证改动，确认提交和部署包不含密钥。
-2. 判断是否真的需要更新主服务：仅 Task Plugin 源码/后台定价变动不需要重建主镜像。
-3. 更新镜像或二进制后，以短暂重启替换应用容器；不要删除数据库、Redis 或其卷。
-4. 通过 HTTPS 域名确认主页和 API 可达，检查容器启动日志只包含正常初始化与监听信息。
-5. 发生失败时，先保留日志和当前数据，再按上一个已验证镜像/版本回滚；不要用破坏性命令重置持久化数据。
+2. 发布前必须读取实际生效的 Compose 文件或用 `docker compose config` 核对覆盖关系；不得只根据基础 `compose.yaml` 的 `build`/`image` 推断发布方式。
+3. 若 `compose.test-runtime.yaml` 仍挂载 `./current/new-api:/new-api:ro`：
+   - 先运行 Web 生产构建；Go 二进制会嵌入 `web/dist`。
+   - 使用 `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOWORK=off` 编译当前已提交版本，并设置与 `VERSION` 一致的版本链接参数。
+   - 上传为新文件，校验 SHA-256 和可执行权限后，再原子替换 `current/new-api`；保留带时间或提交号的旧二进制作为回滚。
+   - 只重启 `tapcomfy-newapi-test`，不得重建或重启 PostgreSQL、Redis、Caddy。
+4. 仅当运行时不再挂载二进制、基础系统依赖或 Dockerfile 确实变化，才重建 `tapcomfy/newapi:test` 镜像。仅 Task Plugin 源码或后台定价变动不需要重建主镜像。
+5. 通过 HTTPS 域名确认主页和 API 可达，检查应用容器启动日志只包含正常迁移、插件同步与监听信息，并确认 PostgreSQL、Redis、Caddy 未被替换。
+6. 发生失败时，先保留日志和当前数据，再恢复上一个已验证二进制或镜像；不要用破坏性命令重置持久化数据。
 
 ## Task Plugin 发布与计费验收
 
