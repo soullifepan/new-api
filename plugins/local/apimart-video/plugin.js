@@ -73,15 +73,30 @@ const MODELS = new Map([
   }],
 ]);
 
+const SEEDANCE_FIELDS = new Set(["model", "prompt", "duration", "resolution", "size", "aspect_ratio", "generate_audio", "audio", "watermark", "nsfw_check", "seed", "output_format", "omni_reference_task_type", "image_urls", "image_with_roles", "video_urls", "audio_urls", "return_last_frame", "tools"]);
+for (const [model, resolutions] of [
+  ["seedance-2.0", ["480p", "720p", "1080p", "4k"]],
+  ["seedance-2.0-fast", ["480p", "720p"]],
+  ["seedance-2.0-mini", ["480p", "720p"]],
+  ["seedance-2.5", ["480p", "720p", "1080p"]],
+]) MODELS.set(model + "-am", { upstream: model, seconds: [4, model === "seedance-2.5" ? 30 : 15, 5], resolutions: resolutions, defaultResolution: "720p", fields: SEEDANCE_FIELDS });
+
 function usageSchema(model) {
   const schema = {
-    seconds: { type: "number", unit: "second", description: { en: "Validated requested video duration.", zh: "已校验的请求视频时长。" } },
-    resolution: { enum: MODELS.get(model).resolutions, description: { en: "Validated output resolution tier.", zh: "已校验的输出分辨率档位。" } },
+    seconds: { type: "number", unit: "second", description: { en: "Video generation unit price", zh: "视频生成单价" } },
+    resolution: { enum: MODELS.get(model).resolutions, description: { en: "Output resolution", zh: "输出分辨率" } },
   };
   if (model === "pixverse-v6-am") schema.audio = { enum: ["off", "on"], description: { en: "Whether the paid audio track is enabled.", zh: "是否启用付费音轨。" } };
   if (model.startsWith("veo3.1-")) {
     delete schema.seconds;
     schema.requests = { type: "number", unit: "count", description: { en: "Completed video requests.", zh: "完成的视频请求次数。" } };
+  }
+  if (model.startsWith("seedance-")) {
+    schema.action = { enum: ["generation", "asset"], description: { en: "Generate video or review assets", zh: "生成视频或审核素材" } };
+    schema.billing_phase = { enum: ["estimate", "actual"], description: { en: "Billing stage", zh: "计费阶段" }, enumLabels: { estimate: { en: "Estimate", zh: "预估" }, actual: { en: "AM actual charge", zh: "AM 实际扣费" } } };
+    schema.video_input = { enum: ["none", "video"], description: { en: "Reference video input", zh: "参考视频输入" } };
+    schema.input_seconds = { type: "number", unit: "second", description: { en: "Reference video unit price", zh: "参考视频单价" } };
+    schema.upstream_credits = { type: "number", unit: "credit", description: { en: "AM settlement credit unit price", zh: "AM 结算积分单价" } };
   }
   return schema;
 }
@@ -94,6 +109,7 @@ for (const [model, spec] of MODELS) {
     ? { requests: 1, resolution: spec.defaultResolution || spec.resolutions[0] }
     : { seconds: spec.defaultDuration || spec.seconds[2], resolution: spec.defaultResolution || spec.resolutions[0] };
   if (model === "pixverse-v6-am") facts.audio = "off";
+  if (model.startsWith("seedance-")) Object.assign(facts, { action: "generation", billing_phase: "estimate", video_input: "none", input_seconds: 0, upstream_credits: 0 });
   examples[model] = [{ label: "Default", facts: facts }];
 }
 
@@ -103,7 +119,7 @@ export const meta = {
   name: "AM Video",
   icon: "text:AV",
   description: { en: "Validated AM asynchronous video generation tasks.", zh: "经过逐模型校验的 AM 异步视频生成任务。" },
-  version: "0.2.0",
+  version: "0.3.0",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   allowedHosts: ["api.apib.ai", "api.apimart.ai", "upload.apimart.ai", "cdn.apimart.ai"],
@@ -114,6 +130,7 @@ export const meta = {
   routes: [
     { method: "POST", path: "/am/video/v1/videos/generations", type: "submit", action: "video_generation", decode: "decodeVideoGeneration", render: "renderSubmitted" },
     { method: "GET", path: "/am/video/v1/tasks/:task_id", type: "query", render: "renderTask" },
+    { method: "POST", path: "/am/video/v1/seedance/assets", type: "submit", action: "asset", decode: "decodeSeedanceAssets", render: "renderSubmitted" },
   ],
 };
 
@@ -161,10 +178,117 @@ function urlArray(value, field, maximum) {
   return value.map(function (url) { return mediaURL(url, field, false); });
 }
 
+// Public references identify an owned gateway task and an item, never a raw
+// provider asset id. The host checks ownership and pins the original channel.
+function seedanceURL(value, field) {
+  if (/^am-asset:\/\/[A-Za-z0-9_-]+\/[0-9]{1,2}$/.test(text(value))) return text(value);
+  return mediaURL(value, field, false);
+}
+
+function normalizeSeedance(model, request) {
+  const spec = MODELS.get(model);
+  const v25 = model === "seedance-2.5-am";
+  for (const field of Object.keys(request)) {
+    if (!SEEDANCE_FIELDS.has(field) || (!v25 && ["aspect_ratio", "audio", "watermark", "output_format", "omni_reference_task_type"].includes(field))) throw new Error("unsupported field for " + model + ": " + field);
+  }
+  if (request.model !== undefined && request.model !== model) throw new Error("model must be " + model);
+  const body = { model: model, resolution: normalizedResolution(request.resolution, spec) };
+  const mode = request.omni_reference_task_type === undefined ? "auto" : request.omni_reference_task_type;
+  if (!["auto", "reference", "edit", "extend"].includes(mode)) throw new Error("unsupported omni_reference_task_type");
+  body.duration = request.duration === undefined ? (mode === "edit" ? -1 : 5) : request.duration;
+  if (!(v25 && body.duration === -1)) integer(body.duration, "duration", 4, v25 ? 30 : 15);
+  if (request.size !== undefined && request.aspect_ratio !== undefined && request.size !== request.aspect_ratio) throw new Error("size and aspect_ratio conflict");
+  body.size = request.size === undefined ? (request.aspect_ratio === undefined ? (v25 ? "adaptive" : "16:9") : request.aspect_ratio) : request.size;
+  if (!["16:9", "9:16", "1:1", "4:3", "3:4", "21:9", "adaptive"].includes(body.size)) throw new Error("unsupported aspect ratio");
+  for (const field of ["image_urls", "video_urls", "audio_urls"]) {
+    if (request[field] === undefined) continue;
+    const maximum = field === "image_urls" ? (v25 ? 30 : 9) : (v25 ? 10 : 3);
+    if (!Array.isArray(request[field]) || !request[field].length || request[field].length > maximum) throw new Error(field + " exceeds the model input limit");
+    body[field] = request[field].map(function (url) { return seedanceURL(url, field); });
+  }
+  if (request.image_with_roles !== undefined) {
+    const entries = request.image_with_roles;
+    if (!Array.isArray(entries) || !entries.length || entries.length > (v25 ? 32 : 9)) throw new Error("invalid image_with_roles count");
+    const counts = { first_frame: 0, last_frame: 0, reference_image: 0 };
+    body.image_with_roles = entries.map(function (entry) {
+      object(entry, "invalid image role entry");
+      if (!Object.keys(entry).every(function (key) { return key === "url" || key === "role"; }) || !Object.prototype.hasOwnProperty.call(counts, entry.role)) throw new Error("unsupported image role");
+      const role = v25 && (body.video_urls || body.audio_urls) ? "reference_image" : entry.role;
+      counts[role] += 1;
+      return { url: seedanceURL(entry.url, "image_with_roles.url"), role: role };
+    });
+    if (counts.first_frame > 1 || counts.last_frame > 1 || counts.reference_image + (body.image_urls || []).length > (v25 ? 30 : 9)) throw new Error("image role count exceeds model limit");
+    if (!v25 && body.image_urls) throw new Error("image_urls and image_with_roles are mutually exclusive");
+    if (counts.first_frame || counts.last_frame) {
+      if (!v25 && (body.video_urls || body.audio_urls)) throw new Error("first/last frames conflict with reference video or audio");
+      if (v25 && body.size !== "adaptive") throw new Error("first/last-frame tasks require adaptive size");
+    }
+  }
+  if (!v25 && body.audio_urls && !body.video_urls && !body.image_urls && !body.image_with_roles) throw new Error("Seedance 2.0 audio requires image or video input");
+  const prompt = text(request.prompt);
+  if (!prompt && (v25 || !(body.image_urls || body.image_with_roles || body.video_urls))) throw new Error("prompt is required");
+  if (!model.includes("mini") && prompt.length > 4000) throw new Error("prompt is too long");
+  if (prompt) body.prompt = prompt;
+  if (request.generate_audio !== undefined && request.audio !== undefined && request.generate_audio !== request.audio) throw new Error("generate_audio and audio conflict");
+  body.generate_audio = request.generate_audio === undefined ? (request.audio === undefined ? true : boolean(request.audio, "audio")) : boolean(request.generate_audio, "generate_audio");
+  for (const field of ["nsfw_check", "watermark", "return_last_frame"]) if (request[field] !== undefined) body[field] = boolean(request[field], field);
+  if (request.seed !== undefined) body.seed = integer(request.seed, "seed", -1, 4294967295);
+  if (request.output_format !== undefined) {
+    if (!["mp4", "mov"].includes(request.output_format)) throw new Error("unsupported output_format");
+    body.output_format = request.output_format;
+  }
+  if (request.tools !== undefined) {
+    if (!Array.isArray(request.tools) || request.tools.length !== 1 || !request.tools[0] || request.tools[0].type !== "web_search" || Object.keys(request.tools[0]).length !== 1) throw new Error("only web_search is supported");
+    body.tools = [{ type: "web_search" }];
+  }
+  if (v25) {
+    body.omni_reference_task_type = mode;
+    if (["edit", "extend"].includes(mode) && (!body.video_urls || body.size !== "adaptive")) throw new Error("edit/extend requires reference video and adaptive size");
+    if (mode === "edit" && body.duration !== -1) throw new Error("edit requires automatic duration");
+  }
+  return body;
+}
+
+function assetReferences(body) {
+  const refs = [];
+  for (const field of ["image_urls", "video_urls", "audio_urls", "image_with_roles"]) {
+    for (const entry of body[field] || []) {
+      const url = typeof entry === "string" ? entry : entry.url;
+      if (url.startsWith("am-asset://")) {
+        const id = url.slice(11).split("/")[0];
+        if (!refs.includes(id)) refs.push(id);
+      }
+    }
+  }
+  return refs;
+}
+
+function normalizeAssets(request) {
+  object(request, "asset request must be an object");
+  if (!MODELS.has(request.model) || !request.model.startsWith("seedance-")) throw new Error("unsupported Seedance asset model");
+  if (!Object.keys(request).every(function (key) { return ["model", "asset_type", "assets", "group"].includes(key); })) throw new Error("unsupported asset field; raw group identifiers are not accepted");
+  if (!["Image", "Video", "Audio"].includes(request.asset_type)) throw new Error("asset_type must be Image, Video or Audio");
+  if (!Array.isArray(request.assets) || !request.assets.length || request.assets.length > 20) throw new Error("assets must contain 1 to 20 entries");
+  const body = { model: request.model, asset_type: request.asset_type, assets: request.assets.map(function (asset) {
+    object(asset, "invalid asset");
+    if (!Object.keys(asset).every(function (key) { return key === "url" || key === "name"; })) throw new Error("unsupported asset field");
+    const name = text(asset.name);
+    if (name.length > 128) throw new Error("asset name is too long");
+    return { url: mediaURL(asset.url, "asset.url", false), name: name || "asset" };
+  }) };
+  if (request.group !== undefined) {
+    object(request.group, "invalid group");
+    if (!Object.keys(request.group).every(function (key) { return key === "name"; }) || !text(request.group.name) || text(request.group.name).length > 128) throw new Error("invalid group name");
+    body.group = { name: text(request.group.name) };
+  }
+  return body;
+}
+
 function normalize(model, request) {
   object(request, "video generation request must be an object");
   const spec = MODELS.get(model);
   if (!spec) throw new Error("unsupported AM video model");
+  if (model.startsWith("seedance-")) return normalizeSeedance(model, request);
   for (const field of Object.keys(request)) {
     if (!VIDEO_FIELDS.has(field) || !spec.fields.has(field)) throw new Error("unsupported field for " + model + ": " + field);
   }
@@ -285,22 +409,39 @@ export function buildSubmitRequest(ctx) {
   if (!spec) throw new Error("unsupported AM video model");
   const upstream = text(ctx.upstreamModel);
   if (upstream && upstream !== publicModel && upstream !== spec.upstream) throw new Error("upstream model does not match the public video model");
-  const body = normalize(publicModel, request);
+  const body = ctx.action === "asset" ? normalizeAssets(request) : normalize(publicModel, request);
   body.model = upstream && upstream !== publicModel ? upstream : spec.upstream;
+  if (publicModel.startsWith("seedance-") && ctx.action !== "asset") {
+    for (const field of ["image_urls", "video_urls", "audio_urls", "image_with_roles"]) {
+      if (!body[field]) continue;
+      body[field] = body[field].map(function (entry) {
+        const url = typeof entry === "string" ? entry : entry.url;
+        if (!url.startsWith("am-asset://")) return entry;
+        const parts = url.slice(11).split("/");
+        const origin = (ctx.originTasks || []).find(function (task) { return task.taskId === parts[0] && task.action === "asset"; });
+        if (!origin) throw new Error("asset reference is not an owned Seedance asset task");
+        const data = taskData(origin);
+        const assets = data.result && data.result.usable_assets;
+        const asset = Array.isArray(assets) && assets[Number(parts[1])];
+        if (!asset || asset.status !== "Active" || !/^asset:\/\/[A-Za-z0-9_-]+$/.test(asset.asset_url)) throw new Error("asset is not available");
+        return typeof entry === "string" ? asset.asset_url : { url: asset.asset_url, role: entry.role };
+      });
+    }
+  }
   return {
-    url: ctx.baseUrl + "/v1/videos/generations",
+    url: ctx.baseUrl + (ctx.action === "asset" ? "/v1/seedance2/private-avatar/assets" : "/v1/videos/generations"),
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: "Bearer " + ctx.apiKey },
     body: body,
-    action: "video_generation",
+    action: ctx.action === "asset" ? "asset" : "video_generation",
   };
 }
 
-export function parseSubmitResponse(_ctx, response) {
+export function parseSubmitResponse(ctx, response) {
   const body = object(response && response.body, "invalid AM submit response");
   if (Number(body.code) !== 200) throw new Error(publicMessage(body.message) || failure(body, "AM video task submission failed"));
-  const entry = Array.isArray(body.data) && body.data[0] && typeof body.data[0] === "object" ? body.data[0] : {};
-  const taskId = text(entry.task_id);
+  const entry = ctx.action === "asset" ? body.data || {} : Array.isArray(body.data) && body.data[0] && typeof body.data[0] === "object" ? body.data[0] : {};
+  const taskId = text(ctx.action === "asset" ? entry.id : entry.task_id);
   if (!taskId) throw new Error("AM submit response is missing task_id");
   return { taskId: taskId, taskData: body };
 }
@@ -309,6 +450,14 @@ export function extractUsage(ctx) {
   if (ctx.usagePurpose === "billing_ratios") return null;
   const request = ctx.requestBody || {};
   const model = text(ctx.model || request.model);
+  if (model.startsWith("seedance-")) {
+    const asset = ctx.action === "asset";
+    const body = asset ? normalizeAssets(request) : normalize(model, request);
+    const hasVideo = !asset && !!body.video_urls;
+    // Remote media durations are not client-trusted billing facts. Reserve the
+    // documented total-input ceiling; final cost replaces this estimate.
+    return { action: asset ? "asset" : "generation", billing_phase: "estimate", resolution: body.resolution || "720p", video_input: hasVideo ? "video" : "none", seconds: asset ? 0 : body.duration === -1 ? 30 : body.duration, input_seconds: hasVideo ? (model === "seedance-2.5-am" ? 30 : 15.2) : 0, upstream_credits: 0 };
+  }
   const body = normalize(model, request);
   const usage = { resolution: body.resolution };
   if (model.startsWith("veo3.1-")) usage.requests = 1;
@@ -317,18 +466,34 @@ export function extractUsage(ctx) {
   return usage;
 }
 
+function seedanceCost(data) {
+  // Only the authenticated upstream response is accepted. $100 is a safety
+  // ceiling above the documented single-task maximum, not a pricing rate.
+  const cost = data.cost;
+  if (typeof cost !== "number" || !Number.isFinite(cost) || cost < 0 || cost > 100) throw new Error("AM completed task has invalid cost");
+  if (data.credits_cost !== undefined && (typeof data.credits_cost !== "number" || !Number.isFinite(data.credits_cost) || Math.abs(data.credits_cost - cost * 10) > 0.00001)) throw new Error("AM cost and credits_cost disagree");
+  return Math.round(cost * 1e9) / 1e8;
+}
+
+export function extractUsageOnComplete(ctx, result, body) {
+  if (!String(ctx.model || "").startsWith("seedance-") || ctx.action === "asset") return null;
+  if (result.status !== "SUCCESS") return null;
+  return { billing_phase: "actual", upstream_credits: seedanceCost(object(body.data, "missing AM task data")) };
+}
+
 export function buildQueryRequest(ctx) {
   const taskId = text(ctx.taskId);
   if (!taskId) throw new Error("task_id is required");
   return { url: ctx.baseUrl + "/v1/tasks/" + encodeURIComponent(taskId), method: "GET", headers: { Accept: "application/json", Authorization: "Bearer " + ctx.apiKey } };
 }
 
-export function parseTaskResult(_ctx, body) {
+export function parseTaskResult(ctx, body) {
   const response = object(body, "invalid AM task response");
   if (Number(response.code) !== 200) return { code: Number(response.code) || 0, status: "FAILURE", progress: "100%", reason: failure(response, "AM video task query failed") };
   const data = object(response.data, "AM task response is missing data");
   const statuses = { submitted: "SUBMITTED", queued: "SUBMITTED", pending: "SUBMITTED", in_progress: "IN_PROGRESS", processing: "IN_PROGRESS", running: "IN_PROGRESS", completed: "SUCCESS", succeeded: "SUCCESS", success: "SUCCESS", failed: "FAILURE", failure: "FAILURE", cancelled: "FAILURE", canceled: "FAILURE" };
   const status = statuses[text(data.status).toLowerCase()];
+  if (status === "SUCCESS" && String(ctx.model || "").startsWith("seedance-") && ctx.action !== "asset") seedanceCost(data);
   if (!status) return { status: "UNKNOWN", reason: "unrecognized AM task status: " + String(data.status || "") };
   const value = progress(data.progress);
   return { status: status, progress: status === "SUCCESS" || status === "FAILURE" ? "100%" : value === undefined ? "" : value + "%", reason: status === "FAILURE" ? failure(data, "AM video task failed") : "" };
@@ -348,11 +513,22 @@ export function buildContentRequest(ctx) {
 }
 
 export const native = {
+  decodeSeedanceAssets: function (ctx) {
+    if (!ctx.body || ctx.body.kind !== "json") throw new Error("JSON body required");
+    const body = normalizeAssets(ctx.body.value);
+    return { kind: "submit", model: body.model, action: "asset", requestBody: body };
+  },
   decodeVideoGeneration: function (ctx) {
     if (!ctx.body || ctx.body.kind !== "json") throw new Error("JSON body required");
     const request = object(ctx.body.value, "request body must be an object");
     const model = text(request.model);
-    return { kind: "submit", model: model, action: "video_generation", requestBody: normalize(model, request) };
+    const body = normalize(model, request);
+    const intent = { kind: "submit", model: model, action: "video_generation", requestBody: body };
+    if (model.startsWith("seedance-")) {
+      const refs = assetReferences(body);
+      if (refs.length) intent.originTaskIds = refs;
+    }
+    return intent;
   },
   renderSubmitted: function (_ctx, task) {
     return { code: 200, data: [{ status: "submitted", task_id: task.task_id || "" }] };
@@ -363,7 +539,14 @@ export const native = {
     const response = { id: task.task_id || "", status: statusMap[String(task.status || "").toUpperCase()] || "submitted", progress: progress(task.progress) };
     if (data.created !== undefined) response.created = data.created;
     if (data.completed !== undefined) response.completed = data.completed;
-    if (data.result !== undefined) response.result = data.result;
+    if (data.result !== undefined) {
+      if (task.action === "asset" || Array.isArray(data.result.usable_assets)) {
+        const usableAssets = Array.isArray(data.result.usable_assets) ? data.result.usable_assets : [];
+        response.result = { usable_assets: usableAssets.map(function (asset, index) {
+          return { asset_url: "am-asset://" + task.task_id + "/" + index, status: asset.status };
+        }), failed_count: Array.isArray(data.result.failed_assets) ? data.result.failed_assets.length : 0 };
+      } else response.result = data.result;
+    }
     const reason = failure(data, task.fail_reason);
     if (reason) response.error = { message: reason };
     return { code: 200, data: response };

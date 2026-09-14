@@ -1,5 +1,41 @@
 {
   "cases": [
+{"name":"Seedance failed assets never expose internal identifiers","hook":"native","member":"renderTask","args":[{},{"task_id":"public-task","action":"asset","status":"FAILURE","data":{"code":200,"data":{"result":{"assets":[{"asset_id":"private","asset_url":"asset://private","status":"Failed"}]}}}}],"expected":{"code":200,"data":{"id":"public-task","status":"failed","progress":0,"result":{"usable_assets":[],"failed_count":0}}}},
+{"name":"Seedance preserves explicit false and edit defaults","hook":"native","member":"decodeVideoGeneration","args":[{"body":{"kind":"json","value":{"model":"seedance-2.5-am","prompt":"edit video","video_urls":["https://media.example/a.mov"],"omni_reference_task_type":"edit","audio":false,"watermark":false,"output_format":"mov"}}}],"expected":{"kind":"submit","model":"seedance-2.5-am","action":"video_generation","requestBody":{"model":"seedance-2.5-am","resolution":"720p","duration":-1,"size":"adaptive","video_urls":["https://media.example/a.mov"],"prompt":"edit video","generate_audio":false,"watermark":false,"output_format":"mov","omni_reference_task_type":"edit"}}},
+{"name":"Seedance free asset review usage","hook":"extractUsage","args":[{"model":"seedance-2.5-am","action":"asset","requestBody":{"model":"seedance-2.5-am","asset_type":"Image","assets":[{"url":"https://media.example/a.png"}]}}],"expected":{"action":"asset","billing_phase":"estimate","resolution":"720p","video_input":"none","seconds":0,"input_seconds":0,"upstream_credits":0}},
+{"name":"Seedance keeps successful batch assets with private identifiers hidden","hook":"native","member":"renderTask","args":[{},{"task_id":"public-task","status":"FAILURE","progress":"100%","data":{"code":200,"data":{"status":"failed","result":{"usable_assets":[{"status":"Active","asset_url":"asset://private"}],"failed_assets":[{}]}}}}],"expected":{"code":200,"data":{"id":"public-task","status":"failed","progress":100,"result":{"usable_assets":[{"asset_url":"am-asset://public-task/0","status":"Active"}],"failed_count":1}}}},
+{"name":"Seedance trusted reference resolves only through origin task","hook":"buildSubmitRequest","args":[{"model":"seedance-2.0-am","action":"video_generation","baseUrl":"https://api.apib.ai","apiKey":"fixture-key","requestBody":{"model":"seedance-2.0-am","prompt":"walk","image_urls":["am-asset://public-task/0"]},"originTasks":[{"taskId":"public-task","action":"asset","data":{"code":200,"data":{"result":{"usable_assets":[{"status":"Active","asset_url":"asset://private"}]}}}}]}],"expected":{"url":"https://api.apib.ai/v1/videos/generations","method":"POST","headers":{"Accept":"application/json","Content-Type":"application/json","Authorization":"Bearer fixture-key"},"body":{"model":"seedance-2.0","resolution":"720p","duration":5,"size":"16:9","image_urls":["asset://private"],"prompt":"walk","generate_audio":true},"action":"video_generation"}},
+{"name":"2.5 oversized duration","hook":"native","member":"decodeVideoGeneration","args":[{"body":{"kind":"json","value":{"model":"seedance-2.5-am","prompt":"test","duration":31}}}],"expectedError":"duration must be an integer between 4 and 30"},
+{"name":"2.5 client cost injection","hook":"native","member":"decodeVideoGeneration","args":[{"body":{"kind":"json","value":{"model":"seedance-2.5-am","prompt":"test","cost":0}}}],"expectedError":"unsupported field"},
+{"name":"2.5 raw asset injection","hook":"native","member":"decodeVideoGeneration","args":[{"body":{"kind":"json","value":{"model":"seedance-2.5-am","prompt":"test","image_urls":["asset://private"]}}}],"expectedError":"must be a valid media URL"},
+{"name":"2.5 fixed edit duration","hook":"native","member":"decodeVideoGeneration","args":[{"body":{"kind":"json","value":{"model":"seedance-2.5-am","prompt":"test","omni_reference_task_type":"edit","duration":5,"video_urls":["https://media.example/a.mp4"]}}}],"expectedError":"edit requires automatic duration"},
+{"name":"2.5 empty media array","hook":"native","member":"decodeVideoGeneration","args":[{"body":{"kind":"json","value":{"model":"seedance-2.5-am","prompt":"test","video_urls":[]}}}],"expectedError":"exceeds the model input limit"},
+{"name":"2.5 conflicting aliases","hook":"native","member":"decodeVideoGeneration","args":[{"body":{"kind":"json","value":{"model":"seedance-2.5-am","prompt":"test","size":"16:9","aspect_ratio":"9:16"}}}],"expectedError":"size and aspect_ratio conflict"},
+{"name":"Seedance missing cost","hook":"extractUsageOnComplete","args":[{"model":"seedance-2.5-am"},{"status":"SUCCESS"},{"code":200,"data":{"status":"completed"}}],"expectedError":"invalid cost"},
+{"name":"Seedance negative cost","hook":"extractUsageOnComplete","args":[{"model":"seedance-2.5-am"},{"status":"SUCCESS"},{"code":200,"data":{"status":"completed","cost":-1}}],"expectedError":"invalid cost"},
+{"name":"Seedance null cost","hook":"extractUsageOnComplete","args":[{"model":"seedance-2.5-am"},{"status":"SUCCESS"},{"code":200,"data":{"status":"completed","cost":null}}],"expectedError":"invalid cost"},
+{"name":"Seedance string cost","hook":"extractUsageOnComplete","args":[{"model":"seedance-2.5-am"},{"status":"SUCCESS"},{"code":200,"data":{"status":"completed","cost":"0.5"}}],"expectedError":"invalid cost"},
+{"name":"Seedance oversized cost","hook":"extractUsageOnComplete","args":[{"model":"seedance-2.5-am"},{"status":"SUCCESS"},{"code":200,"data":{"status":"completed","cost":101}}],"expectedError":"invalid cost"},
+{"name":"Seedance credits mismatch","hook":"extractUsageOnComplete","args":[{"model":"seedance-2.5-am"},{"status":"SUCCESS"},{"code":200,"data":{"status":"completed","cost":1,"credits_cost":2}}],"expectedError":"disagree"},
+{"name":"Seedance explicit zero is not missing","hook":"extractUsageOnComplete","args":[{"model":"seedance-2.5-am"},{"status":"SUCCESS"},{"code":200,"data":{"cost":0}}],"expected":{"billing_phase":"actual","upstream_credits":0}},
+    {
+      "name": "Seedance 2.5 estimates auto duration without negative billing",
+      "hook": "extractUsage",
+      "args": [{"model":"seedance-2.5-am","requestBody":{"model":"seedance-2.5-am","prompt":"ocean","duration":-1}}],
+      "expected": {"action":"generation","billing_phase":"estimate","resolution":"720p","video_input":"none","seconds":30,"input_seconds":0,"upstream_credits":0}
+    },
+    {
+      "name": "Seedance settles from validated upstream USD not client cost or elapsed time",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model":"seedance-2.5-am"},{"status":"SUCCESS"},{"code":200,"data":{"status":"completed","cost":0.3104,"credits_cost":3.104,"actual_time":100}}],
+      "expected": {"billing_phase":"actual","upstream_credits":3.104}
+    },
+    {
+      "name": "Seedance rejects unsupported 2.5 4k",
+      "hook": "native", "member":"decodeVideoGeneration",
+      "args": [{"body":{"kind":"json","value":{"model":"seedance-2.5-am","prompt":"ocean","resolution":"4k"}}}],
+      "expectedError": "unsupported resolution"
+    },
     {
       "name": "decodes a documented Grok video request with defaults",
       "hook": "native",
