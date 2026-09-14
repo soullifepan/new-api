@@ -1,7 +1,7 @@
 // APIMart/APIB Suno music tasks, isolated from both the image plugin and Suno-API.
 // Setup: Task Plugin channel, key am-suno, model suno-am, base https://api.apib.ai.
 // Leave model mapping empty or map suno-am -> suno. Configure an administrator task
-// expression over requests/action. Each operation is one request, not two
+// expression over requests/action/max_mode. Each operation is one request, not two
 // songs or one request per download format. Provider costs are not billing inputs.
 // Primary contract: https://docs.apib.ai/cn/api-reference/audios/suno/overview
 // Public source IDs are resolved by the host (owner/plugin/channel) before these
@@ -11,7 +11,7 @@
 // Client API: POST /am/suno/v1/generations[/<action>] and
 // GET /am/suno/v1/tasks/:task_id. Action suffixes below are case-sensitive.
 // Configure only these native routes, not an OpenAI audio/image endpoint override.
-// Generation requires version; other versioned actions explicitly default to v5.5.
+// Generation requires version; other versioned actions explicitly default to v6.
 // For follow-ups use public task_id + audio_index (1-based), or task_ids +
 // audio_indexes for mashup. addVocals/addInstrumental require uploadTask sources;
 // concat requires extend. Persona references use persona_task_id on custom
@@ -22,18 +22,14 @@
 // submission envelope. There is no documented cancel/callback endpoint to expose.
 //
 // Billing configuration belongs to the administrator, under model suno-am.
-// Public USD/request snapshot (2026-09-09), not installed prices:
+// Public price/capability source (rechecked 2026-09-14):
 // https://api.apib.ai/api/pricing/model?model=suno
-// generation/extend/coverSong/remaster/addVocals/addInstrumental/addStem/
-// replaceMusic/mashup/sample/midi: 0.0625; inspo: 0.085; sounds: 0.012;
-// lyrics/crop/removeSection/fadeIn/fadeOut: 0.01; adjustSpeed: 0.03;
-// stems: 0.125; stemsAll: 0.3; createVoice: 0.02; alignedLyrics/bpm: 0.001;
-// upsampleTags/uploadTask/vox/persona/concat/generateMp4: 0.005; download: 0.002.
-// These published version prices currently match within each action. Preserve
-// administrator overrides and recheck rates before activation; do not apply the
-// ambiguous discount_percent=20 alongside discount_rate=1 automatically.
-// Use action tiers returning USD, with tier() on every branch. Version is request-only.
-// The download tier body, for example, is tier("download", u("requests") * 0.002).
+// Version/custom-model prices match within each action. Max doubles supported
+// operations only; variety=max is independent. Prices stay in administrator
+// expressions, with tier() on every branch. Version is request-only.
+// createModel training and subsequent use are separate billable operations.
+// custom_model_task_id references an owned successful createModel task; its
+// private model_id is resolved only on the server, like persona_task_id.
 // Fill ALL action tiers using the task pricing editor; no /1000000 conversion.
 // Completed tasks preserve one request even with two songs or three formats.
 // The host handles pre-consumption, final settlement, and failed-task refunds.
@@ -45,7 +41,7 @@
 // Verification:
 // go run . plugin lint plugins/local/apimart-suno/plugin.js
 // go run . plugin test plugins/local/apimart-suno/plugin.js --fixture plugins/local/apimart-suno/apimart-suno.fixture.json
-const VERSIONS = ["v3.5", "v4", "v4.5", "v4.5+", "v4.5-all", "v5", "v5.5"];
+const VERSIONS = ["v6", "v6-wild", "v6-mini"];
 const WEIGHTS = ["style_weight", "weirdness_constraint", "audio_weight"];
 const CUSTOM_FIELDS = ["prompt", "title", "tags", "negative_tags", ...WEIGHTS];
 const FOLLOW_FIELDS = ["custom", "gpt_description", ...CUSTOM_FIELDS];
@@ -57,22 +53,23 @@ const MAX_TRACKS = 64;
 const ACTIONS = {
   generation: { versions: VERSIONS, requiredVersion: true, fields: ["custom", "instrumental", "prompt", "title", "style", "negative_tags", "auto_lyrics", "vocal_gender", ...WEIGHTS, "persona_task_id"] },
   lyrics: { fields: ["prompt", "lyrics_model"] },
-  inspo: { versions: VERSIONS.slice(1), fields: ["audio_urls", "prompt", "title", "tags", "negative_tags", "auto_lyrics", ...VOICE_FIELDS, ...WEIGHTS], weightAlias: true },
-  sounds: { versions: ["v5", "v5.5"], fields: ["prompt", "type", "bpm", "key"] },
+  inspo: { versions: VERSIONS, fields: ["audio_urls", "prompt", "title", "tags", "negative_tags", "auto_lyrics", ...VOICE_FIELDS, ...WEIGHTS], weightAlias: true },
+  sounds: { versions: VERSIONS, fields: ["prompt", "type", "bpm", "key"] },
   upsampleTags: { fields: ["tags"] },
   uploadTask: { fields: ["audioFilePath"] },
+  createModel: { fields: ["name", "audio_urls"] },
   extend: { versions: VERSIONS, source: "music", fields: ["continue_at", ...FOLLOW_FIELDS, ...VOICE_FIELDS, "auto_lyrics", "persona_task_id"], weightAlias: true },
   coverSong: { versions: VERSIONS, source: "music", fields: [...FOLLOW_FIELDS, ...VOICE_FIELDS, "persona_task_id"], inferCustom: true, weightAlias: true },
-  remaster: { versions: ["v4.5+", "v5", "v5.5"], source: "music", fields: ["variation_category"] },
+  remaster: { source: "music", fields: ["variation_category"] },
   stems: { source: "music", fields: ["stem_type"] },
   stemsAll: { source: "music", fields: [] },
-  addVocals: { versions: ["v5", "v5.5"], source: "uploadTask", fields: [...FOLLOW_FIELDS, ...VOICE_FIELDS], inferCustom: true, weightAlias: true },
-  addInstrumental: { versions: ["v5", "v5.5"], source: "uploadTask", fields: [...FOLLOW_FIELDS, ...VOICE_FIELDS], inferCustom: true, weightAlias: true },
-  addStem: { versions: ["v5.5"], source: "music", fields: FOLLOW_FIELDS, inferCustom: true, weightAlias: true },
+  addVocals: { versions: VERSIONS, source: "uploadTask", fields: [...FOLLOW_FIELDS, ...VOICE_FIELDS], inferCustom: true, weightAlias: true },
+  addInstrumental: { versions: VERSIONS, source: "uploadTask", fields: [...FOLLOW_FIELDS, ...VOICE_FIELDS], inferCustom: true, weightAlias: true },
+  addStem: { versions: VERSIONS, source: "music", fields: FOLLOW_FIELDS, inferCustom: true, weightAlias: true },
   vox: { source: "music", fields: ["vocal_start_s", "vocal_end_s"] },
   createVoice: { fields: ["audio_url"] },
   persona: { source: "music", fields: ["name", "describe", "styles", "vox_task_id", "vocal_start_s", "vocal_end_s"] },
-  replaceMusic: { versions: ["v4", "v4.5+", "v5", "v5.5"], source: "music", fields: ["start_s", "end_s", "infill_lyrics", "prompt", "title", "tags", "negative_tags"] },
+  replaceMusic: { versions: VERSIONS, source: "music", fields: ["start_s", "end_s", "infill_lyrics", "prompt", "title", "tags", "negative_tags"] },
   removeSection: { source: "music", fields: ["start_s", "end_s"] },
   crop: { source: "music", fields: ["start_s", "end_s"] },
   fadeIn: { source: "music", fields: ["duration_s", "title"] },
@@ -80,15 +77,23 @@ const ACTIONS = {
   adjustSpeed: { source: "music", fields: ["speed", "keep_pitch", "title"] },
   concat: { source: "extend", fields: [] },
   mashup: { versions: VERSIONS, source: "pair", fields: ["instrumental", "auto_lyrics", ...FOLLOW_FIELDS, ...VOICE_FIELDS, "persona_task_id"], inferCustom: true, weightAlias: true },
-  sample: { versions: VERSIONS, source: "music", fields: ["start_s", "end_s", "instrumental", "auto_lyrics", ...FOLLOW_FIELDS, ...VOICE_FIELDS], inferCustom: true, weightAlias: true },
+  sample: { versions: VERSIONS, source: "uploadTask", fields: ["start_s", "end_s", "instrumental", "auto_lyrics", ...FOLLOW_FIELDS, ...VOICE_FIELDS], inferCustom: true, weightAlias: true },
   midi: { source: "music", fields: [] },
   alignedLyrics: { source: "music", fields: [] },
   bpm: { source: "music", fields: [] },
   generateMp4: { source: "music", fields: [] },
   download: { source: "music", fields: ["formats", "format"] },
 };
-for (const spec of Object.values(ACTIONS)) {
+// Capabilities verified against the per-action V6 documentation on 2026-09-14.
+const MAX_ACTIONS = new Set(["generation", "inspo", "extend", "coverSong", "addVocals", "addInstrumental", "addStem", "replaceMusic", "mashup", "sample"]);
+for (const [action, spec] of Object.entries(ACTIONS)) {
   spec.allowed = new Set(["model", ...spec.fields]);
+  if (MAX_ACTIONS.has(action)) {
+    for (const field of ["variety", "max_mode", "audio_format", "custom_model_task_id"]) spec.allowed.add(field);
+  }
+  if (["sounds", "remaster", "stems", "stemsAll", "concat"].includes(action)) spec.allowed.add("audio_format");
+  if (action === "generation") spec.allowed.add("duration");
+  if (["extend", "coverSong"].includes(action)) spec.allowed.add("duration_s");
   if (spec.versions) spec.allowed.add("version");
   if (spec.weightAlias) spec.allowed.add("weirdness");
   for (const field of spec.source === "pair" ? ["task_ids", "audio_indexes"] : spec.source ? SOURCE_FIELDS : []) spec.allowed.add(field);
@@ -98,21 +103,23 @@ export const meta = {
   apiVersion: 1,
   key: "am-suno",
   name: "AM Suno",
-  version: "0.2.0",
+  version: "0.3.0",
   author: { name: "Tapcomfy" },
-  description: { en: "Suno music generation, editing and audio tasks via AM.", zh: "通过 AM 提供 Suno 音乐生成、编辑及音频任务。" },
+  description: { en: "Suno V6 music generation, editing and audio tasks via AM", zh: "通过 AM 提供 Suno V6 音乐生成、编辑及音频任务" },
   fetchMode: "per_task",
   allowedHosts: ["api.apib.ai", "api.apimart.ai"],
   models: ["suno-am"],
   usageSchema: {
-    requests: { type: "number", unit: "count", description: { en: "Operations, independent of output track or format count.", zh: "操作次数，不按输出歌曲或下载格式数量重复计费。" } },
-    action: { enum: Object.keys(ACTIONS), description: { en: "Suno operation.", zh: "Suno 操作。" } },
+    requests: { type: "number", unit: "count", description: { en: "Music generation, editing or audio processing unit price", zh: "音乐生成、编辑或音频处理单价" } },
+    action: { enum: Object.keys(ACTIONS), description: { en: "Generate, edit or process audio", zh: "生成、编辑或处理音频" } },
+    max_mode: { type: "boolean", description: { en: "Whether Max mode is enabled", zh: "是否启用 Max 模式" } },
   },
   usageExamples: [
-    { label: "Music", facts: { requests: 1, action: "generation" } },
-    { label: "Inspiration", facts: { requests: 1, action: "inspo" } },
-    { label: "All stems", facts: { requests: 1, action: "stemsAll" } },
-    { label: "Multi-format download", facts: { requests: 1, action: "download" } },
+    { label: "Music", facts: { requests: 1, action: "generation", max_mode: false } },
+    { label: "Inspiration", facts: { requests: 1, action: "inspo", max_mode: false } },
+    { label: "Inspiration Max", facts: { requests: 1, action: "inspo", max_mode: true } },
+    { label: "All stems", facts: { requests: 1, action: "stemsAll", max_mode: false } },
+    { label: "Multi-format download", facts: { requests: 1, action: "download", max_mode: false } },
   ],
   routes: Object.keys(ACTIONS).map(function (action) {
     return { method: "POST", path: "/am/suno/v1/generations" + (action === "generation" ? "" : "/" + action), type: "submit", action: action, decode: "decodeSubmit", render: "renderSubmitted" };
@@ -167,11 +174,15 @@ function normalizedRequest(action, request) {
   if (request.model !== undefined && request.model !== "suno-am") throw new Error("model must be suno-am");
   const body = { ...request };
   delete body.model;
-  if (spec.versions) {
-    if (body.version === undefined && !spec.requiredVersion) body.version = "v5.5";
-    if (!spec.versions.includes(body.version)) throw new Error("version must be one of " + spec.versions.join(", "));
+  if (body.custom_model_task_id !== undefined) {
+    body.custom_model_task_id = sourceID(body.custom_model_task_id, "custom_model_task_id");
+    if (body.version !== undefined || body.persona_task_id !== undefined) throw new Error("custom_model_task_id cannot be combined with version or persona_task_id");
   }
-  for (const field of ["custom", "instrumental", "auto_lyrics", "keep_pitch"]) {
+  if (spec.versions) {
+    if (body.version === undefined && !spec.requiredVersion && !body.custom_model_task_id) body.version = "v6";
+    if (!body.custom_model_task_id && !spec.versions.includes(body.version)) throw new Error("version must be one of " + spec.versions.join(", "));
+  }
+  for (const field of ["custom", "instrumental", "auto_lyrics", "keep_pitch", "max_mode"]) {
     if (body[field] !== undefined && typeof body[field] !== "boolean") throw new Error(field + " must be boolean");
   }
   if (body.weirdness !== undefined) {
@@ -180,6 +191,8 @@ function normalizedRequest(action, request) {
     delete body.weirdness;
   }
   for (const field of WEIGHTS) if (body[field] !== undefined) number(body[field], field, 0, 1);
+  if (body.variety !== undefined && !["off", "normal", "high", "extra", "max"].includes(body.variety)) throw new Error("variety must be off, normal, high, extra or max");
+  if (body.audio_format !== undefined && !["mp3", "m4a", "wav"].includes(body.audio_format)) throw new Error("audio_format must be mp3, m4a or wav");
   for (const field of ["prompt", "title", "style", "tags", "negative_tags", "gpt_description", "infill_lyrics", "name", "describe", "styles"]) {
     if (body[field] !== undefined && (typeof body[field] !== "string" || body[field].length > 65536)) throw new Error(field + " must be a string of at most 65536 characters");
   }
@@ -205,10 +218,21 @@ function normalizedRequest(action, request) {
   if (spec.inferCustom && body.custom === undefined) {
     body.custom = !!text(body.prompt) || (!text(body.gpt_description) && (!!text(body.tags) || !!text(body.title)));
   }
+  if (action === "extend" && body.custom === undefined) body.custom = true;
+  if (body.max_mode === true && action !== "inspo" && action !== "replaceMusic" && body.custom !== true) throw new Error("max_mode requires custom=true for " + action);
+  const targetDuration = action === "generation" ? "duration" : ["extend", "coverSong"].includes(action) ? "duration_s" : null;
+  if (targetDuration && body[targetDuration] !== undefined) {
+    if (body.custom !== true) throw new Error(targetDuration + " requires custom=true");
+    number(body[targetDuration], targetDuration, 10, 360, true);
+  }
+  for (const [field, limit] of Object.entries({title: 80, style: 1000, tags: 1000, gpt_description: 3000, prompt: action === "generation" && body.custom !== true ? 3000 : 5000, infill_lyrics: 5000})) {
+    if (body[field] !== undefined && Array.from(body[field]).length > limit) throw new Error(field + " must contain at most " + limit + " characters");
+  }
+  if (["mashup", "sample"].includes(action) && body.custom === true && body.instrumental !== true) requiredText(body.prompt, "prompt");
   if (action === "generation") {
     if (body.custom !== true || body.instrumental !== true) requiredText(body.prompt, "prompt");
     if (body.custom !== true) {
-      for (const field of ["title", "style", "negative_tags", "auto_lyrics", "persona_task_id", ...WEIGHTS]) delete body[field];
+      for (const field of ["title", "style", "negative_tags", "auto_lyrics", "persona_task_id"]) delete body[field];
     }
   } else if (spec.inferCustom || action === "extend") {
     if (body.custom === true) {
@@ -225,6 +249,10 @@ function normalizedRequest(action, request) {
   if (action === "inspo") {
     if (!Array.isArray(body.audio_urls) || body.audio_urls.length < 1 || body.audio_urls.length > 4 || body.audio_urls.some(function (url) { return !httpURL(url); })) throw new Error("audio_urls must contain 1 to 4 HTTP(S) URLs");
   }
+  if (action === "createModel") {
+    body.name = requiredText(body.name, "name", 256);
+    if (!Array.isArray(body.audio_urls) || body.audio_urls.length < 6 || body.audio_urls.length > 24 || body.audio_urls.some(function (url) { return !httpURL(url); })) throw new Error("audio_urls must contain 6 to 24 HTTP(S) URLs");
+  }
   if (action === "sounds") {
     requiredText(body.prompt, "prompt");
     if (body.type !== undefined && !["one-shot", "loop"].includes(body.type)) throw new Error("type must be one-shot or loop");
@@ -239,16 +267,16 @@ function normalizedRequest(action, request) {
   }
   // A URL suffix does not prove the media format (signed/extensionless URLs work).
   // createVoice's MP3/WAV content restriction is enforced by the provider.
-  if (action === "extend") number(body.continue_at, "continue_at", 0, MAX_SECONDS, true);
+  if (action === "extend") number(body.continue_at, "continue_at", 1, MAX_SECONDS);
   if (action === "remaster" && body.variation_category !== undefined && !["subtle", "normal", "high"].includes(body.variation_category)) throw new Error("variation_category must be subtle, normal or high");
   if (action === "stems") {
     if (body.stem_type === undefined) body.stem_type = "lead_vocal";
-    // The provider has over 100 types without an exhaustive published enum.
-    if (typeof body.stem_type !== "string" || !/^[a-z][a-z0-9_]{0,63}$/.test(body.stem_type)) throw new Error("stem_type must be a valid stem name");
+    // Stem names include the numeric string "808".
+    if (typeof body.stem_type !== "string" || !/^(?:808|[a-z][a-z0-9_]{0,63})$/.test(body.stem_type)) throw new Error("stem_type must be a valid stem name");
   }
   if (["replaceMusic", "removeSection", "crop", "sample"].includes(action)) {
-    number(body.start_s, "start_s", 0, MAX_SECONDS, action !== "sample");
-    number(body.end_s, "end_s", 0, MAX_SECONDS, action !== "sample");
+    number(body.start_s, "start_s", 0, MAX_SECONDS, !["sample", "replaceMusic"].includes(action));
+    number(body.end_s, "end_s", 0, MAX_SECONDS, !["sample", "replaceMusic"].includes(action));
     if (body.end_s <= body.start_s) throw new Error("end_s must be greater than start_s");
   }
   if (action === "fadeIn" || action === "fadeOut") number(body.duration_s, "duration_s", 0, MAX_SECONDS, true);
@@ -265,6 +293,10 @@ function normalizedRequest(action, request) {
     body.formats = [...new Set(formats.map(function (format) { return format.toLowerCase(); }))];
     delete body.format;
   }
+  if (spec.weightAlias && body.weirdness_constraint !== undefined) {
+    body.weirdness = body.weirdness_constraint;
+    delete body.weirdness_constraint;
+  }
   return body;
 }
 
@@ -272,6 +304,7 @@ function originIDs(action, body) {
   const ids = ACTIONS[action].source === "pair" ? [...body.task_ids] : ACTIONS[action].source ? [body.task_id] : [];
   if (body.persona_task_id) ids.push(body.persona_task_id);
   if (body.vox_task_id) ids.push(body.vox_task_id);
+  if (body.custom_model_task_id) ids.push(body.custom_model_task_id);
   return [...new Set(ids)];
 }
 
@@ -311,6 +344,13 @@ export function buildSubmitRequest(ctx) {
   const mapped = ctx.upstreamModel;
   if (mapped !== undefined && mapped !== "" && mapped !== "suno-am" && mapped !== "suno") throw new Error("upstream model must be suno");
   const spec = ACTIONS[ctx.action];
+  if (body.custom_model_task_id) {
+    const source = resolvedOrigin(ctx, body.custom_model_task_id, "createModel");
+    const modelID = source.result.model_id;
+    if (typeof modelID !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(modelID)) throw new Error("referenced model_id must be a UUID");
+    body.custom_model_id = modelID;
+    delete body.custom_model_task_id;
+  }
   if (spec.source) {
     const ids = spec.source === "pair" ? body.task_ids : [body.task_id];
     const indexes = spec.source === "pair" ? body.audio_indexes || [1, 1] : [body.audio_index || 1];
@@ -321,7 +361,8 @@ export function buildSubmitRequest(ctx) {
     else body.task_id = resolved[0].origin.upstreamTaskId;
     const duration = resolved[0].song.duration;
     if (typeof duration === "number" && Number.isFinite(duration) && duration > 0) {
-      for (const field of ["continue_at", "end_s", "duration_s", "vocal_end_s"]) {
+      if (ctx.action === "extend" && body.continue_at >= duration) throw new Error("continue_at must be less than the referenced audio duration");
+      for (const field of ["continue_at", "end_s", "vocal_end_s", ...(["fadeIn", "fadeOut"].includes(ctx.action) ? ["duration_s"] : [])]) {
         if (body[field] !== undefined && body[field] > duration) throw new Error(field + " exceeds the referenced audio duration");
       }
     }
@@ -484,8 +525,9 @@ export function buildContentRequest(ctx) {
 
 export function extractUsage(ctx) {
   if (ctx.usagePurpose === "billing_ratios") return null;
-  normalizedRequest(ctx.action, ctx.requestBody);
-  return { requests: 1, action: ctx.action };
+  const body = normalizedRequest(ctx.action, ctx.requestBody);
+  // Frozen by the host with the expression; completion keeps this validated mode.
+  return { requests: 1, action: ctx.action, max_mode: body.max_mode === true };
 }
 
 export function extractUsageOnComplete(_ctx, _result, body) {

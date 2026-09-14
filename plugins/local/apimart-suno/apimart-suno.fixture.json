@@ -10,7 +10,7 @@
           "action": "generation",
           "requestBody": {
             "custom": false,
-            "version": "v5",
+            "version": "v6",
             "prompt": "rainy lo-fi piano"
           },
           "originTasks": []
@@ -26,7 +26,7 @@
         },
         "body": {
           "custom": false,
-          "version": "v5",
+          "version": "v6",
           "prompt": "rainy lo-fi piano",
           "model": "suno"
         },
@@ -76,7 +76,7 @@
             "audio_urls": [
               "https://cdn.apimart.ai/input-1.mp3"
             ],
-            "version": "v5.5",
+            "version": "v6",
             "tags": "dreamy pop",
             "style_weight": 0
           },
@@ -95,7 +95,7 @@
           "audio_urls": [
             "https://cdn.apimart.ai/input-1.mp3"
           ],
-          "version": "v5.5",
+          "version": "v6",
           "tags": "dreamy pop",
           "style_weight": 0,
           "model": "suno"
@@ -113,7 +113,7 @@
           "action": "sounds",
           "requestBody": {
             "prompt": "vinyl crackle",
-            "version": "v5.5",
+            "version": "v6",
             "type": "loop",
             "bpm": 120
           },
@@ -130,7 +130,7 @@
         },
         "body": {
           "prompt": "vinyl crackle",
-          "version": "v5.5",
+          "version": "v6",
           "type": "loop",
           "bpm": 120,
           "model": "suno"
@@ -208,7 +208,7 @@
             "task_id": "task_public_song",
             "audio_index": 2,
             "continue_at": 120,
-            "version": "v5",
+            "version": "v6",
             "custom": false,
             "gpt_description": "soft ending"
           },
@@ -251,7 +251,7 @@
           "task_id": "vendor_task_public_song",
           "audio_index": 2,
           "continue_at": 120,
-          "version": "v5",
+          "version": "v6",
           "custom": false,
           "gpt_description": "soft ending",
           "model": "suno"
@@ -270,7 +270,7 @@
           "requestBody": {
             "task_id": "task_public_song",
             "audio_index": 1,
-            "version": "v5",
+            "version": "v6",
             "custom": false,
             "gpt_description": "jazz cover"
           },
@@ -312,7 +312,7 @@
         "body": {
           "task_id": "vendor_task_public_song",
           "audio_index": 1,
-          "version": "v5",
+          "version": "v6",
           "custom": false,
           "gpt_description": "jazz cover",
           "model": "suno"
@@ -331,7 +331,6 @@
           "requestBody": {
             "task_id": "task_public_song",
             "audio_index": 1,
-            "version": "v5.5",
             "variation_category": "normal"
           },
           "originTasks": [
@@ -372,7 +371,6 @@
         "body": {
           "task_id": "vendor_task_public_song",
           "audio_index": 1,
-          "version": "v5.5",
           "variation_category": "normal",
           "model": "suno"
         },
@@ -502,7 +500,7 @@
           "requestBody": {
             "task_id": "task_public_upload",
             "audio_index": 1,
-            "version": "v5",
+            "version": "v6",
             "custom": true,
             "prompt": "new lyrics"
           },
@@ -544,7 +542,7 @@
         "body": {
           "task_id": "vendor_task_public_upload",
           "audio_index": 1,
-          "version": "v5",
+          "version": "v6",
           "custom": true,
           "prompt": "new lyrics",
           "model": "suno"
@@ -563,7 +561,7 @@
           "requestBody": {
             "task_id": "task_public_upload",
             "audio_index": 1,
-            "version": "v5.5",
+            "version": "v6",
             "custom": false,
             "gpt_description": "lo-fi"
           },
@@ -605,7 +603,7 @@
         "body": {
           "task_id": "vendor_task_public_upload",
           "audio_index": 1,
-          "version": "v5.5",
+          "version": "v6",
           "custom": false,
           "gpt_description": "lo-fi",
           "model": "suno"
@@ -624,7 +622,7 @@
           "requestBody": {
             "task_id": "task_public_song",
             "audio_index": 1,
-            "version": "v5.5",
+            "version": "v6",
             "tags": "drum kit",
             "custom": true
           },
@@ -666,7 +664,7 @@
         "body": {
           "task_id": "vendor_task_public_song",
           "audio_index": 1,
-          "version": "v5.5",
+          "version": "v6",
           "tags": "drum kit",
           "custom": true,
           "model": "suno"
@@ -826,7 +824,7 @@
           "requestBody": {
             "task_id": "task_public_song",
             "audio_index": 1,
-            "version": "v5",
+            "version": "v6",
             "prompt": "piano",
             "start_s": 0,
             "end_s": 20
@@ -869,7 +867,7 @@
         "body": {
           "task_id": "vendor_task_public_song",
           "audio_index": 1,
-          "version": "v5",
+          "version": "v6",
           "prompt": "piano",
           "start_s": 0,
           "end_s": 20,
@@ -1241,7 +1239,7 @@
               1,
               2
             ],
-            "version": "v5",
+            "version": "v6",
             "custom": false,
             "gpt_description": "blend the two tracks"
           },
@@ -1312,7 +1310,7 @@
             1,
             2
           ],
-          "version": "v5",
+          "version": "v6",
           "custom": false,
           "gpt_description": "blend the two tracks",
           "model": "suno"
@@ -1331,17 +1329,18 @@
           "requestBody": {
             "task_id": "task_public_song",
             "audio_index": 1,
-            "version": "v5",
+            "version": "v6",
             "start_s": 0.5,
             "end_s": 20.25,
             "custom": true,
-            "tags": "jazz"
+            "tags": "jazz",
+            "instrumental": true
           },
           "originTasks": [
             {
               "taskId": "task_public_song",
               "upstreamTaskId": "vendor_task_public_song",
-              "action": "generation",
+              "action": "uploadTask",
               "status": "SUCCESS",
               "data": {
                 "status": "completed",
@@ -1375,12 +1374,13 @@
         "body": {
           "task_id": "vendor_task_public_song",
           "audio_index": 1,
-          "version": "v5",
+          "version": "v6",
           "start_s": 0.5,
           "end_s": 20.25,
           "custom": true,
           "tags": "jazz",
-          "model": "suno"
+          "model": "suno",
+          "instrumental": true
         },
         "action": "sample"
       }
@@ -1687,7 +1687,7 @@
               "task_id": "task_public_song",
               "audio_index": 2,
               "continue_at": 120,
-              "version": "v5",
+              "version": "v6",
               "custom": false,
               "gpt_description": "soft ending"
             }
@@ -1702,7 +1702,7 @@
           "task_id": "task_public_song",
           "audio_index": 2,
           "continue_at": 120,
-          "version": "v5",
+          "version": "v6",
           "custom": false,
           "gpt_description": "soft ending"
         },
@@ -1727,7 +1727,7 @@
               "model": "suno-am",
               "task_id": "task_public_upload",
               "audio_index": 1,
-              "version": "v5",
+              "version": "v6",
               "custom": true,
               "prompt": "new lyrics"
             }
@@ -1741,7 +1741,7 @@
         "requestBody": {
           "task_id": "task_public_upload",
           "audio_index": 1,
-          "version": "v5",
+          "version": "v6",
           "custom": true,
           "prompt": "new lyrics"
         },
@@ -1805,7 +1805,7 @@
                 1,
                 2
               ],
-              "version": "v5",
+              "version": "v6",
               "custom": false,
               "gpt_description": "blend the two tracks"
             }
@@ -1825,7 +1825,7 @@
             1,
             2
           ],
-          "version": "v5",
+          "version": "v6",
           "custom": false,
           "gpt_description": "blend the two tracks"
         },
@@ -1868,7 +1868,7 @@
           "body": {
             "kind": "json",
             "value": {
-              "version": "v5",
+              "version": "v6",
               "custom": false
             }
           }
@@ -1889,7 +1889,7 @@
           "body": {
             "kind": "json",
             "value": {
-              "version": "v4.5+",
+              "version": "v6",
               "custom": true,
               "instrumental": false,
               "prompt": "lyrics",
@@ -1906,14 +1906,14 @@
         "model": "suno-am",
         "action": "generation",
         "requestBody": {
-          "version": "v4.5+",
+          "version": "v6",
           "custom": true,
           "instrumental": false,
           "prompt": "lyrics",
           "auto_lyrics": false,
           "style_weight": 0,
-          "weirdness_constraint": 0,
-          "audio_weight": 0
+          "audio_weight": 0,
+          "weirdness_constraint": 0
         }
       }
     },
@@ -1932,7 +1932,7 @@
             "value": {
               "prompt": "kick",
               "bpm": 301,
-              "version": "v5"
+              "version": "v6"
             }
           }
         }
@@ -1993,7 +1993,7 @@
             "task_id": "upstream_private_id",
             "audio_index": 1,
             "continue_at": 120,
-            "version": "v5"
+            "version": "v6"
           },
           "originTasks": []
         }
@@ -2016,7 +2016,7 @@
               "task_ids": [
                 "task_public_song"
               ],
-              "version": "v5"
+              "version": "v6"
             }
           }
         }
@@ -2034,7 +2034,7 @@
           "requestBody": {
             "task_id": "task_public_song",
             "audio_index": 1,
-            "version": "v5",
+            "version": "v6",
             "custom": true,
             "prompt": "words"
           },
@@ -2069,7 +2069,7 @@
             "task_id": "task_public_song",
             "audio_index": 2,
             "continue_at": 120,
-            "version": "v5"
+            "version": "v6"
           },
           "originTasks": [
             {
@@ -2105,8 +2105,9 @@
           "task_id": "task_vendor_song",
           "audio_index": 2,
           "continue_at": 120,
-          "version": "v5",
-          "model": "suno"
+          "version": "v6",
+          "model": "suno",
+          "custom": true
         },
         "action": "extend"
       }
@@ -2124,13 +2125,14 @@
               "task_public_song",
               "task_public_song_2"
             ],
-            "version": "v5",
+            "version": "v6",
             "audio_indexes": [
               1,
               2
             ],
             "custom": true,
-            "tags": "jazz"
+            "tags": "jazz",
+            "instrumental": true
           },
           "originTasks": [
             {
@@ -2182,14 +2184,15 @@
             "task_vendor_1",
             "task_vendor_2"
           ],
-          "version": "v5",
+          "version": "v6",
           "model": "suno",
           "audio_indexes": [
             1,
             2
           ],
           "custom": true,
-          "tags": "jazz"
+          "tags": "jazz",
+          "instrumental": true
         },
         "action": "mashup"
       }
@@ -2308,14 +2311,15 @@
         {
           "action": "generation",
           "requestBody": {
-            "version": "v5",
+            "version": "v6",
             "prompt": "music"
           }
         }
       ],
       "expected": {
         "requests": 1,
-        "action": "generation"
+        "action": "generation",
+        "max_mode": false
       }
     },
     {
@@ -2331,7 +2335,8 @@
       ],
       "expected": {
         "requests": 1,
-        "action": "lyrics"
+        "action": "lyrics",
+        "max_mode": false
       }
     },
     {
@@ -2450,7 +2455,7 @@
           "apiKey": "test-token",
           "action": "generation",
           "requestBody": {
-            "version": "v5",
+            "version": "v6",
             "custom": true,
             "prompt": "lyrics",
             "persona_task_id": "task_public_persona"
@@ -2479,7 +2484,7 @@
           "Authorization": "Bearer test-token"
         },
         "body": {
-          "version": "v5",
+          "version": "v6",
           "custom": true,
           "prompt": "lyrics",
           "persona_id": "persona_vendor_private",
@@ -2489,7 +2494,7 @@
       }
     },
     {
-      "name": "rejects arbitrary vendor persona and vox identifiers",
+      "name": "rejects arbitrary vendor persona identifier",
       "hook": "native",
       "member": "decodeSubmit",
       "args": [
@@ -2501,11 +2506,10 @@
           "body": {
             "kind": "json",
             "value": {
-              "version": "v5",
+              "version": "v6",
               "custom": true,
               "prompt": "lyrics",
-              "persona_id": "persona_vendor_private",
-              "vox_id": "vox_vendor_private"
+              "persona_id": "persona_vendor_private"
             }
           }
         }
@@ -2607,7 +2611,7 @@
           "body": {
             "kind": "json",
             "value": {
-              "version": "v5",
+              "version": "v6",
               "prompt": "idea",
               "title": "unused",
               "style_weight": 0,
@@ -2622,9 +2626,10 @@
         "model": "suno-am",
         "action": "generation",
         "requestBody": {
-          "version": "v5",
+          "version": "v6",
           "prompt": "idea",
-          "vocal_gender": "Female"
+          "vocal_gender": "Female",
+          "style_weight": 0
         }
       }
     },
@@ -2641,7 +2646,7 @@
           "body": {
             "kind": "json",
             "value": {
-              "version": "v5",
+              "version": "v6",
               "custom": true,
               "instrumental": true
             }
@@ -2653,7 +2658,7 @@
         "model": "suno-am",
         "action": "generation",
         "requestBody": {
-          "version": "v5",
+          "version": "v6",
           "custom": true,
           "instrumental": true
         }
@@ -2685,7 +2690,7 @@
         "requestBody": {
           "task_id": "task_public_song",
           "tags": "jazz",
-          "version": "v5.5",
+          "version": "v6",
           "custom": true
         },
         "originTaskIds": [
@@ -2727,7 +2732,7 @@
             "kind": "json",
             "value": {
               "task_id": "task_public_song",
-              "continue_at": 0,
+              "continue_at": 1,
               "custom": true,
               "weirdness": 0
             }
@@ -2740,10 +2745,10 @@
         "action": "extend",
         "requestBody": {
           "task_id": "task_public_song",
-          "continue_at": 0,
+          "continue_at": 1,
           "custom": true,
-          "version": "v5.5",
-          "weirdness_constraint": 0
+          "version": "v6",
+          "weirdness": 0
         },
         "originTaskIds": [
           "task_public_song"
@@ -2787,7 +2792,7 @@
           "body": {
             "kind": "json",
             "value": {
-              "version": "v5",
+              "version": "v6",
               "prompt": "lyrics",
               "custom": true,
               "audio_weight": 1.1
@@ -2874,7 +2879,7 @@
           "body": {
             "kind": "json",
             "value": {
-              "version": "v5",
+              "version": "v6",
               "prompt": "idea",
               "custom": "false"
             }
@@ -3297,7 +3302,8 @@
               2,
               1
             ],
-            "tags": "jazz"
+            "tags": "jazz",
+            "instrumental": true
           },
           "originTasks": [
             {
@@ -3345,8 +3351,9 @@
           ],
           "tags": "jazz",
           "custom": true,
-          "version": "v5.5",
-          "model": "suno"
+          "version": "v6",
+          "model": "suno",
+          "instrumental": true
         },
         "action": "mashup"
       }
@@ -3494,7 +3501,7 @@
           "apiKey": "fixture-key",
           "action": "generation",
           "requestBody": {
-            "version": "v5",
+            "version": "v6",
             "custom": true,
             "prompt": "words",
             "persona_task_id": "voice"
@@ -3645,7 +3652,8 @@
       ],
       "expected": {
         "requests": 1,
-        "action": "download"
+        "action": "download",
+        "max_mode": false
       }
     },
     {
@@ -3721,6 +3729,795 @@
             }
           }
         }
+      }
+    },
+    {
+      "name": "V6 v6 inspo Max=false preserves request",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "inspo",
+          "requestBody": {
+            "audio_urls": [
+              "https://media.example/reference.mp3"
+            ],
+            "tags": "folk",
+            "version": "v6",
+            "max_mode": false,
+            "variety": "max",
+            "audio_format": "wav",
+            "weirdness": 0
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/inspo",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "audio_urls": [
+            "https://media.example/reference.mp3"
+          ],
+          "tags": "folk",
+          "version": "v6",
+          "max_mode": false,
+          "variety": "max",
+          "audio_format": "wav",
+          "weirdness": 0,
+          "model": "suno"
+        },
+        "action": "inspo"
+      }
+    },
+    {
+      "name": "V6 v6 inspo Max=false billing",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "inspo",
+          "requestBody": {
+            "audio_urls": [
+              "https://media.example/reference.mp3"
+            ],
+            "tags": "folk",
+            "version": "v6",
+            "max_mode": false,
+            "variety": "max",
+            "audio_format": "wav",
+            "weirdness": 0
+          }
+        }
+      ],
+      "expected": {
+        "requests": 1,
+        "action": "inspo",
+        "max_mode": false
+      }
+    },
+    {
+      "name": "V6 v6 inspo Max=true preserves request",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "inspo",
+          "requestBody": {
+            "audio_urls": [
+              "https://media.example/reference.mp3"
+            ],
+            "tags": "folk",
+            "version": "v6",
+            "max_mode": true,
+            "variety": "max",
+            "audio_format": "wav",
+            "weirdness": 0
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/inspo",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "audio_urls": [
+            "https://media.example/reference.mp3"
+          ],
+          "tags": "folk",
+          "version": "v6",
+          "max_mode": true,
+          "variety": "max",
+          "audio_format": "wav",
+          "weirdness": 0,
+          "model": "suno"
+        },
+        "action": "inspo"
+      }
+    },
+    {
+      "name": "V6 v6 inspo Max=true billing",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "inspo",
+          "requestBody": {
+            "audio_urls": [
+              "https://media.example/reference.mp3"
+            ],
+            "tags": "folk",
+            "version": "v6",
+            "max_mode": true,
+            "variety": "max",
+            "audio_format": "wav",
+            "weirdness": 0
+          }
+        }
+      ],
+      "expected": {
+        "requests": 1,
+        "action": "inspo",
+        "max_mode": true
+      }
+    },
+    {
+      "name": "V6 v6-wild inspo Max=false preserves request",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "inspo",
+          "requestBody": {
+            "audio_urls": [
+              "https://media.example/reference.mp3"
+            ],
+            "tags": "folk",
+            "version": "v6-wild",
+            "max_mode": false,
+            "variety": "max",
+            "audio_format": "wav",
+            "weirdness": 0
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/inspo",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "audio_urls": [
+            "https://media.example/reference.mp3"
+          ],
+          "tags": "folk",
+          "version": "v6-wild",
+          "max_mode": false,
+          "variety": "max",
+          "audio_format": "wav",
+          "weirdness": 0,
+          "model": "suno"
+        },
+        "action": "inspo"
+      }
+    },
+    {
+      "name": "V6 v6-wild inspo Max=false billing",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "inspo",
+          "requestBody": {
+            "audio_urls": [
+              "https://media.example/reference.mp3"
+            ],
+            "tags": "folk",
+            "version": "v6-wild",
+            "max_mode": false,
+            "variety": "max",
+            "audio_format": "wav",
+            "weirdness": 0
+          }
+        }
+      ],
+      "expected": {
+        "requests": 1,
+        "action": "inspo",
+        "max_mode": false
+      }
+    },
+    {
+      "name": "V6 v6-wild inspo Max=true preserves request",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "inspo",
+          "requestBody": {
+            "audio_urls": [
+              "https://media.example/reference.mp3"
+            ],
+            "tags": "folk",
+            "version": "v6-wild",
+            "max_mode": true,
+            "variety": "max",
+            "audio_format": "wav",
+            "weirdness": 0
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/inspo",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "audio_urls": [
+            "https://media.example/reference.mp3"
+          ],
+          "tags": "folk",
+          "version": "v6-wild",
+          "max_mode": true,
+          "variety": "max",
+          "audio_format": "wav",
+          "weirdness": 0,
+          "model": "suno"
+        },
+        "action": "inspo"
+      }
+    },
+    {
+      "name": "V6 v6-wild inspo Max=true billing",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "inspo",
+          "requestBody": {
+            "audio_urls": [
+              "https://media.example/reference.mp3"
+            ],
+            "tags": "folk",
+            "version": "v6-wild",
+            "max_mode": true,
+            "variety": "max",
+            "audio_format": "wav",
+            "weirdness": 0
+          }
+        }
+      ],
+      "expected": {
+        "requests": 1,
+        "action": "inspo",
+        "max_mode": true
+      }
+    },
+    {
+      "name": "V6 v6-mini inspo Max=false preserves request",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "inspo",
+          "requestBody": {
+            "audio_urls": [
+              "https://media.example/reference.mp3"
+            ],
+            "tags": "folk",
+            "version": "v6-mini",
+            "max_mode": false,
+            "variety": "max",
+            "audio_format": "wav",
+            "weirdness": 0
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/inspo",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "audio_urls": [
+            "https://media.example/reference.mp3"
+          ],
+          "tags": "folk",
+          "version": "v6-mini",
+          "max_mode": false,
+          "variety": "max",
+          "audio_format": "wav",
+          "weirdness": 0,
+          "model": "suno"
+        },
+        "action": "inspo"
+      }
+    },
+    {
+      "name": "V6 v6-mini inspo Max=false billing",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "inspo",
+          "requestBody": {
+            "audio_urls": [
+              "https://media.example/reference.mp3"
+            ],
+            "tags": "folk",
+            "version": "v6-mini",
+            "max_mode": false,
+            "variety": "max",
+            "audio_format": "wav",
+            "weirdness": 0
+          }
+        }
+      ],
+      "expected": {
+        "requests": 1,
+        "action": "inspo",
+        "max_mode": false
+      }
+    },
+    {
+      "name": "V6 v6-mini inspo Max=true preserves request",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "inspo",
+          "requestBody": {
+            "audio_urls": [
+              "https://media.example/reference.mp3"
+            ],
+            "tags": "folk",
+            "version": "v6-mini",
+            "max_mode": true,
+            "variety": "max",
+            "audio_format": "wav",
+            "weirdness": 0
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/inspo",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "audio_urls": [
+            "https://media.example/reference.mp3"
+          ],
+          "tags": "folk",
+          "version": "v6-mini",
+          "max_mode": true,
+          "variety": "max",
+          "audio_format": "wav",
+          "weirdness": 0,
+          "model": "suno"
+        },
+        "action": "inspo"
+      }
+    },
+    {
+      "name": "V6 v6-mini inspo Max=true billing",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "inspo",
+          "requestBody": {
+            "audio_urls": [
+              "https://media.example/reference.mp3"
+            ],
+            "tags": "folk",
+            "version": "v6-mini",
+            "max_mode": true,
+            "variety": "max",
+            "audio_format": "wav",
+            "weirdness": 0
+          }
+        }
+      ],
+      "expected": {
+        "requests": 1,
+        "action": "inspo",
+        "max_mode": true
+      }
+    },
+    {
+      "name": "V6 variety max alone does not enable Max billing",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "inspo",
+          "requestBody": {
+            "audio_urls": [
+              "https://media.example/reference.mp3"
+            ],
+            "tags": "folk",
+            "variety": "max"
+          }
+        }
+      ],
+      "expected": {
+        "requests": 1,
+        "action": "inspo",
+        "max_mode": false
+      }
+    },
+    {
+      "name": "V6 rejects obsolete version",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "inspo",
+          "requestBody": {
+            "audio_urls": [
+              "https://media.example/reference.mp3"
+            ],
+            "tags": "folk",
+            "version": "v5.5"
+          }
+        }
+      ],
+      "expectedError": "version"
+    },
+    {
+      "name": "V6 rejects string Max",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "inspo",
+          "requestBody": {
+            "audio_urls": [
+              "https://media.example/reference.mp3"
+            ],
+            "tags": "folk",
+            "max_mode": "true"
+          }
+        }
+      ],
+      "expectedError": "max_mode"
+    },
+    {
+      "name": "V6 rejects unsupported sounds Max",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "sounds",
+          "requestBody": {
+            "prompt": "bell",
+            "max_mode": false
+          }
+        }
+      ],
+      "expectedError": "max_mode"
+    },
+    {
+      "name": "V6 rejects remaster version",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "remaster",
+          "requestBody": {
+            "task_id": "song",
+            "version": "v6"
+          }
+        }
+      ],
+      "expectedError": "version"
+    },
+    {
+      "name": "V6 rejects inspo duration",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "inspo",
+          "requestBody": {
+            "audio_urls": [
+              "https://media.example/reference.mp3"
+            ],
+            "tags": "folk",
+            "duration": 10
+          }
+        }
+      ],
+      "expectedError": "duration"
+    },
+    {
+      "name": "V6 rejects generation noncustom Max",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "generation",
+          "requestBody": {
+            "version": "v6",
+            "prompt": "folk",
+            "max_mode": true
+          }
+        }
+      ],
+      "expectedError": "custom=true"
+    },
+    {
+      "name": "V6 rejects oversized target duration",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "generation",
+          "requestBody": {
+            "version": "v6",
+            "prompt": "lyrics",
+            "custom": true,
+            "duration": 361
+          }
+        }
+      ],
+      "expectedError": "duration"
+    },
+    {
+      "name": "V6 rejects private custom model ID",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "inspo",
+          "requestBody": {
+            "audio_urls": [
+              "https://media.example/reference.mp3"
+            ],
+            "tags": "folk",
+            "custom_model_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+          }
+        }
+      ],
+      "expectedError": "custom_model_id"
+    },
+    {
+      "name": "V6 rejects custom model and version",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "inspo",
+          "requestBody": {
+            "audio_urls": [
+              "https://media.example/reference.mp3"
+            ],
+            "tags": "folk",
+            "custom_model_task_id": "training",
+            "version": "v6"
+          }
+        }
+      ],
+      "expectedError": "cannot be combined"
+    },
+    {
+      "name": "V6 rejects training URL count",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "createModel",
+          "requestBody": {
+            "name": "fixture",
+            "audio_urls": [
+              "https://media.example/reference.mp3"
+            ]
+          }
+        }
+      ],
+      "expectedError": "6 to 24"
+    },
+    {
+      "name": "V6 rejects title length",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "inspo",
+          "requestBody": {
+            "audio_urls": [
+              "https://media.example/reference.mp3"
+            ],
+            "tags": "folk",
+            "title": "字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字"
+          }
+        }
+      ],
+      "expectedError": "title"
+    },
+    {
+      "name": "sends documented createModel endpoint and body",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "createModel",
+          "requestBody": {
+            "name": "Fixture model",
+            "audio_urls": [
+              "https://media.example/train-0.mp3",
+              "https://media.example/train-1.mp3",
+              "https://media.example/train-2.mp3",
+              "https://media.example/train-3.mp3",
+              "https://media.example/train-4.mp3",
+              "https://media.example/train-5.mp3"
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/createModel",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "name": "Fixture model",
+          "audio_urls": [
+            "https://media.example/train-0.mp3",
+            "https://media.example/train-1.mp3",
+            "https://media.example/train-2.mp3",
+            "https://media.example/train-3.mp3",
+            "https://media.example/train-4.mp3",
+            "https://media.example/train-5.mp3"
+          ],
+          "model": "suno"
+        },
+        "action": "createModel"
+      }
+    },
+    {
+      "name": "V6 resolves an owned custom model without leaking ID",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "inspo",
+          "requestBody": {
+            "audio_urls": [
+              "https://media.example/reference.mp3"
+            ],
+            "tags": "folk",
+            "custom_model_task_id": "training",
+            "max_mode": true
+          },
+          "originTasks": [
+            {
+              "taskId": "training",
+              "upstreamTaskId": "private-training",
+              "action": "createModel",
+              "status": "SUCCESS",
+              "data": {
+                "status": "completed",
+                "result": {
+                  "model_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://api.apib.ai/v1/music/generations/inspo",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "audio_urls": [
+            "https://media.example/reference.mp3"
+          ],
+          "tags": "folk",
+          "custom_model_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+          "max_mode": true,
+          "model": "suno"
+        },
+        "action": "inspo"
+      }
+    },
+    {
+      "name": "V6 rejects unresolved custom model",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.apib.ai",
+          "apiKey": "fixture-key",
+          "action": "inspo",
+          "requestBody": {
+            "audio_urls": [
+              "https://media.example/reference.mp3"
+            ],
+            "tags": "folk",
+            "custom_model_task_id": "training",
+            "max_mode": true
+          },
+          "originTasks": []
+        }
+      ],
+      "expectedError": "resolved by the host"
+    },
+    {
+      "name": "V6 custom model references enter host ownership validation",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "method": "POST",
+          "path": "/am/suno/v1/generations/inspo",
+          "body": {
+            "kind": "json",
+            "value": {
+              "audio_urls": [
+                "https://media.example/reference.mp3"
+              ],
+              "tags": "folk",
+              "custom_model_task_id": "training",
+              "max_mode": true
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "suno-am",
+        "action": "inspo",
+        "requestBody": {
+          "audio_urls": [
+            "https://media.example/reference.mp3"
+          ],
+          "tags": "folk",
+          "custom_model_task_id": "training",
+          "max_mode": true
+        },
+        "originTaskIds": [
+          "training"
+        ]
+      }
+    },
+    {
+      "name": "V6 completion cannot override frozen Max with provider false",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "action": "inspo"
+        },
+        {},
+        {
+          "code": 200,
+          "data": {
+            "status": "completed",
+            "max_mode": false,
+            "cost": 0
+          }
+        }
+      ],
+      "expected": {
+        "requests": 1
       }
     }
   ]
