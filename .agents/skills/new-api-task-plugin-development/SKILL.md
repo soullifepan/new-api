@@ -7,6 +7,8 @@ description: 开发或维护 New API 本地 Task Plugin（异步图片、视频�
 
 用于供应商具有非标准异步任务、资产或查询接口，且不能只靠渠道类型、模型映射和标准端点配置完成的场景。开始前必须阅读 `docs/architecture/local-customization-governance.md`；涉及动态计费时还必须完整阅读 `pkg/billingexpr/expr.md`。
 
+实现、修改或审查插件及其运行时前，完整阅读当前 `docs/plugin-api/v1.md`，不要把本技能当作协议副本。修改宿主契约时同时核对 `v1.schema.json` 和 `v1.d.ts`。API v1 也有新增字段；使用 `usageProfiles`、`unitLabel`、`enumLabels` 或新 capability 前先确认部署宿主支持，按先宿主、后插件的顺序发布。
+
 ## 边界与设计
 
 - 标准 OpenAI、Claude、Gemini 等协议优先使用现有渠道和模型映射，不创建插件。
@@ -28,6 +30,9 @@ description: 开发或维护 New API 本地 Task Plugin（异步图片、视频�
 
 - 对外别名（如 `gpt-image-2-am`）与上游模型（如 `gpt-image-2`）分离：渠道模型公开别名，模型映射指向上游名。
 - 定价记录优先绑定对外别名；插件的 `usageSchema` 会让模型定价页切换为任务用量编辑器。
+- 同一插件的模型需要不同计费字段时优先使用上游 `usageProfiles`，不要新增本地 `byModel` 宿主契约。每个 profile 的 schema/examples 完整替换默认值，不合并继承；验证公开别名映射、最终上游模型及历史任务轮询选择一致。已有表达式不会自动迁移。
+- 多插件共享模型时核对 `<pluginKey>::<model>` 的提供方定价覆盖；不能只检查模型级表达式。计费事实按 `ctx.upstreamModel || ctx.model` 选择供应商规格，对外回显仍保留 `ctx.model`。
+- 数值字段 description 写“计费对象 + 单价”，单位放 `unit`；计数对象可用 `unitLabel`，枚举展示名用 `enumLabels`。中英文短语含义一致，不夹带价格、默认值或协议限制。布尔字段描述 true 的肯定状态。逐项人工核对文案，lint 通过不代表文案合格。
 - 任务表达式每个分支都必须包裹 `tier("name", value)`。枚举规格使用嵌套三元表达式，例如：
 
 ```text
@@ -48,5 +53,6 @@ go run . plugin lint plugins/local/<provider>/plugin.js
 go run . plugin test plugins/local/<provider>/plugin.js --fixture plugins/local/<provider>/<provider>.fixture.json
 ```
 
-3. 更新同目录 README：对外路由、渠道配置、模型映射、计费字段和不应存放的敏感数据。
-4. 以独立、可回滚的提交保存插件变更。部署和激活使用 `new-api-test-server-deployment` skill。
+3. 涉及定价时验证普通/特殊规格（如 Max）、缺省值、显式零/false、预扣和完成事实覆盖。检查公开 `/api/pricing` 的实际 schema、提供方覆盖和表达式，并用真实页面验收价格表/估算器；仅表达式计算与 fixture 通过不能证明展示正常。出现原始公式兜底时先核对页面版本、接口数据和缓存，不直接推断为布尔条件不支持。
+4. 不在 `plugins/` 下创建 README、变更日志等文档；将路由、配置、映射及验证结果写入提交说明和交付消息。仓库规则禁止时也不新增 `docs/` 文件。
+5. 以独立、可回滚的提交保存插件变更。部署和激活使用 `new-api-test-server-deployment` skill。
