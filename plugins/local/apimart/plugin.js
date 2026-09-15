@@ -13,6 +13,22 @@ const nanoBananaModels = new Map([
 const nanoBananaRatios = new Set(["auto", "1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"]);
 const nanoBanana2Ratios = new Set([...nanoBananaRatios, "1:4", "4:1", "1:8", "8:1"]);
 const nanoBananaFields = new Set(["model", "prompt", "size", "resolution", "n", "image_urls", "nsfw_check", "official_fallback", "google_search", "google_image_search"]);
+const gpt25Models = new Map([
+  ["gpt-image-2.5-ext-am", "gpt-image-2.5-ext"],
+  ["gpt-image-2.5-flare-am", "gpt-image-2.5-flare"],
+  ["gpt-image-2.5-sunburst-am", "gpt-image-2.5-sunburst"],
+]);
+const gpt25Ext = "gpt-image-2.5-ext-am";
+// Documented 1:1 output tokens. These display examples exclude all input costs;
+// they are not the reservation calculation or a fixed per-image billing contract.
+const gpt25OutputExamples = Object.entries({
+  "1K": [196, 439, 1756, 3122, 7024],
+  "2K": [397, 892, 3568, 6343, 14272],
+  "4K": [659, 1483, 5930, 10542, 23719],
+}).flatMap(([resolution, tokens]) => tokens.map((count, index) => ({
+  label: "1:1 · " + resolution + " · " + ["low", "medium", "high", "xhigh", "max"][index] + " · 1张仅输出预估",
+  facts: { upstream_credits: count * 24 / 100000 },
+})));
 
 export const meta = {
   apiVersion: 1,
@@ -23,11 +39,22 @@ export const meta = {
     en: "AM asynchronous image generation tasks",
     zh: "AM 异步图片生成任务",
   },
-  version: "0.9.0",
+  version: "0.10.1",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   usageProfiles: (function () {
     const schemas = {
+    "gpt-image-2.5-ext-am": {
+      images: { type: "number", unit: "count", unitLabel: { en: "image", zh: "张" }, description: { en: "Image generation unit price", zh: "图片生成单价" } },
+      resolution: { enum: ["1k", "2k", "4k"], description: { en: "Output resolution", zh: "输出分辨率" } },
+      version: { enum: ["flare", "sunburst"], description: { en: "Model version", zh: "模型版本" } },
+    },
+    "gpt-image-2.5-flare-am": {
+      upstream_credits: { type: "number", unit: "credit", description: { en: "Image generation credit unit price", zh: "图片生成积分单价" } },
+    },
+    "gpt-image-2.5-sunburst-am": {
+      upstream_credits: { type: "number", unit: "credit", description: { en: "Image generation credit unit price", zh: "图片生成积分单价" } },
+    },
     "nano-banana-am": {
       upstream_credits: { type: "number", unit: "credit", description: { en: "Estimated credits at submission, replaced by validated actual task deduction at completion.", zh: "提交时预扣估算积分，完成后按已校验的任务实际扣费多退少补。" } },
     },
@@ -82,6 +109,9 @@ export const meta = {
     },
     };
     const examples = {
+    "gpt-image-2.5-ext-am": ["flare", "sunburst"].flatMap(version => ["1k", "2k", "4k"].map(resolution => ({ label: version + " · " + resolution.toUpperCase(), facts: { images: 1, version, resolution } }))),
+    "gpt-image-2.5-flare-am": gpt25OutputExamples,
+    "gpt-image-2.5-sunburst-am": gpt25OutputExamples,
     "nano-banana-am": [{ label: "1K · 1 image (estimate)", facts: { upstream_credits: 0.312 } }],
     "nano-banana-2-am": [
       { label: "0.5K · 1 image (estimate)", facts: { upstream_credits: 0.536 } },
@@ -122,6 +152,7 @@ export const meta = {
   // Keep only explicit APIMart aliases here. Standard model names must remain
   // available to ordinary channels without being classified as task models.
   models: [
+    ...gpt25Models.keys(),
     "nano-banana-am",
     "nano-banana-2-am",
     "nano-banana-pro-am",
@@ -238,6 +269,7 @@ function normalizedProSize(value) {
 }
 
 function normalizeAPIMartModelRequest(model, request) {
+  if (gpt25Models.has(model)) return normalizeGPT25(model, request);
   const banana = nanoBananaModels.get(model);
   if (banana) {
     for (const key of Object.keys(request)) {
@@ -333,6 +365,99 @@ function normalizeAPIMartModelRequest(model, request) {
   if (!["1k", "2k"].includes(output.resolution)) throw new Error("resolution must be 1k or 2k");
   if (request.prompt_extend !== undefined) output.prompt_extend = boolean(request.prompt_extend, "prompt_extend");
   return output;
+}
+
+function normalizeGPT25(model, request) {
+  const ext = model === gpt25Ext;
+  const allowed = new Set(["model", "prompt", "size", "resolution", "n", "image_urls", ...(ext ? ["version"] : ["quality", "output_format", "output_compression", "background", "moderation"])]);
+  for (const key of Object.keys(request)) {
+    if (!allowed.has(key)) throw new Error("unsupported GPT Image 2.5 field: " + key);
+  }
+  const prompt = trimmed(request.prompt);
+  // Bound estimation and request size independently of upstream validation.
+  if (!prompt || prompt.length > 64000) throw new Error("prompt must contain 1 to 64000 characters");
+  const n = request.n === undefined ? 1 : request.n;
+  if (!Number.isInteger(n) || n < 1 || n > 4) throw new Error("n must be an integer between 1 and 4");
+  const resolution = request.resolution === undefined ? "1k" : trimmed(request.resolution).toLowerCase();
+  if (!["1k", "2k", "4k"].includes(resolution)) throw new Error("resolution must be 1k, 2k, or 4k");
+  const size = request.size === undefined ? "auto" : trimmed(request.size).toLowerCase();
+  if (ext ? !nanoBananaRatios.has(size) : !gptImage2Sizes.has(size)) {
+    const match = !ext && /^(\d{1,4})x(\d{1,4})$/.exec(size);
+    if (!match) throw new Error("unsupported GPT Image 2.5 size");
+    const width = Number(match[1]), height = Number(match[2]);
+    const pixels = width * height;
+    if (width % 16 || height % 16 || Math.max(width, height) > 3840 || pixels < 655360 || pixels > 8294400 || Math.max(width, height) > Math.min(width, height) * 3) {
+      throw new Error("pixel dimensions must be multiples of 16, at most 3840 per edge, 655360 to 8294400 pixels, and at most 3:1");
+    }
+  }
+  const output = { model, prompt, size, resolution: ext ? resolution.toUpperCase() : resolution, n };
+  const images = imageURLs(request.image_urls, 16);
+  if (images) {
+    for (const url of images) {
+      const http = /^https?:\/\/[^\s/@]+(?:[/?#][^\s]*)?$/i.test(url);
+      const data = ext && /^data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/]+={0,2}$/i.test(url);
+      if (!http && !data) throw new Error(ext ? "reference images must be HTTP(S) or image data URLs" : "reference images must be public HTTP(S) URLs");
+    }
+    output.image_urls = images;
+  }
+  if (ext) {
+    output.version = request.version === undefined ? "flare" : trimmed(request.version).toLowerCase();
+    if (!["flare", "sunburst"].includes(output.version)) throw new Error("version must be flare or sunburst");
+    return output;
+  }
+  for (const [field, values, fallback] of [
+    ["quality", ["auto", "low", "medium", "high", "xhigh", "max"], "auto"],
+    ["output_format", ["png", "jpeg", "webp"], "png"],
+    ["moderation", ["auto", "low"], "low"],
+    ["background", ["transparent", "opaque", "auto"], undefined],
+  ]) {
+    const value = request[field] === undefined ? fallback : trimmed(request[field]).toLowerCase();
+    if (value === undefined) continue;
+    if (!values.includes(value)) throw new Error("unsupported " + field);
+    output[field] = value;
+  }
+  if (output.background === "transparent" && output.output_format === "jpeg") throw new Error("transparent background requires png or webp");
+  if (request.output_compression !== undefined) {
+    if (!Number.isInteger(request.output_compression) || request.output_compression < 0 || request.output_compression > 100) throw new Error("output_compression must be an integer from 0 to 100");
+    output.output_compression = request.output_compression;
+  }
+  return output;
+}
+
+function gpt25Usage(model, request) {
+  if (model === gpt25Ext) return { images: request.n, resolution: request.resolution.toLowerCase(), version: request.version };
+  // Conservative reservation: maximum documented output tokens across ratios
+  // in the requested tier. Explicit pixels use the 4K bound; auto quality uses max.
+  // Input estimates are reservations, never claims of measured token usage.
+  const table = { "1k": [196, 439, 1756, 3122, 7024], "2k": [397, 892, 3568, 6343, 14272], "4k": [659, 1483, 5930, 10542, 23719] };
+  const quality = request.quality === "auto" ? "max" : request.quality;
+  const tokens = table[/^\d+x\d+$/.test(request.size) ? "4k" : request.resolution][["low", "medium", "high", "xhigh", "max"].indexOf(quality)];
+  const cost = request.n * tokens * 24 / 1000000 + request.prompt.length * 4 * 4 / 1000000 + (request.image_urls || []).length * 16384 * 6.4 / 1000000;
+  return { upstream_credits: cost * 10 };
+}
+
+function gpt25ActualCredits(data) {
+  // The explicit customer contract is validated upstream USD, without applying
+  // the published 20% discount a second time. Never coerce null/strings to zero.
+  if (typeof data.cost !== "number" || !Number.isFinite(data.cost) || data.cost < 0 || data.cost > 100) return null;
+  if (data.credits_cost !== undefined && (typeof data.credits_cost !== "number" || !Number.isFinite(data.credits_cost) || Math.abs(data.credits_cost - data.cost * 10) > 0.00001)) return null;
+  return data.cost * 10;
+}
+
+function gpt25DeliveredCount(ctx, data) {
+  const requested = ctx.state && ctx.state.billing_usage && ctx.state.billing_usage.images;
+  if (!Number.isInteger(requested) || requested < 1 || requested > 4) return null;
+  const images = data.result && data.result.images;
+  if (!Array.isArray(images)) return null;
+  const urls = new Set();
+  for (const image of images) {
+    if (!image || !Array.isArray(image.url) || image.url.length === 0) return null;
+    for (const url of image.url) {
+      if (typeof url !== "string" || !/^https?:\/\/[^\s]+$/i.test(url)) return null;
+      urls.add(url);
+    }
+  }
+  return urls.size > 0 && urls.size <= requested ? urls.size : null;
 }
 
 function proStandardTier(request) {
@@ -517,7 +642,8 @@ export function buildSubmitRequest(ctx) {
   const publicModel = trimmed(ctx.model || request.model);
   const banana = nanoBananaModels.get(publicModel);
   const upstreamModel = trimmed(ctx.upstreamModel);
-  const model = banana && (!upstreamModel || upstreamModel === publicModel) ? banana.upstream : upstreamModel || publicModel;
+  const model = gpt25Models.has(publicModel) && (!upstreamModel || upstreamModel === publicModel) ? gpt25Models.get(publicModel) : banana && (!upstreamModel || upstreamModel === publicModel) ? banana.upstream : upstreamModel || publicModel;
+  if (gpt25Models.has(publicModel) && model !== gpt25Models.get(publicModel)) throw new Error("upstream model must match the GPT Image 2.5 alias");
   if (banana && ![banana.upstream, publicModel.slice(0, -3)].includes(model)) {
     throw new Error("upstream model must match the Nano Banana " + (banana.credits ? "credit" : "ext") + " alias");
   }
@@ -538,15 +664,15 @@ export function buildSubmitRequest(ctx) {
 
 export function parseSubmitResponse(ctx, response) {
   const body = object(response && response.body, "invalid AM submit response");
-  if (Number(body.code) !== 200) throw new Error(publicMessage(body.message) || "AM image task submission failed");
+  if (![200, 202].includes(Number(body.code))) throw new Error(publicMessage(body.message) || "AM image task submission failed");
   const entries = Array.isArray(body.data) ? body.data : [];
-  const submitted = entries[0] && typeof entries[0] === "object" ? entries[0] : {};
-  const taskId = trimmed(submitted.task_id);
+  const submitted = entries[0] && typeof entries[0] === "object" ? entries[0] : body.data && typeof body.data === "object" ? body.data : {};
+  const taskId = trimmed(submitted.task_id || submitted.id);
   if (!taskId) throw new Error("AM submit response is missing task_id");
   const request = ctx && ctx.requestBody && typeof ctx.requestBody === "object" ? ctx.requestBody : {};
   const publicModel = trimmed(ctx && ctx.model || request.model);
-  const normalized = publicModel === "seedream-5-0-pro-am" || nanoBananaModels.has(publicModel) ? normalizeAPIMartModelRequest(publicModel, request) : null;
-  const billingUsage = normalized ? apimartUsage(normalized, publicModel) : null;
+  const normalized = publicModel === "seedream-5-0-pro-am" || nanoBananaModels.has(publicModel) || gpt25Models.has(publicModel) ? normalizeAPIMartModelRequest(publicModel, request) : null;
+  const billingUsage = normalized ? gpt25Models.has(publicModel) ? gpt25Usage(publicModel, normalized) : apimartUsage(normalized, publicModel) : null;
   return billingUsage
     ? { taskId: taskId, taskData: body, state: { billing_usage: billingUsage } }
     : { taskId: taskId, taskData: body };
@@ -557,6 +683,7 @@ export function extractUsage(ctx) {
   const request = ctx.requestBody || {};
   const publicModel = trimmed(ctx.model || request.model);
   const normalized = normalizeAPIMartModelRequest(publicModel, request);
+  if (gpt25Models.has(publicModel)) return gpt25Usage(publicModel, normalized);
   const taskUsage = apimartUsage(normalized, publicModel);
   if (taskUsage) return taskUsage;
   if (isOfficialGPTImage2(ctx.upstreamModel || ctx.model || request.model)) {
@@ -573,6 +700,18 @@ export function extractUsage(ctx) {
 
 export function extractUsageOnComplete(ctx, _taskResult, body) {
   const publicModel = trimmed(ctx.model || (ctx.requestBody || {}).model);
+  if (gpt25Models.has(publicModel)) {
+    const data = body && body.data;
+    if (!data || typeof data !== "object") return null;
+    if (["failed", "failure", "cancelled", "canceled"].includes(data.status)) return publicModel === gpt25Ext ? { images: 0 } : { upstream_credits: 0 };
+    if (!["completed", "success"].includes(data.status)) return null;
+    if (publicModel !== gpt25Ext) {
+      const credits = gpt25ActualCredits(data);
+      return credits === null ? null : { upstream_credits: credits };
+    }
+    const count = gpt25DeliveredCount(ctx, data);
+    return count === null ? null : { images: count };
+  }
   if (publicModel === "seedream-5-0-pro-am") return proCompletedUsage(ctx, body);
   if (nanoBananaModels.has(publicModel)) return nanoBananaCompletedUsage(ctx, publicModel, body);
   if (!isOfficialGPTImage2(ctx.upstreamModel || ctx.model)) return null;
@@ -602,6 +741,10 @@ export function parseTaskResult(ctx, body) {
     return { code: Number(response.code) || 0, status: "FAILURE", progress: "100%", reason: publicMessage(response.message) || "AM task query failed" };
   }
   const data = object(response.data, "AM task response is missing data");
+  if (gpt25Models.has(ctx.model) && ["completed", "success"].includes(trimmed(data.status).toLowerCase())) {
+    if (ctx.model !== gpt25Ext && gpt25ActualCredits(data) === null) return { status: "IN_PROGRESS", progress: "99%", reason: "" };
+    if (ctx.model === gpt25Ext && gpt25DeliveredCount(ctx, data) === null) return { status: "UNKNOWN", reason: "invalid delivered image count" };
+  }
   const statuses = {
     submitted: "SUBMITTED",
     queued: "SUBMITTED",
@@ -649,7 +792,7 @@ export const native = {
     const request = object(ctx.body.value, "request body must be an object");
     const model = trimmed(request.model);
     if (!isDeclaredModel(model)) throw new Error("unsupported AM image model");
-    if (nanoBananaModels.has(model) || ["seedream-5-0-lite-am", "seedream-5-0-pro-am", "z-image-turbo-am"].includes(model)) {
+    if (gpt25Models.has(model) || nanoBananaModels.has(model) || ["seedream-5-0-lite-am", "seedream-5-0-pro-am", "z-image-turbo-am"].includes(model)) {
       const normalized = normalizeAPIMartModelRequest(model, request);
       return { kind: "submit", model: model, action: "image_generation", requestBody: normalized };
     }

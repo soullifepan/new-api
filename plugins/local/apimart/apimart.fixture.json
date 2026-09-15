@@ -1,5 +1,41 @@
 {
   "cases": [
+{"name":"GPT 2.5 rejects count_zero","hook":"native","member":"decodeImageGeneration","args":[{"body":{"kind":"json","value":{"model":"gpt-image-2.5-flare-am","prompt":"test","n":0}}}],"expectedError":"n must be an integer between 1 and 4"},
+{"name":"GPT 2.5 rejects count_five","hook":"native","member":"decodeImageGeneration","args":[{"body":{"kind":"json","value":{"model":"gpt-image-2.5-flare-am","prompt":"test","n":5}}}],"expectedError":"n must be an integer between 1 and 4"},
+{"name":"GPT 2.5 rejects count_string","hook":"native","member":"decodeImageGeneration","args":[{"body":{"kind":"json","value":{"model":"gpt-image-2.5-flare-am","prompt":"test","n":"1"}}}],"expectedError":"n must be an integer between 1 and 4"},
+{"name":"GPT 2.5 rejects bad_pixels","hook":"native","member":"decodeImageGeneration","args":[{"body":{"kind":"json","value":{"model":"gpt-image-2.5-flare-am","prompt":"test","size":"1000x1000"}}}],"expectedError":"pixel dimensions"},
+{"name":"GPT 2.5 rejects too_wide","hook":"native","member":"decodeImageGeneration","args":[{"body":{"kind":"json","value":{"model":"gpt-image-2.5-flare-am","prompt":"test","size":"3840x512"}}}],"expectedError":"pixel dimensions"},
+{"name":"GPT 2.5 rejects transparent_jpeg","hook":"native","member":"decodeImageGeneration","args":[{"body":{"kind":"json","value":{"model":"gpt-image-2.5-flare-am","prompt":"test","background":"transparent","output_format":"jpeg"}}}],"expectedError":"transparent background"},
+{"name":"GPT 2.5 rejects too_many_refs","hook":"native","member":"decodeImageGeneration","args":[{"body":{"kind":"json","value":{"model":"gpt-image-2.5-flare-am","prompt":"test","image_urls":["https://example.com/a.png","https://example.com/a.png","https://example.com/a.png","https://example.com/a.png","https://example.com/a.png","https://example.com/a.png","https://example.com/a.png","https://example.com/a.png","https://example.com/a.png","https://example.com/a.png","https://example.com/a.png","https://example.com/a.png","https://example.com/a.png","https://example.com/a.png","https://example.com/a.png","https://example.com/a.png","https://example.com/a.png"]}}}],"expectedError":"image_urls must contain at most 16"},
+{"name":"GPT 2.5 rejects data_url_standard","hook":"native","member":"decodeImageGeneration","args":[{"body":{"kind":"json","value":{"model":"gpt-image-2.5-flare-am","prompt":"test","image_urls":["data:image/png;base64,YQ=="]}}}],"expectedError":"reference images must be public"},
+{"name":"GPT 2.5 rejects unsupported_mask","hook":"native","member":"decodeImageGeneration","args":[{"body":{"kind":"json","value":{"model":"gpt-image-2.5-flare-am","prompt":"test","mask_url":"https://example.com/m.png"}}}],"expectedError":"unsupported GPT Image 2.5 field"},
+{"name":"GPT25 refuses invalid actual cost null","hook":"extractUsageOnComplete","args":[{"model":"gpt-image-2.5-flare-am"},{},{"data":{"status":"completed","cost":null}}],"expected":null},
+{"name":"GPT25 refuses invalid actual cost -1","hook":"extractUsageOnComplete","args":[{"model":"gpt-image-2.5-flare-am"},{},{"data":{"status":"completed","cost":-1}}],"expected":null},
+{"name":"GPT25 refuses invalid actual cost \"0.1\"","hook":"extractUsageOnComplete","args":[{"model":"gpt-image-2.5-flare-am"},{},{"data":{"status":"completed","cost":"0.1"}}],"expected":null},
+{"name":"GPT25 refuses invalid actual cost 101","hook":"extractUsageOnComplete","args":[{"model":"gpt-image-2.5-flare-am"},{},{"data":{"status":"completed","cost":101}}],"expected":null},
+{"name":"GPT25 preserves explicit zero charge","hook":"extractUsageOnComplete","args":[{"model":"gpt-image-2.5-flare-am"},{},{"data":{"status":"completed","cost":0,"credits_cost":0}}],"expected":{"upstream_credits":0}},
+{"name":"GPT25 refuses mismatched credits","hook":"extractUsageOnComplete","args":[{"model":"gpt-image-2.5-flare-am"},{},{"data":{"status":"completed","cost":1,"credits_cost":1}}],"expected":null},
+{"name":"GPT25 Ext charges actual URLs not array containers","hook":"extractUsageOnComplete","args":[{"model":"gpt-image-2.5-ext-am","state":{"billing_usage":{"images":4,"resolution":"2k","version":"sunburst"}}},{},{"data":{"status":"completed","result":{"images":[{"url":["https://example.com/1.png","https://example.com/2.png"]}]}}}],"expected":{"images":2}},
+{"name":"GPT25 Ext normalizes usage tiers","hook":"extractUsage","args":[{"model":"gpt-image-2.5-ext-am","requestBody":{"prompt":"test","resolution":"2K","version":"sunburst","n":2}}],"expected":{"images":2,"resolution":"2k","version":"sunburst"}},
+{"name":"GPT25 Ext accepts 202 envelope and freezes billing","hook":"parseSubmitResponse","args":[{"model":"gpt-image-2.5-ext-am","requestBody":{"prompt":"test"}},{"status":202,"body":{"code":202,"data":{"id":"task_test","status":"pending"}}}],"expected":{"taskId":"task_test","taskData":{"code":202,"data":{"id":"task_test","status":"pending"}},"state":{"billing_usage":{"images":1,"resolution":"1k","version":"flare"}}}},
+    {
+      "name": "GPT 2.5 Ext defaults and Sunburst version",
+      "hook": "native", "member": "decodeImageGeneration",
+      "args": [{"body":{"kind":"json","value":{"model":"gpt-image-2.5-ext-am","version":"sunburst","prompt":"test"}}}],
+      "expected": {"kind":"submit","model":"gpt-image-2.5-ext-am","action":"image_generation","requestBody":{"model":"gpt-image-2.5-ext-am","version":"sunburst","prompt":"test","size":"auto","resolution":"1K","n":1}}
+    },
+    {
+      "name": "GPT 2.5 standard settles actual USD without another discount",
+      "hook":"extractUsageOnComplete",
+      "args":[{"model":"gpt-image-2.5-flare-am"},{},{"code":200,"data":{"status":"completed","cost":0.01325,"credits_cost":0.1325}}],
+      "expected":{"upstream_credits":0.1325}
+    },
+    {
+      "name":"GPT 2.5 does not complete before billing arrives",
+      "hook":"parseTaskResult",
+      "args":[{"model":"gpt-image-2.5-sunburst-am"},{"code":200,"data":{"status":"completed","result":{"images":[{"url":["https://example.com/image.png"]}]}}}],
+      "expected":{"status":"IN_PROGRESS","progress":"99%","reason":""}
+    },
     {
       "name": "accepts a documented image generation request",
       "hook": "native",
