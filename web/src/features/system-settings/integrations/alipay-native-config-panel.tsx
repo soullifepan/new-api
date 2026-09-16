@@ -117,7 +117,7 @@ export function AlipayNativeConfigPanel() {
           current.AlipayNativePrivateKeyConfigured ||
           Boolean(current.AlipayNativePrivateKey),
       }))
-      toast.success('支付宝当面付设置已保存')
+      toast.success('支付宝直连设置已保存')
     } catch (error) {
       handleServerError(error)
     } finally {
@@ -127,9 +127,9 @@ export function AlipayNativeConfigPanel() {
   return (
     <div className='space-y-6'>
       <Alert>
-        <AlertTitle>{'支付宝当面付'}</AlertTitle>
+        <AlertTitle>{'支付宝直连'}</AlertTitle>
         <AlertDescription>
-          {'直接对接支付宝当面付，不使用 Epay 网关配置'}
+          {'直接对接支付宝订单码支付，不使用 Epay 网关'}
         </AlertDescription>
       </Alert>
       {config.AlipayNativeSandbox && (
@@ -156,7 +156,7 @@ export function AlipayNativeConfigPanel() {
         </Alert>
       )}
       <div className='flex items-center justify-between gap-4'>
-        <Label htmlFor='alipay-native-enabled'>{'启用支付宝当面付'}</Label>
+        <Label htmlFor='alipay-native-enabled'>{'启用支付宝直连'}</Label>
         <Switch
           id='alipay-native-enabled'
           checked={config.AlipayNativeEnabled}
@@ -299,7 +299,7 @@ export function AlipayNativeConfigPanel() {
         onClick={() => void save()}
         disabled={loading || loadFailed || saving}
       >
-        {saving ? '保存中…' : '保存支付宝当面付设置'}
+        {saving ? '保存中…' : '保存支付宝直连设置'}
       </Button>
     </div>
   )

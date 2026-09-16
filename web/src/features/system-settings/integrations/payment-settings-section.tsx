@@ -883,7 +883,7 @@ export function PaymentSettingsSection({
               <TabsList className='grid min-w-[50rem] grid-cols-7'>
                 <TabsTrigger value='general'>{t('General')}</TabsTrigger>
                 <TabsTrigger value='epay'>Epay</TabsTrigger>
-                <TabsTrigger value='alipay-native'>支付宝当面付</TabsTrigger>
+                <TabsTrigger value='alipay-native'>支付宝直连</TabsTrigger>
                 <TabsTrigger value='stripe'>{t('Stripe')}</TabsTrigger>
                 <TabsTrigger value='creem'>Creem</TabsTrigger>
                 <TabsTrigger value='waffo-pancake'>Waffo Pancake</TabsTrigger>

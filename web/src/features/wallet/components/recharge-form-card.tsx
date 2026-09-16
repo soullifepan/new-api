@@ -402,7 +402,7 @@ export function RechargeFormCard({
                   >
                     {paymentLoading === 'alipay_native' ? <Loader2 className='h-4 w-4 animate-spin' /> : getPaymentIcon('alipay_native', 'h-4 w-4')}
                     <span className='flex min-w-0 flex-col items-start gap-0.5'>
-                      <span>{t('Alipay Native')}</span>
+                      <span>{t('Alipay')}</span>
                       {alipayNativeSandbox && <span className='text-muted-foreground text-[11px] font-normal'>{t('Alipay sandbox')}</span>}
                     </span>
                   </Button>

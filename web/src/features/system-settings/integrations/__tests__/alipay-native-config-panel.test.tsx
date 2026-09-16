@@ -46,7 +46,7 @@ describe('AlipayNativeConfigPanel', () => {
     await user.clear(screen.getByLabelText('应用 APPID'))
     await user.type(screen.getByLabelText('应用 APPID'), 'updated-app')
     await user.click(
-      screen.getByRole('button', { name: '保存支付宝当面付设置' })
+      screen.getByRole('button', { name: '保存支付宝直连设置' })
     )
 
     await waitFor(() => {
@@ -69,7 +69,7 @@ describe('AlipayNativeConfigPanel', () => {
 
     await screen.findByText('配置加载失败')
     expect(
-      screen.getByRole('button', { name: '保存支付宝当面付设置' })
+      screen.getByRole('button', { name: '保存支付宝直连设置' })
     ).toBeDisabled()
 
     await user.click(screen.getByRole('button', { name: '重试' }))
@@ -77,7 +77,7 @@ describe('AlipayNativeConfigPanel', () => {
       expect(get).toHaveBeenCalledTimes(2)
     })
     expect(
-      screen.getByRole('button', { name: '保存支付宝当面付设置' })
+      screen.getByRole('button', { name: '保存支付宝直连设置' })
     ).toBeEnabled()
   })
 
@@ -89,7 +89,7 @@ describe('AlipayNativeConfigPanel', () => {
     await user.click(screen.getByRole('button', { name: '证书' }))
     expect(screen.queryByLabelText('支付宝公钥')).not.toBeInTheDocument()
     await user.click(
-      screen.getByRole('button', { name: '保存支付宝当面付设置' })
+      screen.getByRole('button', { name: '保存支付宝直连设置' })
     )
     await waitFor(() => {
       expect(post).toHaveBeenCalledWith(
