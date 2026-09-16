@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
@@ -16,16 +17,185 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/go-redis/redis/v8"
 	alipay "github.com/smartwalle/alipay/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
+
+func TestAlipayNativeCheckoutGuard(t *testing.T) {
+	_, config, user := setupAlipayNativeControllerTest(t)
+	server := miniredis.RunT(t)
+	oldRedis := common.RDB
+	common.RDB = redis.NewClient(&redis.Options{Addr: server.Addr(), MaxRetries: -1})
+	common.RedisEnabled = true
+	t.Cleanup(func() { _ = common.RDB.Close(); common.RDB = oldRedis })
+	ctx := context.Background()
+	guard, err := lockAlipayNativeCheckout(ctx, user.Id)
+	require.NoError(t, err)
+	_, err = lockAlipayNativeCheckout(ctx, user.Id)
+	require.Error(t, err)
+	require.NoError(t, guard.AllowNew(ctx))
+	require.Error(t, guard.AllowNew(ctx))
+	order := &model.TopUp{UserId: user.Id, Amount: 1, Money: 1, TradeNo: "reuse", PaymentMethod: "alipay_native_sandbox", PaymentProvider: model.PaymentProviderAlipayNative, Status: common.TopUpStatusPending, CreateTime: time.Now().Unix()}
+	require.NoError(t, model.CreateAlipayNativeTopUp(order, config))
+	payment := alipayNativePayment{TradeNo: order.TradeNo, QRCode: "https://qr.alipay.com/test", Amount: "1.00", Currency: "CNY", Sandbox: true}
+	require.NoError(t, guard.Save(ctx, payment, order.CreateTime))
+	reused, err := guard.Existing(ctx, 1, "1.00", true)
+	require.NoError(t, err)
+	require.Equal(t, &payment, reused)
+	reused, err = guard.Existing(ctx, 2, "2.00", true)
+	require.NoError(t, err)
+	require.Nil(t, reused)
+	second := *order
+	second.Id = 0
+	second.TradeNo = "different-amount"
+	second.Amount = 2
+	second.Money = 2
+	require.NoError(t, model.CreateAlipayNativeTopUp(&second, config))
+	secondPayment := payment
+	secondPayment.TradeNo = second.TradeNo
+	secondPayment.Amount = "2.00"
+	require.NoError(t, guard.Save(ctx, secondPayment, second.CreateTime))
+	for _, expected := range []alipayNativePayment{payment, secondPayment} {
+		amount := int64(1)
+		if expected.Amount == "2.00" {
+			amount = 2
+		}
+		reused, err = guard.Existing(ctx, amount, expected.Amount, true)
+		require.NoError(t, err)
+		require.Equal(t, &expected, reused)
+	}
+	// Eviction must not authorize a second checkout while the DB order is pending.
+	server.Del(guard.cacheKey + ":" + order.TradeNo)
+	_, err = guard.Existing(ctx, 1, "1.00", true)
+	require.Error(t, err)
+	duplicate := *order
+	duplicate.Id = 0
+	duplicate.TradeNo = "duplicate"
+	require.ErrorIs(t, model.CreateAlipayNativeTopUp(&duplicate, config), model.ErrAlipayNativePendingOrders)
+	// An expired lock owner cannot delete a new owner's lock.
+	server.FastForward(time.Minute)
+	next, err := lockAlipayNativeCheckout(ctx, user.Id)
+	require.NoError(t, err)
+	guard.Release()
+	_, err = lockAlipayNativeCheckout(ctx, user.Id)
+	require.Error(t, err)
+	next.Release()
+	require.NoError(t, guard.Save(ctx, payment, order.CreateTime))
+	require.NoError(t, model.UpdatePendingTopUpStatus(order.TradeNo, model.PaymentProviderAlipayNative, common.TopUpStatusFailed))
+	reused, err = guard.Existing(ctx, 1, "1.00", true)
+	require.NoError(t, err)
+	require.Nil(t, reused, "terminal database state must override a cached QR code")
+	server.SetError("redis unavailable")
+	_, err = lockAlipayNativeCheckout(ctx, user.Id)
+	require.Error(t, err)
+	common.RedisEnabled = false
+	_, err = lockAlipayNativeCheckout(ctx, user.Id)
+	require.Error(t, err)
+}
+
+type alipayReconcileStub struct {
+	query    *alipay.TradeQueryRsp
+	queryErr error
+	close    *alipay.TradeCloseRsp
+	closeErr error
+	closed   bool
+}
+
+func (s *alipayReconcileStub) TradeQuery(context.Context, alipay.TradeQuery) (*alipay.TradeQueryRsp, error) {
+	return s.query, s.queryErr
+}
+
+func (s *alipayReconcileStub) TradeClose(context.Context, alipay.TradeClose) (*alipay.TradeCloseRsp, error) {
+	s.closed = true
+	return s.close, s.closeErr
+}
+
+func TestAlipayNativeReconcile(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		age        time.Duration
+		status     alipay.TradeStatus
+		queryErr   error
+		closeErr   error
+		wrongClose bool
+		want       string
+		wantClose  bool
+		wantErr    bool
+	}{
+		{"not due", time.Minute, alipay.TradeStatusWaitBuyerPay, nil, nil, false, common.TopUpStatusPending, false, false},
+		{"due close", 11 * time.Minute, alipay.TradeStatusWaitBuyerPay, nil, nil, false, common.TopUpStatusExpired, true, false},
+		{"already paid", 11 * time.Minute, alipay.TradeStatusSuccess, nil, nil, false, common.TopUpStatusSuccess, false, false},
+		{"already closed", 11 * time.Minute, alipay.TradeStatusClosed, nil, nil, false, common.TopUpStatusExpired, false, false},
+		{"query timeout", 11 * time.Minute, "", errors.New("timeout"), nil, false, common.TopUpStatusPending, false, true},
+		{"not found is not closed", 11 * time.Minute, "", &alipay.Error{Code: "40004", SubCode: "ACQ.TRADE_NOT_EXIST"}, &alipay.Error{Code: "40004", SubCode: "ACQ.TRADE_NOT_EXIST"}, false, common.TopUpStatusPending, true, true},
+		{"close timeout", 11 * time.Minute, alipay.TradeStatusWaitBuyerPay, nil, errors.New("timeout"), false, common.TopUpStatusPending, true, true},
+		{"wrong close identity", 11 * time.Minute, alipay.TradeStatusWaitBuyerPay, nil, nil, true, common.TopUpStatusPending, true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, config, user := setupAlipayNativeControllerTest(t)
+			now := time.Unix(1800000000, 0)
+			order := &model.TopUp{UserId: user.Id, Amount: 1, Money: 1, TradeNo: "reconcile", PaymentMethod: "alipay_native_sandbox", PaymentProvider: model.PaymentProviderAlipayNative, Status: common.TopUpStatusPending, CreateTime: now.Add(-tc.age).Unix()}
+			require.NoError(t, order.Insert())
+			client := &alipayReconcileStub{query: &alipay.TradeQueryRsp{Error: alipay.Error{Code: "10000"}, OutTradeNo: order.TradeNo, TotalAmount: "1.00", TradeStatus: tc.status}, queryErr: tc.queryErr, close: &alipay.TradeCloseRsp{Error: alipay.Error{Code: "10000"}, OutTradeNo: order.TradeNo}, closeErr: tc.closeErr}
+			if tc.queryErr != nil {
+				client.query = nil
+			}
+			if tc.wrongClose {
+				client.close.OutTradeNo = "other"
+			}
+			err := reconcileAlipayNativeOrder(context.Background(), client, order, config.Sandbox, "", now)
+			if tc.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tc.want, model.GetTopUpByTradeNo(order.TradeNo).Status)
+			assert.Equal(t, tc.wantClose, client.closed)
+			require.NoError(t, model.DB.First(user, user.Id).Error)
+			if tc.want == common.TopUpStatusSuccess {
+				assert.Equal(t, int(common.QuotaPerUnit), user.Quota)
+			} else {
+				assert.Zero(t, user.Quota)
+			}
+		})
+	}
+}
+
+func TestAlipayNativePendingScanAndTerminalSafety(t *testing.T) {
+	_, config, user := setupAlipayNativeControllerTest(t)
+	for _, order := range []model.TopUp{
+		{TradeNo: "old", CreateTime: 10, Status: common.TopUpStatusPending, PaymentProvider: model.PaymentProviderAlipayNative, PaymentMethod: "alipay_native_sandbox", UserId: user.Id, Amount: 1, Money: 1},
+		{TradeNo: "new", CreateTime: 30, Status: common.TopUpStatusPending, PaymentProvider: model.PaymentProviderAlipayNative},
+		{TradeNo: "paid", CreateTime: 10, Status: common.TopUpStatusSuccess, PaymentProvider: model.PaymentProviderAlipayNative},
+		{TradeNo: "other", CreateTime: 10, Status: common.TopUpStatusPending, PaymentProvider: "other"},
+	} {
+		require.NoError(t, model.DB.Create(&order).Error)
+	}
+	orders, err := model.PendingAlipayNativeTopUps(0, 20)
+	require.NoError(t, err)
+	require.Len(t, orders, 1)
+	assert.Equal(t, "old", orders[0].TradeNo)
+	next, err := model.PendingAlipayNativeTopUps(orders[0].Id, 20)
+	require.NoError(t, err)
+	assert.Empty(t, next)
+	// A success committed by a callback must never be overwritten by closure.
+	_, err = model.RechargeAlipayNative("old", config.Sandbox, "")
+	require.NoError(t, err)
+	require.ErrorIs(t, model.CloseAlipayNativeTopUp("old", config.Sandbox), model.ErrTopUpStatusInvalid)
+	assert.Equal(t, common.TopUpStatusSuccess, model.GetTopUpByTradeNo("old").Status)
+	require.NoError(t, model.DB.First(user, user.Id).Error)
+	assert.Equal(t, int(common.QuotaPerUnit), user.Quota)
+}
 
 func TestAlipayNativeQueryResult(t *testing.T) {
 	for _, tc := range []struct {

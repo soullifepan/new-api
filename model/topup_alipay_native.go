@@ -166,8 +166,25 @@ func CreateAlipayNativeTopUp(topUp *TopUp, expected AlipayNativeConfig) error {
 		if current != expected {
 			return ErrAlipayNativeConfigChanged
 		}
+		var pending TopUp
+		err = lockForUpdate(tx).Where("user_id = ? AND payment_provider = ? AND status = ? AND payment_method = ? AND amount = ? AND money = ?", topUp.UserId, PaymentProviderAlipayNative, common.TopUpStatusPending, topUp.PaymentMethod, topUp.Amount, topUp.Money).First(&pending).Error
+		if err == nil {
+			return ErrAlipayNativePendingOrders
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
 		return tx.Create(topUp).Error
 	})
+}
+
+func PendingAlipayNativeTopUpForUser(userID int, amount int64, money float64, method string) (*TopUp, error) {
+	var order TopUp
+	err := DB.Where("user_id = ? AND payment_provider = ? AND status = ? AND payment_method = ? AND amount = ? AND money = ?", userID, PaymentProviderAlipayNative, common.TopUpStatusPending, method, amount, money).First(&order).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	return &order, err
 }
 
 // CloseAlipayNativeTopUp records an authenticated terminal close without
@@ -195,6 +212,15 @@ func CloseAlipayNativeTopUp(tradeNo string, sandbox bool) error {
 		topUp.Status = common.TopUpStatusExpired
 		return tx.Save(topUp).Error
 	})
+}
+
+// PendingAlipayNativeTopUps scans with a keyset cursor so unresolved old orders
+// cannot starve newer orders. No credentials or user records are returned.
+func PendingAlipayNativeTopUps(afterID int, createdBefore int64) ([]TopUp, error) {
+	var orders []TopUp
+	err := DB.Where("payment_provider = ? AND status = ? AND id > ? AND create_time <= ?", PaymentProviderAlipayNative, common.TopUpStatusPending, afterID, createdBefore).
+		Order("id ASC").Limit(100).Find(&orders).Error
+	return orders, err
 }
 
 // RechargeAlipayNative is the shared idempotent settlement boundary for

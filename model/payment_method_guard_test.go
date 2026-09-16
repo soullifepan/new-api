@@ -1,7 +1,9 @@
 package model
 
 import (
+	"errors"
 	"os"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -46,11 +48,14 @@ func TestAlipayNativeConfigPersistenceOnExternalDatabases(t *testing.T) {
 			db, err := gorm.Open(tc.open(dsn), &gorm.Config{})
 			require.NoError(t, err)
 			oldDB, oldType := DB, common.MainDatabaseType()
+			previousOptions := common.OptionMap
+			common.OptionMap = make(map[string]string)
 			DB = db
 			common.SetDatabaseTypes(tc.dbType, common.DatabaseTypeSQLite)
 			initCol()
 			t.Cleanup(func() {
 				DB = oldDB
+				common.OptionMap = previousOptions
 				common.SetDatabaseTypes(oldType, common.DatabaseTypeSQLite)
 				initCol()
 			})
@@ -63,6 +68,63 @@ func TestAlipayNativeConfigPersistenceOnExternalDatabases(t *testing.T) {
 			loaded, err := GetAlipayNativeConfig()
 			require.NoError(t, err)
 			assert.Equal(t, config, loaded)
+
+			baseOrder := TopUp{
+				UserId:          9001,
+				Amount:          1,
+				Money:           7,
+				TradeNo:         "alipay-native-same-amount-1",
+				PaymentMethod:   "alipay_native",
+				PaymentProvider: PaymentProviderAlipayNative,
+				Status:          common.TopUpStatusPending,
+				CreateTime:      time.Now().Unix(),
+			}
+			require.NoError(t, CreateAlipayNativeTopUp(&baseOrder, config))
+
+			sameAmount := baseOrder
+			sameAmount.Id = 0
+			sameAmount.TradeNo = "alipay-native-same-amount-2"
+			require.ErrorIs(t, CreateAlipayNativeTopUp(&sameAmount, config), ErrAlipayNativePendingOrders)
+
+			differentAmount := baseOrder
+			differentAmount.Id = 0
+			differentAmount.TradeNo = "alipay-native-different-amount"
+			differentAmount.Amount = 2
+			differentAmount.Money = 14
+			require.NoError(t, CreateAlipayNativeTopUp(&differentAmount, config))
+
+			start := make(chan struct{})
+			results := make(chan error, 2)
+			var wg sync.WaitGroup
+			for i := range 2 {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					concurrent := baseOrder
+					concurrent.Id = 0
+					concurrent.TradeNo = "alipay-native-concurrent-" + strconv.Itoa(i)
+					concurrent.Amount = 3
+					concurrent.Money = 21
+					<-start
+					results <- CreateAlipayNativeTopUp(&concurrent, config)
+				}()
+			}
+			close(start)
+			wg.Wait()
+			close(results)
+			var created, rejected int
+			for err := range results {
+				switch {
+				case err == nil:
+					created++
+				case errors.Is(err, ErrAlipayNativePendingOrders):
+					rejected++
+				default:
+					require.NoError(t, err)
+				}
+			}
+			assert.Equal(t, 1, created)
+			assert.Equal(t, 1, rejected)
 		})
 	}
 }

@@ -160,6 +160,27 @@ func RequestAlipayNativePay(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值数量无效"})
 		return
 	}
+	checkoutCtx, checkoutCancel := context.WithTimeout(c.Request.Context(), 25*time.Second)
+	defer checkoutCancel()
+	guard, err := lockAlipayNativeCheckout(checkoutCtx, userID)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": err.Error()})
+		return
+	}
+	defer guard.Release()
+	existing, err := guard.Existing(checkoutCtx, storedAmount, money.StringFixed(2), config.Sandbox)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": err.Error()})
+		return
+	}
+	if existing != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "success", "data": existing})
+		return
+	}
+	if err := guard.AllowNew(checkoutCtx); err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": err.Error()})
+		return
+	}
 	tradeNo := fmt.Sprintf("AN%d%s%d", userID, common.GetRandomString(10), time.Now().UnixNano())
 	method := "alipay_native"
 	if config.Sandbox {
@@ -177,7 +198,7 @@ func RequestAlipayNativePay(c *gin.Context) {
 		return
 	}
 	notifyURL := service.GetCallbackAddress() + "/api/alipay/notify"
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 12*time.Second)
+	ctx, cancel := context.WithTimeout(checkoutCtx, 12*time.Second)
 	defer cancel()
 	rsp, err := client.TradePreCreate(ctx, alipay.TradePreCreate{Trade: alipay.Trade{Subject: "账户余额充值", OutTradeNo: tradeNo, TotalAmount: money.StringFixed(2), ProductCode: "FACE_TO_FACE_PAYMENT", SellerId: config.SellerID, NotifyURL: notifyURL, TimeoutExpress: "10m", GoodsType: "0"}})
 	if err == nil && rsp != nil && rsp.IsFailure() {
@@ -192,7 +213,12 @@ func RequestAlipayNativePay(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建支付订单失败，请稍后查询订单状态", "trade_no": tradeNo})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "success", "data": gin.H{"trade_no": tradeNo, "qr_code": rsp.QRCode, "amount": money.StringFixed(2), "currency": "CNY", "sandbox": config.Sandbox}})
+	payment := alipayNativePayment{TradeNo: tradeNo, QRCode: rsp.QRCode, Amount: money.StringFixed(2), Currency: "CNY", Sandbox: config.Sandbox}
+	if err := guard.Save(checkoutCtx, payment, order.CreateTime); err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "支付缓存暂不可用，请稍后查询订单状态", "trade_no": tradeNo})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "success", "data": payment})
 }
 
 func alipayNativeVerifyAndCredit(ctx context.Context, tradeNo string, receivedAmount string, status alipay.TradeStatus, sandbox bool, callerIP string) error {
@@ -273,6 +299,52 @@ func validateAlipayNativeQueryResult(tradeNo string, rsp *alipay.TradeQueryRsp, 
 	return nil
 }
 
+type alipayNativeOrderClient interface {
+	TradeQuery(context.Context, alipay.TradeQuery) (*alipay.TradeQueryRsp, error)
+	TradeClose(context.Context, alipay.TradeClose) (*alipay.TradeCloseRsp, error)
+}
+
+// Reconcile never treats an absent trade or a local deadline as proof of closure.
+// TradeClose cannot refund a paid transaction, unlike TradeCancel.
+func reconcileAlipayNativeOrder(ctx context.Context, client alipayNativeOrderClient, order *model.TopUp, sandbox bool, callerIP string, now time.Time) error {
+	expectedMethod := "alipay_native"
+	if sandbox {
+		expectedMethod = "alipay_native_sandbox"
+	}
+	if order.PaymentProvider != model.PaymentProviderAlipayNative || order.PaymentMethod != expectedMethod {
+		return model.ErrPaymentMethodMismatch
+	}
+	if order.Status != common.TopUpStatusPending {
+		return nil
+	}
+	rsp, err := client.TradeQuery(ctx, alipay.TradeQuery{OutTradeNo: order.TradeNo})
+	// The SDK verifies successful responses; OutTradeNo binds the response to
+	// this order. It exposes no seller_id/app_id on TradeQueryRsp.
+	if queryErr := validateAlipayNativeQueryResult(order.TradeNo, rsp, err); queryErr != nil {
+		return queryErr
+	}
+	if err == nil && rsp != nil && rsp.IsSuccess() {
+		switch rsp.TradeStatus {
+		case alipay.TradeStatusSuccess, alipay.TradeStatusFinished, alipay.TradeStatusClosed:
+			return alipayNativeVerifyAndCredit(ctx, order.TradeNo, rsp.TotalAmount, rsp.TradeStatus, sandbox, callerIP)
+		case alipay.TradeStatusWaitBuyerPay:
+		default:
+			return errors.New("unknown Alipay trade status")
+		}
+	}
+	if order.CreateTime <= 0 || now.Before(time.Unix(order.CreateTime, 0).Add(alipayNativeOrderTimeout)) {
+		return nil
+	}
+	closed, closeErr := client.TradeClose(ctx, alipay.TradeClose{OutTradeNo: order.TradeNo})
+	if closeErr != nil {
+		return fmt.Errorf("close failed type=%T", closeErr)
+	}
+	if closed == nil || !closed.IsSuccess() || closed.OutTradeNo != order.TradeNo {
+		return errors.New("close not confirmed for requested order")
+	}
+	return model.CloseAlipayNativeTopUp(order.TradeNo, sandbox)
+}
+
 func GetAlipayNativeOrder(c *gin.Context) {
 	tradeNo := c.Param("trade_no")
 	userID := c.GetInt("id")
@@ -292,24 +364,11 @@ func GetAlipayNativeOrder(c *gin.Context) {
 			common.ApiError(c, err)
 			return
 		}
-		ctx, cancel := context.WithTimeout(c.Request.Context(), 12*time.Second)
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 25*time.Second)
 		defer cancel()
-		rsp, queryErr := client.TradeQuery(ctx, alipay.TradeQuery{OutTradeNo: tradeNo})
-		// TradeQueryRsp exposes no app_id or seller_id in this third-party SDK;
-		// the signed request binds the configured application. OutTradeNo is the
-		// applicable response identity field and must match exactly.
-		if err := validateAlipayNativeQueryResult(tradeNo, rsp, queryErr); err != nil {
+		if err := reconcileAlipayNativeOrder(ctx, client, order, config.Sandbox, c.ClientIP(), time.Now()); err != nil {
 			logger.LogError(ctx, fmt.Sprintf("alipay native query trade_no=%s: %s", tradeNo, err))
 			c.JSON(http.StatusBadGateway, gin.H{"message": "error", "data": "支付宝订单查询失败"})
-			return
-		}
-		if queryErr != nil || rsp == nil || !rsp.IsSuccess() {
-			c.JSON(http.StatusOK, gin.H{"message": "success", "data": gin.H{"trade_no": tradeNo, "status": order.Status}})
-			return
-		}
-		if err := alipayNativeVerifyAndCredit(ctx, tradeNo, rsp.TotalAmount, rsp.TradeStatus, config.Sandbox, c.ClientIP()); err != nil {
-			logger.LogError(ctx, "alipay native order settlement rejected: "+err.Error())
-			c.JSON(http.StatusBadGateway, gin.H{"message": "error", "data": "支付宝订单结算失败"})
 			return
 		}
 		order = model.GetTopUpByTradeNo(tradeNo)
