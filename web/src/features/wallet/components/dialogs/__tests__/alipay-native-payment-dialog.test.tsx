@@ -64,7 +64,7 @@ describe('AlipayNativePaymentDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Retry' }))
     expect(onRetry).toHaveBeenCalledOnce()
     expect(
-      screen.getAllByText('Network connection failed or server not responding')[0]
+      screen.getAllByText('Failed to load')[0]
     ).toBeVisible()
   })
 })

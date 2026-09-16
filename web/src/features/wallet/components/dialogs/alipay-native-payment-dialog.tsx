@@ -30,7 +30,7 @@ export function AlipayNativePaymentDialog(
   if (props.status === 'failed') statusText = t('Payment failed')
   if (props.status === 'expired') statusText = t('Payment expired')
   if (props.status === 'network-error') {
-    statusText = t('Network connection failed or server not responding')
+    statusText = t('Failed to load')
   }
   return (
     <Dialog open={Boolean(payment)} onOpenChange={props.onOpenChange}>
@@ -63,7 +63,7 @@ export function AlipayNativePaymentDialog(
             )}
             {props.status === 'network-error' && (
               <Alert variant='destructive'>
-                <AlertTitle>{t('Network connection failed or server not responding')}</AlertTitle>
+                <AlertTitle>{t('Failed to load')}</AlertTitle>
                 <AlertDescription>
                   <Button type='button' size='sm' variant='outline' onClick={props.onRetry}>
                     {t('Retry')}

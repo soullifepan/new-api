@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -244,6 +245,34 @@ func AlipayNativeNotify(c *gin.Context) {
 	c.String(http.StatusOK, "success")
 }
 
+// A precreated QR code need not have an Alipay trade yet. Absence only
+// preserves pending; it never authorizes credit, expiry, or a new payment.
+func validateAlipayNativeQueryResult(tradeNo string, rsp *alipay.TradeQueryRsp, queryErr error) error {
+	var upstreamErr *alipay.Error
+	if errors.As(queryErr, &upstreamErr) {
+		if upstreamErr.Code == "40004" && upstreamErr.SubCode == "ACQ.TRADE_NOT_EXIST" {
+			return nil
+		}
+		return fmt.Errorf("query rejected code=%q sub_code=%q", upstreamErr.Code, upstreamErr.SubCode)
+	}
+	if queryErr != nil {
+		return fmt.Errorf("query transport or verification error type=%T", queryErr)
+	}
+	if rsp == nil {
+		return errors.New("empty query response")
+	}
+	if rsp.Code == "40004" && rsp.SubCode == "ACQ.TRADE_NOT_EXIST" {
+		return nil
+	}
+	if !rsp.IsSuccess() {
+		return fmt.Errorf("query rejected code=%q sub_code=%q", rsp.Code, rsp.SubCode)
+	}
+	if rsp.OutTradeNo != tradeNo {
+		return errors.New("query order identity mismatch")
+	}
+	return nil
+}
+
 func GetAlipayNativeOrder(c *gin.Context) {
 	tradeNo := c.Param("trade_no")
 	userID := c.GetInt("id")
@@ -269,8 +298,13 @@ func GetAlipayNativeOrder(c *gin.Context) {
 		// TradeQueryRsp exposes no app_id or seller_id in this third-party SDK;
 		// the signed request binds the configured application. OutTradeNo is the
 		// applicable response identity field and must match exactly.
-		if queryErr != nil || rsp == nil || !rsp.IsSuccess() || rsp.OutTradeNo != tradeNo {
+		if err := validateAlipayNativeQueryResult(tradeNo, rsp, queryErr); err != nil {
+			logger.LogError(ctx, fmt.Sprintf("alipay native query trade_no=%s: %s", tradeNo, err))
 			c.JSON(http.StatusBadGateway, gin.H{"message": "error", "data": "支付宝订单查询失败"})
+			return
+		}
+		if queryErr != nil || rsp == nil || !rsp.IsSuccess() {
+			c.JSON(http.StatusOK, gin.H{"message": "success", "data": gin.H{"trade_no": tradeNo, "status": order.Status}})
 			return
 		}
 		if err := alipayNativeVerifyAndCredit(ctx, tradeNo, rsp.TotalAmount, rsp.TradeStatus, config.Sandbox, c.ClientIP()); err != nil {

@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -20,10 +21,37 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	alipay "github.com/smartwalle/alipay/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
+
+func TestAlipayNativeQueryResult(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		rsp       *alipay.TradeQueryRsp
+		err       error
+		wantError bool
+	}{
+		{"unsigned not yet created", nil, &alipay.Error{Code: "40004", SubCode: "ACQ.TRADE_NOT_EXIST"}, false},
+		{"signed not yet created", &alipay.TradeQueryRsp{Error: alipay.Error{Code: "40004", SubCode: "ACQ.TRADE_NOT_EXIST"}}, nil, false},
+		{"other business error", nil, &alipay.Error{Code: "40004", SubCode: "ACQ.SYSTEM_ERROR"}, true},
+		{"transport error", nil, errors.New("timeout"), true},
+		{"empty response", nil, nil, true},
+		{"wrong order", &alipay.TradeQueryRsp{Error: alipay.Error{Code: "10000"}, OutTradeNo: "other"}, nil, true},
+		{"matching order", &alipay.TradeQueryRsp{Error: alipay.Error{Code: "10000"}, OutTradeNo: "order"}, nil, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateAlipayNativeQueryResult("order", tc.rsp, tc.err)
+			if tc.wantError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
 
 func setupAlipayNativeControllerTest(t *testing.T) (*rsa.PrivateKey, model.AlipayNativeConfig, *model.User) {
 	t.Helper()
