@@ -69,29 +69,24 @@ func (g *alipayNativeCheckoutGuard) Existing(ctx context.Context, amount int64, 
 	if order == nil {
 		return nil, nil
 	}
-	blocked := fmt.Errorf("已有待确认的支付宝订单，请先在订单历史中确认状态，再创建新订单")
 	if order.Amount != amount || decimal.NewFromFloat(order.Money).StringFixed(2) != money || order.PaymentMethod != method || time.Now().Unix() >= order.CreateTime+int64(alipayNativeOrderTimeout/time.Second) {
-		return nil, blocked
+		return nil, nil
 	}
 	data, err := g.client.Get(ctx, g.cacheKey+":"+order.TradeNo).Bytes()
 	if err != nil {
-		return nil, blocked
+		return nil, nil
 	}
 	var payment alipayNativePayment
 	if common.Unmarshal(data, &payment) != nil || payment.TradeNo != order.TradeNo || payment.Amount != money || payment.Sandbox != sandbox || payment.Currency != "CNY" || payment.QRCode == "" {
-		return nil, blocked
+		return nil, nil
 	}
 	return &payment, nil
 }
 
-func (g *alipayNativeCheckoutGuard) Save(ctx context.Context, payment alipayNativePayment, createdAt int64) error {
-	ttl := time.Until(time.Unix(createdAt, 0).Add(alipayNativeOrderTimeout))
-	if ttl <= 0 {
-		return fmt.Errorf("支付二维码已过期")
-	}
+func (g *alipayNativeCheckoutGuard) Save(ctx context.Context, payment alipayNativePayment) error {
 	data, err := common.Marshal(payment)
 	if err != nil {
 		return err
 	}
-	return g.client.Set(ctx, g.cacheKey+":"+payment.TradeNo, data, ttl).Err()
+	return g.client.Set(ctx, g.cacheKey+":"+payment.TradeNo, data, alipayNativeQRCodeCacheTTL).Err()
 }

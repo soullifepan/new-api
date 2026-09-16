@@ -48,13 +48,16 @@ func TestAlipayNativeCheckoutGuard(t *testing.T) {
 	order := &model.TopUp{UserId: user.Id, Amount: 1, Money: 1, TradeNo: "reuse", PaymentMethod: "alipay_native_sandbox", PaymentProvider: model.PaymentProviderAlipayNative, Status: common.TopUpStatusPending, CreateTime: time.Now().Unix()}
 	require.NoError(t, model.CreateAlipayNativeTopUp(order, config))
 	payment := alipayNativePayment{TradeNo: order.TradeNo, QRCode: "https://qr.alipay.com/test", Amount: "1.00", Currency: "CNY", Sandbox: true}
-	require.NoError(t, guard.Save(ctx, payment, order.CreateTime))
+	require.NoError(t, guard.Save(ctx, payment))
+	ttl := server.TTL(guard.cacheKey + ":" + order.TradeNo)
+	assert.GreaterOrEqual(t, ttl, alipayNativeQRCodeCacheTTL-time.Second)
 	reused, err := guard.Existing(ctx, 1, "1.00", true)
 	require.NoError(t, err)
 	require.Equal(t, &payment, reused)
 	reused, err = guard.Existing(ctx, 2, "2.00", true)
 	require.NoError(t, err)
 	require.Nil(t, reused)
+	assert.Equal(t, common.TopUpStatusPending, model.GetTopUpByTradeNo(order.TradeNo).Status, "a different quote must not close its still-valid QR")
 	second := *order
 	second.Id = 0
 	second.TradeNo = "different-amount"
@@ -64,7 +67,7 @@ func TestAlipayNativeCheckoutGuard(t *testing.T) {
 	secondPayment := payment
 	secondPayment.TradeNo = second.TradeNo
 	secondPayment.Amount = "2.00"
-	require.NoError(t, guard.Save(ctx, secondPayment, second.CreateTime))
+	require.NoError(t, guard.Save(ctx, secondPayment))
 	for _, expected := range []alipayNativePayment{payment, secondPayment} {
 		amount := int64(1)
 		if expected.Amount == "2.00" {
@@ -74,10 +77,12 @@ func TestAlipayNativeCheckoutGuard(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, &expected, reused)
 	}
-	// Eviction must not authorize a second checkout while the DB order is pending.
+	// Cache eviction must not return a QR; the pending order remains independent
+	// and is reconciled only by its own callback or expiry task.
 	server.Del(guard.cacheKey + ":" + order.TradeNo)
-	_, err = guard.Existing(ctx, 1, "1.00", true)
-	require.Error(t, err)
+	reused, err = guard.Existing(ctx, 1, "1.00", true)
+	require.NoError(t, err)
+	require.Nil(t, reused)
 	duplicate := *order
 	duplicate.Id = 0
 	duplicate.TradeNo = "duplicate"
@@ -90,7 +95,7 @@ func TestAlipayNativeCheckoutGuard(t *testing.T) {
 	_, err = lockAlipayNativeCheckout(ctx, user.Id)
 	require.Error(t, err)
 	next.Release()
-	require.NoError(t, guard.Save(ctx, payment, order.CreateTime))
+	require.NoError(t, guard.Save(ctx, payment))
 	require.NoError(t, model.UpdatePendingTopUpStatus(order.TradeNo, model.PaymentProviderAlipayNative, common.TopUpStatusFailed))
 	reused, err = guard.Existing(ctx, 1, "1.00", true)
 	require.NoError(t, err)
@@ -122,24 +127,28 @@ func (s *alipayReconcileStub) TradeClose(context.Context, alipay.TradeClose) (*a
 
 func TestAlipayNativeReconcile(t *testing.T) {
 	for _, tc := range []struct {
-		name       string
-		age        time.Duration
-		status     alipay.TradeStatus
-		queryErr   error
-		closeErr   error
-		wrongClose bool
-		want       string
-		wantClose  bool
-		wantErr    bool
+		name         string
+		age          time.Duration
+		status       alipay.TradeStatus
+		queryErr     error
+		closeErr     error
+		wrongClose   bool
+		missingClose bool
+		want         string
+		wantClose    bool
+		wantErr      bool
 	}{
-		{"not due", time.Minute, alipay.TradeStatusWaitBuyerPay, nil, nil, false, common.TopUpStatusPending, false, false},
-		{"due close", 11 * time.Minute, alipay.TradeStatusWaitBuyerPay, nil, nil, false, common.TopUpStatusExpired, true, false},
-		{"already paid", 11 * time.Minute, alipay.TradeStatusSuccess, nil, nil, false, common.TopUpStatusSuccess, false, false},
-		{"already closed", 11 * time.Minute, alipay.TradeStatusClosed, nil, nil, false, common.TopUpStatusExpired, false, false},
-		{"query timeout", 11 * time.Minute, "", errors.New("timeout"), nil, false, common.TopUpStatusPending, false, true},
-		{"not found is not closed", 11 * time.Minute, "", &alipay.Error{Code: "40004", SubCode: "ACQ.TRADE_NOT_EXIST"}, &alipay.Error{Code: "40004", SubCode: "ACQ.TRADE_NOT_EXIST"}, false, common.TopUpStatusPending, true, true},
-		{"close timeout", 11 * time.Minute, alipay.TradeStatusWaitBuyerPay, nil, errors.New("timeout"), false, common.TopUpStatusPending, true, true},
-		{"wrong close identity", 11 * time.Minute, alipay.TradeStatusWaitBuyerPay, nil, nil, true, common.TopUpStatusPending, true, true},
+		{"not due", time.Minute, alipay.TradeStatusWaitBuyerPay, nil, nil, false, false, common.TopUpStatusPending, false, false},
+		{"due close", 11 * time.Minute, alipay.TradeStatusWaitBuyerPay, nil, nil, false, false, common.TopUpStatusExpired, true, false},
+		{"old QR later paid", 11 * time.Minute, alipay.TradeStatusSuccess, nil, nil, false, false, common.TopUpStatusSuccess, false, false},
+		{"already closed", 11 * time.Minute, alipay.TradeStatusClosed, nil, nil, false, false, common.TopUpStatusExpired, false, false},
+		{"query timeout", 11 * time.Minute, "", errors.New("timeout"), nil, false, false, common.TopUpStatusPending, false, true},
+		{"valid precreated QR not found stays pending", time.Minute, "", &alipay.Error{Code: "40004", SubCode: "ACQ.TRADE_NOT_EXIST"}, nil, false, false, common.TopUpStatusPending, false, false},
+		{"expired QR not found is terminal", 11 * time.Minute, "", &alipay.Error{Code: "40004", SubCode: "ACQ.TRADE_NOT_EXIST"}, nil, false, false, common.TopUpStatusExpired, false, false},
+		{"close timeout", 11 * time.Minute, alipay.TradeStatusWaitBuyerPay, nil, errors.New("timeout"), false, false, common.TopUpStatusPending, true, true},
+		{"wrong close identity", 11 * time.Minute, alipay.TradeStatusWaitBuyerPay, nil, nil, true, false, common.TopUpStatusPending, true, true},
+		{"close response missing out trade number", 11 * time.Minute, alipay.TradeStatusWaitBuyerPay, nil, nil, false, true, common.TopUpStatusPending, true, true},
+		{"close terminal without out trade number", 11 * time.Minute, alipay.TradeStatusWaitBuyerPay, nil, &alipay.Error{Code: "40004", SubCode: "ACQ.TRADE_NOT_EXIST"}, false, false, common.TopUpStatusExpired, true, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, config, user := setupAlipayNativeControllerTest(t)
@@ -152,6 +161,9 @@ func TestAlipayNativeReconcile(t *testing.T) {
 			}
 			if tc.wrongClose {
 				client.close.OutTradeNo = "other"
+			}
+			if tc.missingClose {
+				client.close.OutTradeNo = ""
 			}
 			err := reconcileAlipayNativeOrder(context.Background(), client, order, config.Sandbox, "", now)
 			if tc.wantErr {

@@ -19,7 +19,10 @@ import (
 	alipay "github.com/smartwalle/alipay/v3"
 )
 
-const alipayNativeOrderTimeout = 10 * time.Minute
+const (
+	alipayNativeOrderTimeout   = 10 * time.Minute
+	alipayNativeQRCodeCacheTTL = 15 * time.Minute
+)
 
 func isAlipayNativeTopUpEnabled() bool {
 	config, err := model.GetAlipayNativeConfig()
@@ -214,7 +217,7 @@ func RequestAlipayNativePay(c *gin.Context) {
 		return
 	}
 	payment := alipayNativePayment{TradeNo: tradeNo, QRCode: rsp.QRCode, Amount: money.StringFixed(2), Currency: "CNY", Sandbox: config.Sandbox}
-	if err := guard.Save(checkoutCtx, payment, order.CreateTime); err != nil {
+	if err := guard.Save(checkoutCtx, payment); err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "支付缓存暂不可用，请稍后查询订单状态", "trade_no": tradeNo})
 		return
 	}
@@ -271,8 +274,14 @@ func AlipayNativeNotify(c *gin.Context) {
 	c.String(http.StatusOK, "success")
 }
 
-// A precreated QR code need not have an Alipay trade yet. Absence only
-// preserves pending; it never authorizes credit, expiry, or a new payment.
+func isAlipayNativeTradeNotExist(rsp *alipay.TradeQueryRsp, err error) bool {
+	var upstreamErr *alipay.Error
+	if errors.As(err, &upstreamErr) {
+		return upstreamErr.Code == "40004" && upstreamErr.SubCode == "ACQ.TRADE_NOT_EXIST"
+	}
+	return rsp != nil && rsp.Code == "40004" && rsp.SubCode == "ACQ.TRADE_NOT_EXIST"
+}
+
 func validateAlipayNativeQueryResult(tradeNo string, rsp *alipay.TradeQueryRsp, queryErr error) error {
 	var upstreamErr *alipay.Error
 	if errors.As(queryErr, &upstreamErr) {
@@ -304,7 +313,8 @@ type alipayNativeOrderClient interface {
 	TradeClose(context.Context, alipay.TradeClose) (*alipay.TradeCloseRsp, error)
 }
 
-// Reconcile never treats an absent trade or a local deadline as proof of closure.
+// Reconciliation preserves a precreated order during its payment window. Once
+// that window has elapsed, an authenticated terminal response may expire it;
 // TradeClose cannot refund a paid transaction, unlike TradeCancel.
 func reconcileAlipayNativeOrder(ctx context.Context, client alipayNativeOrderClient, order *model.TopUp, sandbox bool, callerIP string, now time.Time) error {
 	expectedMethod := "alipay_native"
@@ -318,8 +328,12 @@ func reconcileAlipayNativeOrder(ctx context.Context, client alipayNativeOrderCli
 		return nil
 	}
 	rsp, err := client.TradeQuery(ctx, alipay.TradeQuery{OutTradeNo: order.TradeNo})
-	// The SDK verifies successful responses; OutTradeNo binds the response to
-	// this order. It exposes no seller_id/app_id on TradeQueryRsp.
+	if isAlipayNativeTradeNotExist(rsp, err) {
+		if order.CreateTime <= 0 || now.Before(time.Unix(order.CreateTime, 0).Add(alipayNativeOrderTimeout)) {
+			return nil
+		}
+		return model.CloseAlipayNativeTopUp(order.TradeNo, sandbox)
+	}
 	if queryErr := validateAlipayNativeQueryResult(order.TradeNo, rsp, err); queryErr != nil {
 		return queryErr
 	}
@@ -335,14 +349,39 @@ func reconcileAlipayNativeOrder(ctx context.Context, client alipayNativeOrderCli
 	if order.CreateTime <= 0 || now.Before(time.Unix(order.CreateTime, 0).Add(alipayNativeOrderTimeout)) {
 		return nil
 	}
+	return closeAlipayNativeTrade(ctx, client, order, sandbox)
+}
+
+// closeAlipayNativeTrade is called only after the local payment window has
+// elapsed, so TRADE_NOT_EXIST is then sufficient evidence of expiry.
+func closeAlipayNativeTrade(ctx context.Context, client alipayNativeOrderClient, order *model.TopUp, sandbox bool) error {
 	closed, closeErr := client.TradeClose(ctx, alipay.TradeClose{OutTradeNo: order.TradeNo})
-	if closeErr != nil {
-		return fmt.Errorf("close failed type=%T", closeErr)
+	if isAlipayNativeCloseNotExist(closed, closeErr) {
+		return model.CloseAlipayNativeTopUp(order.TradeNo, sandbox)
 	}
-	if closed == nil || !closed.IsSuccess() || closed.OutTradeNo != order.TradeNo {
-		return errors.New("close not confirmed for requested order")
+	if closeErr == nil && closed != nil && closed.IsSuccess() && closed.OutTradeNo == order.TradeNo {
+		return model.CloseAlipayNativeTopUp(order.TradeNo, sandbox)
 	}
-	return model.CloseAlipayNativeTopUp(order.TradeNo, sandbox)
+	code, subCode := alipayNativeCloseErrorCode(closed, closeErr)
+	missingOutTradeNo := closed == nil || closed.OutTradeNo == ""
+	logger.LogWarn(ctx, fmt.Sprintf("alipay native close unconfirmed trade_no=%s code=%q sub_code=%q missing_out_trade_no=%t", order.TradeNo, code, subCode, missingOutTradeNo))
+	return errors.New("close not confirmed for requested order")
+}
+
+func isAlipayNativeCloseNotExist(rsp *alipay.TradeCloseRsp, err error) bool {
+	code, subCode := alipayNativeCloseErrorCode(rsp, err)
+	return code == "40004" && subCode == "ACQ.TRADE_NOT_EXIST"
+}
+
+func alipayNativeCloseErrorCode(rsp *alipay.TradeCloseRsp, err error) (string, string) {
+	var upstreamErr *alipay.Error
+	if errors.As(err, &upstreamErr) {
+		return string(upstreamErr.Code), upstreamErr.SubCode
+	}
+	if rsp == nil {
+		return "", ""
+	}
+	return string(rsp.Code), rsp.SubCode
 }
 
 func GetAlipayNativeOrder(c *gin.Context) {
