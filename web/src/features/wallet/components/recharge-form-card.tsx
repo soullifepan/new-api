@@ -81,6 +81,10 @@ interface RechargeFormCardProps {
   waffoMinTopup?: number
   onWaffoMethodSelect?: (method: WaffoPayMethod, index: number) => void
   enableWaffoPancakeTopup?: boolean
+  enableAlipayNative?: boolean
+  alipayNativeMinTopup?: number
+  alipayNativeSandbox?: boolean
+  onAlipayNativeSelect?: () => void
 }
 
 export function RechargeFormCard({
@@ -111,6 +115,10 @@ export function RechargeFormCard({
   waffoMinTopup,
   onWaffoMethodSelect,
   enableWaffoPancakeTopup,
+  enableAlipayNative,
+  alipayNativeMinTopup,
+  alipayNativeSandbox,
+  onAlipayNativeSelect,
 }: RechargeFormCardProps) {
   const { t } = useTranslation()
   const [localAmount, setLocalAmount] = useState(topupAmount.toString())
@@ -135,6 +143,7 @@ export function RechargeFormCard({
     topupInfo?.enable_stripe_topup ||
     enableWaffoTopup ||
     enableWaffoPancakeTopup
+    || enableAlipayNative
   const hasAnyTopup = hasConfigurableTopup || enableCreemTopup
   const hasStandardPaymentMethods =
     Array.isArray(topupInfo?.pay_methods) && topupInfo.pay_methods.length > 0
@@ -384,6 +393,20 @@ export function RechargeFormCard({
                     })}
                   </div>
                 ) : null}
+                {enableAlipayNative && onAlipayNativeSelect && (
+                  <Button
+                    variant='outline'
+                    onClick={onAlipayNativeSelect}
+                    disabled={!!paymentLoading || (alipayNativeMinTopup ?? 0) > topupAmount}
+                    className='min-h-14 w-full justify-start gap-2 rounded-lg px-3 py-2 text-left'
+                  >
+                    {paymentLoading === 'alipay_native' ? <Loader2 className='h-4 w-4 animate-spin' /> : getPaymentIcon('alipay_native', 'h-4 w-4')}
+                    <span className='flex min-w-0 flex-col items-start gap-0.5'>
+                      <span>{t('Alipay Native')}</span>
+                      {alipayNativeSandbox && <span className='text-muted-foreground text-[11px] font-normal'>{t('Alipay sandbox')}</span>}
+                    </span>
+                  </Button>
+                )}
                 {!hasStandardPaymentMethods && !hasWaffoPaymentMethods && (
                   <Alert>
                     <AlertDescription>

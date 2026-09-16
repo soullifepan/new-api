@@ -189,6 +189,12 @@ func UserCriticalRateLimit(scope string) func(c *gin.Context) {
 	)
 }
 
+// UserPollingRateLimit isolates short-interval authenticated polling from the
+// stricter critical-operation bucket while retaining per-user abuse control.
+func UserPollingRateLimit(scope string) func(c *gin.Context) {
+	return userRateLimitFactory(30, 60, "UP:"+scope)
+}
+
 func DownloadRateLimit() func(c *gin.Context) {
 	return rateLimitFactory(common.DownloadRateLimitNum, common.DownloadRateLimitDuration, "DW")
 }

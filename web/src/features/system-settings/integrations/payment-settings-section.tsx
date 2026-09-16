@@ -58,6 +58,7 @@ import {
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
+import { AlipayNativeConfigPanel } from './alipay-native-config-panel'
 import { safeNumberFieldProps } from '../utils/numeric-field'
 import { AmountDiscountVisualEditor } from './amount-discount-visual-editor'
 import { AmountOptionsVisualEditor } from './amount-options-visual-editor'
@@ -879,9 +880,10 @@ export function PaymentSettingsSection({
           />
           <Tabs defaultValue='general' className='min-w-0'>
             <div className='overflow-x-auto pb-1'>
-              <TabsList className='grid min-w-[44rem] grid-cols-6'>
+              <TabsList className='grid min-w-[50rem] grid-cols-7'>
                 <TabsTrigger value='general'>{t('General')}</TabsTrigger>
                 <TabsTrigger value='epay'>Epay</TabsTrigger>
+                <TabsTrigger value='alipay-native'>{t('Alipay Native')}</TabsTrigger>
                 <TabsTrigger value='stripe'>{t('Stripe')}</TabsTrigger>
                 <TabsTrigger value='creem'>Creem</TabsTrigger>
                 <TabsTrigger value='waffo-pancake'>Waffo Pancake</TabsTrigger>
@@ -1134,6 +1136,10 @@ export function PaymentSettingsSection({
                   />
                 </div>
               </div>
+            </TabsContent>
+
+            <TabsContent value='alipay-native' className={paymentTabContentClassName}>
+              <AlipayNativeConfigPanel />
             </TabsContent>
 
             <TabsContent value='epay' className={paymentTabContentClassName}>

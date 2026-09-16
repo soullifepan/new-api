@@ -201,3 +201,27 @@ func TestStripeCreditedQuotaIncludesGroupRatio(t *testing.T) {
 	require.NoError(t, common.UpdateTopupGroupRatioByJSONString(`{"free":0}`))
 	assert.True(t, decimal.NewFromInt(500000).Equal(getStripeCreditedQuota(1, "free")))
 }
+
+func TestAlipayNativeQuoteRejectsPartialTokenUnitAndKeepsGroupDiscount(t *testing.T) {
+	oldQuotaPerUnit := common.QuotaPerUnit
+	oldDisplayType := operation_setting.GetGeneralSetting().QuotaDisplayType
+	oldTopupGroupRatio := common.TopupGroupRatio2JSONString()
+	common.QuotaPerUnit = 500000
+	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeTokens
+	require.NoError(t, common.UpdateTopupGroupRatioByJSONString(`{"vip":1.2}`))
+	t.Cleanup(func() {
+		common.QuotaPerUnit = oldQuotaPerUnit
+		operation_setting.GetGeneralSetting().QuotaDisplayType = oldDisplayType
+		require.NoError(t, common.UpdateTopupGroupRatioByJSONString(oldTopupGroupRatio))
+	})
+	config := model.AlipayNativeConfig{UnitPrice: 10, MinTopUp: 2}
+
+	_, _, err := alipayNativeQuote(config, 500001, "vip")
+	require.Error(t, err)
+	_, _, err = alipayNativeQuote(config, 500000, "vip")
+	require.Error(t, err)
+	stored, money, err := alipayNativeQuote(config, 1_000_000, "vip")
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), stored)
+	assert.Equal(t, "24.00", money.StringFixed(2))
+}

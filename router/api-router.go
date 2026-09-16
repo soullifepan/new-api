@@ -65,6 +65,7 @@ func SetApiRouter(router *gin.Engine) {
 		// :env separates test vs prod URLs so the operator can register each
 		// in Pancake's matching webhook slot; handler enforces env match.
 		apiRouter.POST("/waffo-pancake/webhook/:env", anonymousRequestBodyLimit, controller.WaffoPancakeWebhook)
+		apiRouter.POST("/alipay/notify", anonymousRequestBodyLimit, controller.AlipayNativeNotify)
 
 		// Universal secure verification routes
 		apiRouter.GET("/verify/methods", middleware.UserAuth(), middleware.DisableCache(), controller.GetVerificationMethods)
@@ -122,6 +123,9 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.POST("/waffo/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPay)
 				selfRoute.POST("/waffo-pancake/amount", controller.RequestWaffoPancakeAmount)
 				selfRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPancakePay)
+				selfRoute.POST("/alipay/amount", middleware.UserCriticalRateLimit("alipay-native-amount"), controller.RequestAlipayNativeAmount)
+				selfRoute.POST("/alipay/pay", middleware.UserCriticalRateLimit("alipay-native-pay"), controller.RequestAlipayNativePay)
+				selfRoute.GET("/alipay/order/:trade_no", middleware.UserPollingRateLimit("alipay-native-order"), controller.GetAlipayNativeOrder)
 				selfRoute.POST("/aff_transfer", middleware.UserCriticalRateLimit("aff-transfer"), controller.TransferAffQuota)
 				selfRoute.PUT("/setting", controller.UpdateUserSetting)
 
@@ -205,6 +209,8 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			optionRoute.GET("/", controller.GetOptions)
 			optionRoute.PUT("/", controller.UpdateOption)
+			optionRoute.GET("/alipay-native/config", controller.GetAlipayNativeConfig)
+			optionRoute.POST("/alipay-native/config", controller.UpdateAlipayNativeConfig)
 			optionRoute.PUT("/passkey/domains", controller.UpdatePasskeyDomains)
 			optionRoute.GET("/model_pricing", controller.GetModelPricingConfig)
 			optionRoute.PATCH("/model_pricing", controller.UpdateModelPricingConfig)

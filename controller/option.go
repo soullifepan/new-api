@@ -190,6 +190,10 @@ func UpdateOption(c *gin.Context) {
 		})
 		return
 	}
+	if strings.HasPrefix(option.Key, "AlipayNative") {
+		common.ApiErrorMsg(c, "支付宝当面付配置必须通过专用配置接口原子更新")
+		return
+	}
 	switch option.Value.(type) {
 	case bool:
 		option.Value = common.Interface2String(option.Value.(bool))

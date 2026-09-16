@@ -35,6 +35,20 @@ export interface ApiResponse<T = unknown> {
 export type TopupInfoResponse = ApiResponse<TopupInfo>
 export type RedemptionResponse = ApiResponse<number>
 export type AmountResponse = ApiResponse<string>
+export type AlipayNativePayment = {
+  trade_no: string
+  qr_code?: string
+  amount?: string
+  currency?: 'CNY'
+  sandbox?: boolean
+}
+export type AlipayNativeOrder = { trade_no: string; status: TopupStatus }
+export type AlipayNativePaymentResponse = ApiResponse<
+  AlipayNativePayment | string
+> & {
+  trade_no?: string
+}
+export type AlipayNativeOrderResponse = ApiResponse<AlipayNativeOrder>
 export type PaymentResponse = ApiResponse<Record<string, unknown>> & {
   url?: string
 }
@@ -156,6 +170,9 @@ export interface TopupInfo {
   payment_compliance_confirmed?: boolean
   /** Current compliance terms version */
   payment_compliance_terms_version?: string
+  enable_alipay_native?: boolean
+  alipay_native_min_topup?: number
+  alipay_native_sandbox?: boolean
 }
 
 /**
@@ -247,7 +264,7 @@ export interface UserWalletData {
 /**
  * Topup record status
  */
-export type TopupStatus = 'success' | 'pending' | 'expired'
+export type TopupStatus = 'success' | 'pending' | 'failed' | 'expired'
 
 /**
  * Topup billing record

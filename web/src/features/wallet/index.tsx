@@ -27,6 +27,7 @@ import { getSelf } from '@/lib/api'
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
+import { AlipayNativePaymentDialog } from './components/dialogs/alipay-native-payment-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
 import { TransferDialog } from './components/dialogs/transfer-dialog'
 import { RechargeFormCard } from './components/recharge-form-card'
@@ -42,6 +43,7 @@ import {
   useWaffoPayment,
   useWaffoPancakePayment,
 } from './hooks'
+import { useAlipayNativePayment } from './hooks/use-alipay-native-payment'
 import {
   getDefaultPaymentType,
   getMinTopupAmount,
@@ -74,6 +76,7 @@ export function Wallet(props: WalletProps) {
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
   const [billingDialogOpen, setBillingDialogOpen] = useState(false)
+  const [billingRefreshKey, setBillingRefreshKey] = useState(0)
   const [redemptionCode, setRedemptionCode] = useState('')
   const [creemDialogOpen, setCreemDialogOpen] = useState(false)
   const [selectedCreemProduct, setSelectedCreemProduct] =
@@ -124,6 +127,11 @@ export function Wallet(props: WalletProps) {
       setUserLoading(false)
     }
   }, [])
+  const refreshWalletAfterAlipaySuccess = useCallback(async () => {
+    await fetchUser()
+    setBillingRefreshKey((key) => key + 1)
+  }, [fetchUser])
+  const alipayNative = useAlipayNativePayment(refreshWalletAfterAlipaySuccess)
 
   useEffect(() => {
     fetchUser()
@@ -270,6 +278,17 @@ export function Wallet(props: WalletProps) {
     }
   }
 
+  const handleAlipayNativeSelect = async () => {
+    const minTopup = topupInfo?.alipay_native_min_topup ?? 0
+    if (topupAmount < minTopup) return
+    setPaymentLoading(PAYMENT_TYPES.ALIPAY_NATIVE)
+    try {
+      await alipayNative.start(topupAmount)
+    } finally {
+      setPaymentLoading(null)
+    }
+  }
+
   // Get discount rate for current topup amount
   const getDiscountRate = useCallback(() => {
     return topupInfo?.discount?.[topupAmount] || DEFAULT_DISCOUNT_RATE
@@ -328,6 +347,10 @@ export function Wallet(props: WalletProps) {
                   enableWaffoPancakeTopup={
                     topupInfo?.enable_waffo_pancake_topup
                   }
+                  enableAlipayNative={topupInfo?.enable_alipay_native}
+                  alipayNativeMinTopup={topupInfo?.alipay_native_min_topup}
+                  alipayNativeSandbox={topupInfo?.alipay_native_sandbox}
+                  onAlipayNativeSelect={handleAlipayNativeSelect}
                 />
               </div>
 
@@ -374,6 +397,7 @@ export function Wallet(props: WalletProps) {
       />
 
       <BillingHistoryDialog
+        key={billingRefreshKey}
         open={billingDialogOpen}
         onOpenChange={setBillingDialogOpen}
       />
@@ -384,6 +408,12 @@ export function Wallet(props: WalletProps) {
         onConfirm={handleCreemConfirm}
         product={selectedCreemProduct}
         processing={creemProcessing}
+      />
+      <AlipayNativePaymentDialog
+        payment={alipayNative.payment}
+        status={alipayNative.status}
+        onRetry={alipayNative.retry}
+        onOpenChange={(open) => { if (!open) alipayNative.close() }}
       />
     </>
   )

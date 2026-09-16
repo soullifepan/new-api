@@ -24,6 +24,7 @@ import (
 
 func GetTopUpInfo(c *gin.Context) {
 	complianceConfirmed := operation_setting.IsPaymentComplianceConfirmed()
+	alipayNativeConfig, _ := model.GetAlipayNativeConfig()
 
 	// 获取支付方式
 	payMethods := operation_setting.PayMethods
@@ -102,6 +103,7 @@ func GetTopUpInfo(c *gin.Context) {
 		"enable_creem_topup":               isCreemTopUpEnabled(),
 		"enable_waffo_topup":               enableWaffo,
 		"enable_waffo_pancake_topup":       enableWaffoPancake,
+		"enable_alipay_native":             complianceConfirmed && isAlipayNativeConfigEnabled(alipayNativeConfig),
 		"enable_redemption":                complianceConfirmed,
 		"payment_compliance_confirmed":     complianceConfirmed,
 		"payment_compliance_terms_version": operation_setting.CurrentComplianceTermsVersion,
@@ -117,11 +119,28 @@ func GetTopUpInfo(c *gin.Context) {
 		"stripe_min_topup":        setting.StripeMinTopUp,
 		"waffo_min_topup":         setting.WaffoMinTopUp,
 		"waffo_pancake_min_topup": setting.WaffoPancakeMinTopUp,
+		"alipay_native_min_topup": alipayNativeMinTopUpForDisplay(alipayNativeConfig.MinTopUp),
+		"alipay_native_sandbox":   alipayNativeConfig.Sandbox,
 		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,
 		"topup_link":              common.TopUpLink,
 	}
 	common.ApiSuccess(c, data)
+}
+
+func alipayNativeMinTopUpForDisplay(minTopUp int) int64 {
+	if minTopUp <= 0 {
+		return 0
+	}
+	if operation_setting.GetQuotaDisplayType() != operation_setting.QuotaDisplayTypeTokens || !isFinitePositive(common.QuotaPerUnit) {
+		return int64(minTopUp)
+	}
+	value := decimal.NewFromInt(int64(minTopUp)).Mul(decimal.NewFromFloat(common.QuotaPerUnit))
+	quota, err := common.WalletQuotaFromDecimalStrict(value)
+	if err != nil {
+		return int64(common.MaxWalletQuota)
+	}
+	return int64(quota)
 }
 
 type EpayRequest struct {

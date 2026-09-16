@@ -39,6 +39,8 @@ import type {
   WaffoPaymentResponse,
   WaffoPancakePaymentRequest,
   WaffoPancakePaymentResponse,
+  AlipayNativePaymentResponse,
+  AlipayNativeOrderResponse,
 } from './types'
 
 // ============================================================================
@@ -166,6 +168,34 @@ export async function calculateWaffoPancakeAmount(
   const res = await api.post('/api/user/waffo-pancake/amount', request, {
     skipBusinessError: true,
   } as Record<string, unknown>)
+  return res.data
+}
+
+export async function calculateAlipayNativeAmount(
+  request: AmountRequest
+): Promise<AmountResponse> {
+  const res = await api.post('/api/user/alipay/amount', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function requestAlipayNativePayment(
+  request: AmountRequest
+): Promise<AlipayNativePaymentResponse> {
+  const res = await api.post('/api/user/alipay/pay', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function getAlipayNativeOrder(
+  tradeNo: string
+): Promise<AlipayNativeOrderResponse> {
+  const res = await api.get(
+    `/api/user/alipay/order/${encodeURIComponent(tradeNo)}`,
+    { skipBusinessError: true } as Record<string, unknown>
+  )
   return res.data
 }
 

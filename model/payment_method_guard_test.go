@@ -1,12 +1,17 @@
 package model
 
 import (
+	"os"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 func insertUserForPaymentGuardTest(t *testing.T, id int, quota int) *User {
@@ -19,6 +24,47 @@ func insertUserForPaymentGuardTest(t *testing.T, id int, quota int) *User {
 	}
 	require.NoError(t, DB.Create(user).Error)
 	return user
+}
+
+func TestAlipayNativeConfigPersistenceOnExternalDatabases(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		env    string
+		dbType common.DatabaseType
+		open   func(string) gorm.Dialector
+	}{
+		{name: "mysql", env: "TEST_MYSQL_DSN", dbType: common.DatabaseTypeMySQL, open: mysql.Open},
+		{name: "postgres", env: "TEST_POSTGRES_DSN", dbType: common.DatabaseTypePostgreSQL, open: func(dsn string) gorm.Dialector {
+			return postgres.New(postgres.Config{DSN: dsn, PreferSimpleProtocol: true})
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dsn := os.Getenv(tc.env)
+			if dsn == "" {
+				t.Skipf("%s is not configured", tc.env)
+			}
+			db, err := gorm.Open(tc.open(dsn), &gorm.Config{})
+			require.NoError(t, err)
+			oldDB, oldType := DB, common.MainDatabaseType()
+			DB = db
+			common.SetDatabaseTypes(tc.dbType, common.DatabaseTypeSQLite)
+			initCol()
+			t.Cleanup(func() {
+				DB = oldDB
+				common.SetDatabaseTypes(oldType, common.DatabaseTypeSQLite)
+				initCol()
+			})
+			require.NoError(t, db.AutoMigrate(&Option{}, &TopUp{}))
+			require.NoError(t, db.Where("payment_provider = ?", PaymentProviderAlipayNative).Delete(&TopUp{}).Error)
+			require.NoError(t, db.Where(commonKeyCol+" IN ?", alipayNativeConfigKeys).Delete(&Option{}).Error)
+
+			config := AlipayNativeConfig{Enabled: true, AppID: "external-app", SellerID: "external-seller", PrivateKey: "external-key", PublicKey: "external-public", UnitPrice: 1, MinTopUp: 1}
+			require.NoError(t, UpdateAlipayNativeConfig(config))
+			loaded, err := GetAlipayNativeConfig()
+			require.NoError(t, err)
+			assert.Equal(t, config, loaded)
+		})
+	}
 }
 
 func insertSubscriptionPlanForPaymentGuardTest(t *testing.T, id int) *SubscriptionPlan {
@@ -214,6 +260,115 @@ func TestRechargeEpayCreditsQuotaExactlyOnce(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, alreadyDone)
 	assert.Equal(t, 2*500000, getUserQuotaForPaymentGuardTest(t, user.Id))
+}
+
+func TestRechargeAlipayNativeCreditsExactlyOnceAndSeparatesSandbox(t *testing.T) {
+	truncateTables(t)
+	oldQuotaPerUnit := common.QuotaPerUnit
+	common.QuotaPerUnit = 500000
+	t.Cleanup(func() { common.QuotaPerUnit = oldQuotaPerUnit })
+
+	user := insertUserForPaymentGuardTest(t, 507, 0)
+	order := TopUp{UserId: user.Id, Amount: 2, Money: 10, TradeNo: "ALIPAYNATIVEONCE", PaymentMethod: "alipay_native_sandbox", PaymentProvider: PaymentProviderAlipayNative, CreateTime: common.GetTimestamp(), Status: common.TopUpStatusPending}
+	require.NoError(t, order.Insert())
+
+	_, err := RechargeAlipayNative(order.TradeNo, false, "127.0.0.1")
+	require.ErrorIs(t, err, ErrPaymentMethodMismatch)
+	assert.Equal(t, common.TopUpStatusPending, getTopUpStatusForPaymentGuardTest(t, order.TradeNo))
+
+	alreadyDone, err := RechargeAlipayNative(order.TradeNo, true, "127.0.0.1")
+	require.NoError(t, err)
+	assert.False(t, alreadyDone)
+	assert.Equal(t, 2*500000, getUserQuotaForPaymentGuardTest(t, user.Id))
+	alreadyDone, err = RechargeAlipayNative(order.TradeNo, true, "127.0.0.1")
+	require.NoError(t, err)
+	assert.True(t, alreadyDone)
+	assert.Equal(t, 2*500000, getUserQuotaForPaymentGuardTest(t, user.Id))
+}
+
+func TestRechargeAlipayNativeConcurrentCallbacksCreditOnceAndRespectWalletLimit(t *testing.T) {
+	truncateTables(t)
+	oldQuotaPerUnit := common.QuotaPerUnit
+	common.QuotaPerUnit = 500000
+	t.Cleanup(func() { common.QuotaPerUnit = oldQuotaPerUnit })
+	user := insertUserForPaymentGuardTest(t, 508, 0)
+	order := &TopUp{UserId: user.Id, Amount: 2, Money: 2, TradeNo: "ALIPAYNATIVECONCURRENT", PaymentMethod: "alipay_native", PaymentProvider: PaymentProviderAlipayNative, CreateTime: common.GetTimestamp(), Status: common.TopUpStatusPending}
+	require.NoError(t, order.Insert())
+	var waitGroup sync.WaitGroup
+	errors := make(chan error, 2)
+	for range 2 {
+		waitGroup.Go(func() {
+			_, err := RechargeAlipayNative(order.TradeNo, false, "127.0.0.1")
+			errors <- err
+		})
+	}
+	waitGroup.Wait()
+	close(errors)
+	for err := range errors {
+		require.NoError(t, err)
+	}
+	assert.Equal(t, 2*500000, getUserQuotaForPaymentGuardTest(t, user.Id))
+
+	limited := &User{Id: 509, Username: "payment_guard_limit_user", AffCode: "payment_guard_limit_aff", Status: common.UserStatusEnabled, Quota: common.MaxWalletQuota - 500000}
+	require.NoError(t, DB.Create(limited).Error)
+	limitOrder := &TopUp{UserId: limited.Id, Amount: 2, Money: 2, TradeNo: "ALIPAYNATIVELIMIT", PaymentMethod: "alipay_native", PaymentProvider: PaymentProviderAlipayNative, CreateTime: common.GetTimestamp(), Status: common.TopUpStatusPending}
+	require.NoError(t, limitOrder.Insert())
+	_, err := RechargeAlipayNative(limitOrder.TradeNo, false, "127.0.0.1")
+	require.ErrorIs(t, err, ErrTopUpQuotaLimitExceeded)
+	assert.Equal(t, common.TopUpStatusPending, getTopUpStatusForPaymentGuardTest(t, limitOrder.TradeNo))
+}
+
+func TestCreateAlipayNativeTopUpRejectsStaleConfigurationSnapshot(t *testing.T) {
+	truncateTables(t)
+	require.NoError(t, DB.AutoMigrate(&Option{}))
+	common.OptionMapRWMutex.Lock()
+	previousOptions := common.OptionMap
+	common.OptionMap = make(map[string]string)
+	common.OptionMapRWMutex.Unlock()
+	t.Cleanup(func() {
+		common.OptionMapRWMutex.Lock()
+		common.OptionMap = previousOptions
+		common.OptionMapRWMutex.Unlock()
+	})
+	config := AlipayNativeConfig{Enabled: true, AppID: "app-a", SellerID: "seller-a", PrivateKey: "key-a", PublicKey: "public-a", UnitPrice: 1, MinTopUp: 1}
+	require.NoError(t, UpdateAlipayNativeConfig(config))
+	require.NoError(t, UpdateAlipayNativeConfig(AlipayNativeConfig{Enabled: true, AppID: "app-a", SellerID: "seller-a", PrivateKey: "key-a", PublicKey: "public-a", UnitPrice: 2, MinTopUp: 1}))
+
+	order := &TopUp{UserId: 507, Amount: 1, Money: 1, TradeNo: "ALIPAYNATIVESTALE", PaymentProvider: PaymentProviderAlipayNative, Status: common.TopUpStatusPending}
+	err := CreateAlipayNativeTopUp(order, config)
+	require.ErrorIs(t, err, ErrAlipayNativeConfigChanged)
+	assert.Nil(t, GetTopUpByTradeNo(order.TradeNo))
+}
+
+func TestUpdateAlipayNativeConfigProtectsPendingOrderIdentityOnly(t *testing.T) {
+	truncateTables(t)
+	require.NoError(t, DB.AutoMigrate(&Option{}))
+	common.OptionMapRWMutex.Lock()
+	previousOptions := common.OptionMap
+	common.OptionMap = make(map[string]string)
+	common.OptionMapRWMutex.Unlock()
+	t.Cleanup(func() {
+		common.OptionMapRWMutex.Lock()
+		common.OptionMap = previousOptions
+		common.OptionMapRWMutex.Unlock()
+	})
+	config := AlipayNativeConfig{Enabled: true, AppID: "app-a", SellerID: "seller-a", PrivateKey: "key-a", PublicKey: "public-a", UnitPrice: 1, MinTopUp: 1}
+	require.NoError(t, UpdateAlipayNativeConfig(config))
+	require.NoError(t, (&TopUp{UserId: 507, Amount: 1, Money: 1, TradeNo: "ALIPAYNATIVEPENDING", PaymentMethod: "alipay_native", PaymentProvider: PaymentProviderAlipayNative, CreateTime: common.GetTimestamp(), Status: common.TopUpStatusPending}).Insert())
+
+	err := UpdateAlipayNativeConfig(AlipayNativeConfig{Enabled: false, AppID: "app-b", SellerID: "seller-a", PrivateKey: "key-a", PublicKey: "public-a", UnitPrice: 2, MinTopUp: 1})
+	require.ErrorIs(t, err, ErrAlipayNativePendingOrders)
+	require.NoError(t, UpdateAlipayNativeConfig(AlipayNativeConfig{Enabled: false, AppID: "app-a", SellerID: "seller-a", PrivateKey: "key-a", PublicKey: "public-a", UnitPrice: 2, MinTopUp: 1}))
+}
+
+func TestCloseAlipayNativeTopUpRejectsWrongEnvironmentAndExpiresPendingOrder(t *testing.T) {
+	truncateTables(t)
+	order := &TopUp{UserId: 507, Amount: 1, Money: 1, TradeNo: "ALIPAYNATIVECLOSED", PaymentMethod: "alipay_native_sandbox", PaymentProvider: PaymentProviderAlipayNative, CreateTime: common.GetTimestamp(), Status: common.TopUpStatusPending}
+	require.NoError(t, order.Insert())
+
+	require.ErrorIs(t, CloseAlipayNativeTopUp(order.TradeNo, false), ErrPaymentMethodMismatch)
+	require.NoError(t, CloseAlipayNativeTopUp(order.TradeNo, true))
+	assert.Equal(t, common.TopUpStatusExpired, getTopUpStatusForPaymentGuardTest(t, order.TradeNo))
 }
 
 func TestRechargeEpayKeepsRedisAndDatabaseCreditInSync(t *testing.T) {
