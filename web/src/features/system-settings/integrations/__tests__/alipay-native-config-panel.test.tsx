@@ -40,13 +40,13 @@ describe('AlipayNativeConfigPanel', () => {
     render(<AlipayNativeConfigPanel />)
 
     await screen.findByDisplayValue('sandbox-app')
-    expect(screen.getByLabelText('Alipay public key')).toHaveValue('public-key')
-    expect(screen.getByLabelText('Alipay private key')).toHaveValue('')
+    expect(screen.getByLabelText('支付宝公钥')).toHaveValue('public-key')
+    expect(screen.getByLabelText('应用私钥')).toHaveValue('')
 
-    await user.clear(screen.getByLabelText('Alipay App ID'))
-    await user.type(screen.getByLabelText('Alipay App ID'), 'updated-app')
+    await user.clear(screen.getByLabelText('应用 APPID'))
+    await user.type(screen.getByLabelText('应用 APPID'), 'updated-app')
     await user.click(
-      screen.getByRole('button', { name: 'Save Alipay Native settings' })
+      screen.getByRole('button', { name: '保存支付宝当面付设置' })
     )
 
     await waitFor(() => {
@@ -67,17 +67,17 @@ describe('AlipayNativeConfigPanel', () => {
     const user = userEvent.setup()
     render(<AlipayNativeConfigPanel />)
 
-    await screen.findByText('Failed to load')
+    await screen.findByText('配置加载失败')
     expect(
-      screen.getByRole('button', { name: 'Save Alipay Native settings' })
+      screen.getByRole('button', { name: '保存支付宝当面付设置' })
     ).toBeDisabled()
 
-    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    await user.click(screen.getByRole('button', { name: '重试' }))
     await waitFor(() => {
       expect(get).toHaveBeenCalledTimes(2)
     })
     expect(
-      screen.getByRole('button', { name: 'Save Alipay Native settings' })
+      screen.getByRole('button', { name: '保存支付宝当面付设置' })
     ).toBeEnabled()
   })
 
@@ -85,11 +85,11 @@ describe('AlipayNativeConfigPanel', () => {
     const user = userEvent.setup()
     render(<AlipayNativeConfigPanel />)
 
-    await screen.findByLabelText('Alipay public key')
-    await user.click(screen.getByRole('button', { name: 'Certificates' }))
-    expect(screen.queryByLabelText('Alipay public key')).not.toBeInTheDocument()
+    await screen.findByLabelText('支付宝公钥')
+    await user.click(screen.getByRole('button', { name: '证书' }))
+    expect(screen.queryByLabelText('支付宝公钥')).not.toBeInTheDocument()
     await user.click(
-      screen.getByRole('button', { name: 'Save Alipay Native settings' })
+      screen.getByRole('button', { name: '保存支付宝当面付设置' })
     )
     await waitFor(() => {
       expect(post).toHaveBeenCalledWith(
