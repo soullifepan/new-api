@@ -143,6 +143,11 @@ export function useSidebarData(): SidebarData {
             icon: Box,
           },
           {
+            title: t('TapComfy 3D Models'),
+            url: '/tapcomfy-models',
+            icon: Box,
+          },
+          {
             title: t('Users'),
             url: '/users',
             icon: Users,
