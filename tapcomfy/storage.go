@@ -136,17 +136,17 @@ func (c Config) UploadAsset(ctx context.Context, assetType, filename, contentTyp
 		return nil, ErrInvalidAsset
 	}
 	declaredType, _, _ := mime.ParseMediaType(contentType)
-	probe := make([]byte, 512)
+	probe := make([]byte, 64<<10)
 	n, readErr := io.ReadFull(body, probe)
 	if readErr != nil && !errors.Is(readErr, io.ErrUnexpectedEOF) {
 		return nil, ErrInvalidAsset
 	}
 	probe = probe[:n]
-	detectedType := http.DetectContentType(probe)
-	if !assetMIMEAllowed(assetType, ext, declaredType, detectedType) {
+	storedContentType, ok := assetContentAllowed(assetType, ext, declaredType, probe)
+	if !ok {
 		return nil, ErrInvalidAsset
 	}
-	contentType = detectedType
+	contentType = storedContentType
 	objectKey := directory + uuid.NewString() + ext
 	client, err := oss.New(c.OSSEndpoint, c.AccessKeyID, c.AccessKeySecret, oss.Timeout(5, 30), oss.HTTPClient(&http.Client{Timeout: storageRequestTimeout, Transport: &rejectRedirectTransport{base: http.DefaultTransport.(*http.Transport).Clone()}}))
 	if err != nil {
@@ -166,14 +166,57 @@ func (c Config) UploadAsset(ctx context.Context, assetType, filename, contentTyp
 	return &UploadedAsset{URL: base + "/" + objectKey}, nil
 }
 
-func assetMIMEAllowed(assetType, extension, declared, detected string) bool {
-	if declared == "" {
-		return false
-	}
+func assetContentAllowed(assetType, extension, declared string, content []byte) (string, bool) {
 	if assetType == "3d-thumbnail" {
-		return (extension == ".png" && declared == "image/png" && detected == "image/png") || ((extension == ".jpg" || extension == ".jpeg") && declared == "image/jpeg" && detected == "image/jpeg") || (extension == ".webp" && declared == "image/webp" && detected == "image/webp")
+		detected := http.DetectContentType(content)
+		if extension == ".png" && declared == "image/png" && detected == "image/png" {
+			return detected, true
+		}
+		if (extension == ".jpg" || extension == ".jpeg") && declared == "image/jpeg" && detected == "image/jpeg" {
+			return detected, true
+		}
+		if extension == ".webp" && declared == "image/webp" && detected == "image/webp" {
+			return detected, true
+		}
+		return "", false
 	}
-	return (extension == ".glb" && declared == "model/gltf-binary" && detected == "application/octet-stream") || (extension == ".gltf" && declared == "model/gltf+json" && detected == "application/json") || (extension == ".fbx" && (declared == "application/octet-stream" || declared == "model/fbx") && detected == "application/octet-stream") || (extension == ".obj" && declared == "model/obj" && (detected == "text/plain; charset=utf-8" || detected == "text/plain; charset=us-ascii"))
+	if !modelMIMEAllowed(extension, declared) {
+		return "", false
+	}
+	switch extension {
+	case ".glb":
+		if len(content) >= 12 && bytes.Equal(content[:4], []byte{'g', 'l', 'T', 'F'}) {
+			return "model/gltf-binary", true
+		}
+	case ".gltf":
+		var document struct {
+			Asset struct {
+				Version string `json:"version"`
+			} `json:"asset"`
+		}
+		if common.Unmarshal(content, &document) == nil && document.Asset.Version != "" {
+			return "model/gltf+json", true
+		}
+	case ".fbx":
+		if bytes.HasPrefix(content, []byte("Kaydara FBX Binary  \x00\x1a\x00")) || bytes.HasPrefix(content, []byte("; FBX ")) {
+			return "model/fbx", true
+		}
+	case ".obj":
+		for line := range strings.SplitSeq(string(content), "\n") {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "v ") || strings.HasPrefix(line, "vt ") || strings.HasPrefix(line, "vn ") || strings.HasPrefix(line, "f ") || strings.HasPrefix(line, "o ") || strings.HasPrefix(line, "g ") {
+				return "model/obj", true
+			}
+		}
+	}
+	return "", false
+}
+
+func modelMIMEAllowed(extension, declared string) bool {
+	if declared == "" || declared == "application/octet-stream" {
+		return true
+	}
+	return (extension == ".glb" && declared == "model/gltf-binary") || (extension == ".gltf" && (declared == "model/gltf+json" || declared == "application/json")) || (extension == ".fbx" && declared == "model/fbx") || (extension == ".obj" && declared == "model/obj")
 }
 
 type rejectRedirectTransport struct{ base http.RoundTripper }

@@ -83,7 +83,32 @@ func TestStorageValidationAndAssetWhitelist(t *testing.T) {
 	assert.ErrorIs(t, err, ErrInvalidAsset)
 	_, err = configured.UploadAsset(context.Background(), "3d-thumbnail", "preview.png", "image/png", 11<<20, bytes.NewReader([]byte("x")))
 	assert.ErrorIs(t, err, ErrInvalidAsset)
-	assert.True(t, assetMIMEAllowed("3d-thumbnail", ".png", "image/png", "image/png"))
-	assert.False(t, assetMIMEAllowed("3d-thumbnail", ".png", "image/jpeg", "image/png"))
-	assert.False(t, assetMIMEAllowed("3d-thumbnail", ".png", "image/png", "text/plain; charset=utf-8"))
+	_, ok := assetContentAllowed("3d-thumbnail", ".png", "image/png", []byte{'\x89', 'P', 'N', 'G', '\r', '\n', '\x1a', '\n'})
+	assert.True(t, ok)
+	_, ok = assetContentAllowed("3d-thumbnail", ".png", "image/png", []byte("not a PNG"))
+	assert.False(t, ok)
+}
+
+func TestAssetContentAllowedValidates3DFormatsAndMIME(t *testing.T) {
+	for _, testCase := range []struct {
+		name, extension, declared string
+		content                   []byte
+		allowed                   bool
+	}{
+		{"GLB magic with empty MIME", ".glb", "", append([]byte("glTF"), make([]byte, 8)...), true},
+		{"GLB rejects wrong magic", ".glb", "application/octet-stream", []byte("not-a-glb-file"), false},
+		{"GLTF structured JSON", ".gltf", "application/octet-stream", []byte(`{"asset":{"version":"2.0"},"scenes":[]}`), true},
+		{"GLTF rejects unrelated JSON", ".gltf", "", []byte(`{"name":"not gltf"}`), false},
+		{"FBX binary header", ".fbx", "", []byte("Kaydara FBX Binary  \x00\x1a\x00\x00"), true},
+		{"FBX ASCII header", ".fbx", "model/fbx", []byte("; FBX 7.4.0 project file\n"), true},
+		{"FBX rejects generic binary", ".fbx", "application/octet-stream", []byte{0, 1, 2, 3}, false},
+		{"OBJ instruction", ".obj", "", []byte("# mesh\nv 0 0 0\nf 1 1 1\n"), true},
+		{"OBJ rejects arbitrary text", ".obj", "model/obj", []byte("hello world"), false},
+		{"model MIME rejects unrelated declaration", ".obj", "text/plain", []byte("v 0 0 0\n"), false},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			_, allowed := assetContentAllowed("3d-model", testCase.extension, testCase.declared, testCase.content)
+			assert.Equal(t, testCase.allowed, allowed)
+		})
+	}
 }
