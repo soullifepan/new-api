@@ -351,8 +351,9 @@ export function TapComfyModels() {
               )}
             />
             <FormItem>
-              <FormLabel>3D 模型文件</FormLabel>
+              <FormLabel htmlFor='tapcomfy-model-file'>3D 模型文件</FormLabel>
               <Input
+                id='tapcomfy-model-file'
                 type='file'
                 accept='.glb,.gltf,.fbx,.obj'
                 disabled={uploading.model}
@@ -365,8 +366,9 @@ export function TapComfyModels() {
               ) : null}
             </FormItem>
             <FormItem>
-              <FormLabel>缩略图</FormLabel>
+              <FormLabel htmlFor='tapcomfy-thumbnail-file'>缩略图</FormLabel>
               <Input
+                id='tapcomfy-thumbnail-file'
                 type='file'
                 accept='.png,.jpg,.jpeg,.webp'
                 disabled={uploading.thumbnail}
