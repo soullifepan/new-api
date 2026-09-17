@@ -56,6 +56,9 @@ func runTapComfyLegacyImport(args []string) int {
 		fmt.Fprintln(os.Stderr, "TapComfy import database initialization failed")
 		return 1
 	}
+	// This command only opens the primary database. Keep CloseDB from trying to
+	// close an uninitialized log database after an import failure.
+	model.LOG_DB = model.DB
 	defer model.CloseDB()
 	config := tapcomfy.LoadConfig()
 	result, err := tapcomfy.ImportLegacyModels(ctx, model.DB, rows, config.CopyLegacyAsset)
