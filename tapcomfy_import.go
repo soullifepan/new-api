@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -63,7 +64,13 @@ func runTapComfyLegacyImport(args []string) int {
 	config := tapcomfy.LoadConfig()
 	result, err := tapcomfy.ImportLegacyModels(ctx, model.DB, rows, config.CopyLegacyAsset)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "TapComfy legacy catalogue import failed")
+		if errors.Is(err, tapcomfy.ErrInvalidAsset) {
+			fmt.Fprintln(os.Stderr, "TapComfy legacy catalogue import failed: an asset did not satisfy validation")
+		} else if errors.Is(err, tapcomfy.ErrNotConfigured) {
+			fmt.Fprintln(os.Stderr, "TapComfy legacy catalogue import failed: storage is not configured")
+		} else {
+			fmt.Fprintln(os.Stderr, "TapComfy legacy catalogue import failed: an asset transfer failed")
+		}
 		return 1
 	}
 	fmt.Fprintf(os.Stdout, "TapComfy legacy catalogue import completed: created=%d skipped=%d\n", result.Created, result.Skipped)
