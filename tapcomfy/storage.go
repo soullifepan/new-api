@@ -26,6 +26,7 @@ import (
 const (
 	OSSEndpointEnv        = "TAPCOMFY_OSS_ENDPOINT"
 	OSSBucketEnv          = "TAPCOMFY_OSS_BUCKET"
+	OSSAssetsBucketEnv    = "TAPCOMFY_OSS_ASSETS_BUCKET"
 	OSSRegionEnv          = "TAPCOMFY_OSS_REGION"
 	OSSAccessKeyIDEnv     = "TAPCOMFY_OSS_ACCESS_KEY_ID"
 	OSSAccessKeySecretEnv = "TAPCOMFY_OSS_ACCESS_KEY_SECRET"
@@ -45,20 +46,20 @@ const (
 )
 
 type Config struct {
-	OSSEndpoint, Bucket, Region, AccessKeyID, AccessKeySecret, PublicBaseURL, STSEndpoint, STSRoleARN string
+	OSSEndpoint, Bucket, AssetsBucket, Region, AccessKeyID, AccessKeySecret, PublicBaseURL, STSEndpoint, STSRoleARN string
 }
 
 func LoadConfig() Config {
 	return Config{
 		OSSEndpoint: common.GetEnvOrDefaultString(OSSEndpointEnv, ""), Bucket: common.GetEnvOrDefaultString(OSSBucketEnv, ""),
-		Region: common.GetEnvOrDefaultString(OSSRegionEnv, ""), AccessKeyID: common.GetEnvOrDefaultString(OSSAccessKeyIDEnv, ""),
+		AssetsBucket: common.GetEnvOrDefaultString(OSSAssetsBucketEnv, common.GetEnvOrDefaultString(OSSBucketEnv, "")), Region: common.GetEnvOrDefaultString(OSSRegionEnv, ""), AccessKeyID: common.GetEnvOrDefaultString(OSSAccessKeyIDEnv, ""),
 		AccessKeySecret: common.GetEnvOrDefaultString(OSSAccessKeySecretEnv, ""), PublicBaseURL: common.GetEnvOrDefaultString(OSSPublicBaseURLEnv, ""),
 		STSEndpoint: common.GetEnvOrDefaultString(STSEndpointEnv, "https://sts.aliyuncs.com"), STSRoleARN: common.GetEnvOrDefaultString(STSRoleARNEnv, ""),
 	}
 }
 
 func (c Config) validate(requireRole bool) error {
-	if c.OSSEndpoint == "" || c.Bucket == "" || c.Region == "" || c.AccessKeyID == "" || c.AccessKeySecret == "" || (requireRole && c.STSRoleARN == "") {
+	if c.OSSEndpoint == "" || c.Bucket == "" || c.assetsBucket() == "" || c.Region == "" || c.AccessKeyID == "" || c.AccessKeySecret == "" || (requireRole && c.STSRoleARN == "") {
 		return ErrNotConfigured
 	}
 	for _, raw := range []string{c.OSSEndpoint, c.STSEndpoint, c.PublicBaseURL} {
@@ -70,6 +71,13 @@ func (c Config) validate(requireRole bool) error {
 		}
 	}
 	return nil
+}
+
+func (c Config) assetsBucket() string {
+	if c.AssetsBucket != "" {
+		return c.AssetsBucket
+	}
+	return c.Bucket
 }
 
 type STSCredentials struct {
@@ -154,7 +162,7 @@ func (c Config) UploadAsset(ctx context.Context, assetType, filename, contentTyp
 	if err != nil {
 		return nil, err
 	}
-	bucket, err := client.Bucket(c.Bucket)
+	bucket, err := client.Bucket(c.assetsBucket())
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +171,7 @@ func (c Config) UploadAsset(ctx context.Context, assetType, filename, contentTyp
 	}
 	base := strings.TrimSuffix(c.PublicBaseURL, "/")
 	if base == "" {
-		base = "https://" + c.Bucket + "." + c.OSSEndpointHost()
+		base = "https://" + c.assetsBucket() + "." + c.OSSEndpointHost()
 	}
 	return &UploadedAsset{URL: base + "/" + objectKey, ObjectKey: objectKey, AssetType: assetType}, nil
 }
@@ -183,7 +191,7 @@ func (c Config) ValidateAssetReference(assetType, objectKey, assetURL string) bo
 	}
 	base := strings.TrimSuffix(c.PublicBaseURL, "/")
 	if base == "" {
-		base = "https://" + c.Bucket + "." + c.OSSEndpointHost()
+		base = "https://" + c.assetsBucket() + "." + c.OSSEndpointHost()
 	}
 	return assetURL == base+"/"+objectKey
 }
