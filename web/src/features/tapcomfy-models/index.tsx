@@ -90,6 +90,7 @@ export function TapComfyModels() {
   const [editing, setEditing] = useState<TapComfyModel | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<TapComfyModel | null>(null)
+  const [uploading, setUploading] = useState({ model: false, thumbnail: false })
   const modelsQuery = useQuery({
     queryKey: ['tapcomfy-models'],
     queryFn: listTapComfyModels,
@@ -104,27 +105,26 @@ export function TapComfyModels() {
         ? updateTapComfyModel(editing.id, values)
         : createTapComfyModel(values),
     onSuccess: () => {
-      toast.success(t('TapComfy 3D model saved'))
+      toast.success('TapComfy 3D 模型已保存')
       queryClient.invalidateQueries({ queryKey: ['tapcomfy-models'] })
       setDialogOpen(false)
     },
-    onError: (error) =>
-      handleServerError(error, t('Unable to save TapComfy 3D model')),
+    onError: (error) => handleServerError(error, '无法保存 TapComfy 3D 模型'),
   })
   const deleteMutation = useMutation({
     mutationFn: deleteTapComfyModel,
     onSuccess: () => {
-      toast.success(t('TapComfy 3D model deleted'))
+      toast.success('TapComfy 3D 模型已删除')
       queryClient.invalidateQueries({ queryKey: ['tapcomfy-models'] })
       setDeleteTarget(null)
     },
-    onError: (error) =>
-      handleServerError(error, t('Unable to delete TapComfy 3D model')),
+    onError: (error) => handleServerError(error, '无法删除 TapComfy 3D 模型'),
   })
 
   const openForm = useCallback(
     (item?: TapComfyModel) => {
       setEditing(item ?? null)
+      setUploading({ model: false, thumbnail: false })
       form.reset(
         item
           ? {
@@ -205,11 +205,13 @@ export function TapComfyModels() {
     if (!file) return
     if (!validateUpload(file, assetType)) {
       form.setError(assetType === '3d-model' ? 'model_url' : 'thumbnail_url', {
-        message: t('Unsupported file type or file is too large'),
+        message: '不支持的文件类型或文件过大',
       })
       event.target.value = ''
       return
     }
+    const uploadKey = assetType === '3d-model' ? 'model' : 'thumbnail'
+    setUploading((current) => ({ ...current, [uploadKey]: true }))
     try {
       const asset = await uploadTapComfyAsset(file, assetType)
       if (assetType === '3d-model') {
@@ -222,15 +224,18 @@ export function TapComfyModels() {
           'format',
           fileExtension(file) as ModelFormValues['format']
         )
+        form.clearErrors('model_url')
       } else {
         form.setValue('thumbnail_url', asset.url, { shouldValidate: true })
         form.setValue('thumbnail_object_key', asset.objectKey, {
           shouldValidate: true,
         })
+        form.clearErrors('thumbnail_url')
       }
     } catch (error) {
-      handleServerError(error, t('Unable to upload TapComfy asset'))
+      handleServerError(error, '无法上传 TapComfy 素材')
     } finally {
+      setUploading((current) => ({ ...current, [uploadKey]: false }))
       event.target.value = ''
     }
   }
@@ -238,13 +243,11 @@ export function TapComfyModels() {
   return (
     <>
       <SectionPageLayout fixedContent>
-        <SectionPageLayout.Title>
-          {t('TapComfy 3D Models')}
-        </SectionPageLayout.Title>
+        <SectionPageLayout.Title>TapComfy 3D 模型</SectionPageLayout.Title>
         <SectionPageLayout.Actions>
           <Button onClick={() => openForm()}>
             <Plus />
-            {t('Create model')}
+            新建模型
           </Button>
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
@@ -253,25 +256,26 @@ export function TapComfyModels() {
             columns={columns}
             isLoading={modelsQuery.isLoading}
             isFetching={modelsQuery.isFetching}
-            emptyTitle={t('No TapComfy 3D models found')}
-            emptyDescription={t(
-              'Create a 3D model preset to make it available to TapComfy.'
-            )}
+            emptyTitle='没有 TapComfy 3D 模型'
+            emptyDescription='创建 3D 模型预设以供 TapComfy 使用。'
             skeletonKeyPrefix='tapcomfy-models'
           />
         </SectionPageLayout.Content>
       </SectionPageLayout>
       <Dialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        title={
-          editing ? t('Edit TapComfy 3D model') : t('Create TapComfy 3D model')
-        }
+        onOpenChange={(open) => {
+          setDialogOpen(open)
+          if (!open) setUploading({ model: false, thumbnail: false })
+        }}
+        title={editing ? '编辑 TapComfy 3D 模型' : '新建 TapComfy 3D 模型'}
         footer={
           <Button
             form='tapcomfy-model-form'
             type='submit'
-            disabled={saveMutation.isPending}
+            disabled={
+              saveMutation.isPending || uploading.model || uploading.thumbnail
+            }
           >
             {t('Save')}
           </Button>
@@ -351,22 +355,28 @@ export function TapComfyModels() {
               <Input
                 type='file'
                 accept='.glb,.gltf,.fbx,.obj'
+                disabled={uploading.model}
                 onChange={(event) => upload(event, '3d-model')}
               />
-              <FormMessage>
-                {form.formState.errors.model_url?.message}
-              </FormMessage>
+              {form.formState.errors.model_url?.message ? (
+                <p className='text-destructive text-sm' role='alert'>
+                  {form.formState.errors.model_url.message}
+                </p>
+              ) : null}
             </FormItem>
             <FormItem>
-              <FormLabel>{t('Thumbnail image')}</FormLabel>
+              <FormLabel>缩略图</FormLabel>
               <Input
                 type='file'
                 accept='.png,.jpg,.jpeg,.webp'
+                disabled={uploading.thumbnail}
                 onChange={(event) => upload(event, '3d-thumbnail')}
               />
-              <FormMessage>
-                {form.formState.errors.thumbnail_url?.message}
-              </FormMessage>
+              {form.formState.errors.thumbnail_url?.message ? (
+                <p className='text-destructive text-sm' role='alert'>
+                  {form.formState.errors.thumbnail_url.message}
+                </p>
+              ) : null}
             </FormItem>
           </form>
         </Form>
@@ -375,10 +385,8 @@ export function TapComfyModels() {
         destructive
         open={deleteTarget !== null}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
-        title={t('Delete TapComfy 3D model?')}
-        desc={t(
-          'This only deletes the catalogue metadata. Uploaded files are not removed.'
-        )}
+        title='删除 TapComfy 3D 模型？'
+        desc='这只会删除目录元数据，不会删除已上传的文件。'
         confirmText={t('Delete')}
         isLoading={deleteMutation.isPending}
         handleConfirm={() =>
