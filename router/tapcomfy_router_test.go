@@ -42,7 +42,7 @@ func TestTapComfyRouteRolesReachOnlyAuthorizedHandlers(t *testing.T) {
 	previousDB, previousLogDB, previousRedis := model.DB, model.LOG_DB, common.RedisEnabled
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.AuditLog{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.AuditLog{}, &model.TapComfyModel{}))
 	model.DB, model.LOG_DB, common.RedisEnabled = db, db, false
 	t.Cleanup(func() { model.DB, model.LOG_DB, common.RedisEnabled = previousDB, previousLogDB, previousRedis })
 	t.Setenv("TAPCOMFY_OSS_ENDPOINT", "")
@@ -64,6 +64,12 @@ func TestTapComfyRouteRolesReachOnlyAuthorizedHandlers(t *testing.T) {
 	request.Header.Set("Authorization", "Bearer "+commonToken)
 	engine.ServeHTTP(upload, request)
 	assert.Equal(t, http.StatusForbidden, upload.Code)
+
+	adminModel := httptest.NewRecorder()
+	request = httptest.NewRequest(http.MethodPost, "/api/tapcomfy/v1/admin/models", nil)
+	request.Header.Set("Authorization", "Bearer "+commonToken)
+	engine.ServeHTTP(adminModel, request)
+	assert.Equal(t, http.StatusForbidden, adminModel.Code)
 
 	adminUpload := httptest.NewRecorder()
 	request = httptest.NewRequest(http.MethodPost, "/api/tapcomfy/v1/admin/assets", nil)

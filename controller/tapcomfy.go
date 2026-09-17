@@ -37,7 +37,7 @@ func GetTapComfyModels(c *gin.Context) {
 	if limit > 100 {
 		limit = 100
 	}
-	query := model.DB.Where("status = ?", model.TapComfyModelStatusPublished)
+	query := model.DB.Model(&model.TapComfyModel{}).Where("status = ?", model.TapComfyModelStatusPublished)
 	if category := strings.TrimSpace(c.Query("category")); category != "" {
 		query = query.Where("category = ?", category)
 	}
