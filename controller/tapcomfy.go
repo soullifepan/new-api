@@ -51,7 +51,22 @@ func GetTapComfyModels(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "catalog unavailable"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": models, "page": page, "limit": limit, "total": total})
+	data := make([]tapComfyPublicModel, 0, len(models))
+	for _, item := range models {
+		data = append(data, tapComfyPublicModel{ID: item.ID, Name: item.Name, Category: item.Category, ThumbnailURL: item.ThumbnailURL, ModelURL: item.ModelURL, Format: item.Format, FileSize: item.FileSize, Sort: item.Sort})
+	}
+	c.JSON(http.StatusOK, gin.H{"data": data, "page": page, "limit": limit, "total": total})
+}
+
+type tapComfyPublicModel struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Category     string `json:"category"`
+	ThumbnailURL string `json:"thumbnail_url"`
+	ModelURL     string `json:"model_url"`
+	Format       string `json:"format"`
+	FileSize     int64  `json:"file_size"`
+	Sort         int    `json:"sort"`
 }
 
 func GetTapComfyAdminModels(c *gin.Context) {
@@ -92,7 +107,7 @@ func CreateTapComfyModel(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid model"})
 		return
 	}
-	item := model.TapComfyModel{ID: uuid.NewString(), Name: strings.TrimSpace(input.Name), Category: strings.TrimSpace(input.Category), ThumbnailURL: input.ThumbnailURL, ThumbnailObjectKey: input.ThumbnailObjectKey, ModelURL: input.ModelURL, ModelObjectKey: input.ModelObjectKey, Format: strings.TrimPrefix(input.Format, "."), FileSize: input.FileSize, Sort: input.Sort, Status: input.Status}
+	item := model.TapComfyModel{ID: uuid.NewString(), Name: strings.TrimSpace(input.Name), Category: strings.TrimSpace(input.Category), ThumbnailURL: input.ThumbnailURL, ThumbnailObjectKey: input.ThumbnailObjectKey, ModelURL: input.ModelURL, ModelObjectKey: input.ModelObjectKey, Format: strings.TrimPrefix(strings.ToLower(input.Format), "."), FileSize: input.FileSize, Sort: input.Sort, Status: input.Status}
 	if err := model.DB.Create(&item).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "unable to create model"})
 		return
@@ -116,7 +131,7 @@ func UpdateTapComfyModel(c *gin.Context) {
 	item.ThumbnailObjectKey = input.ThumbnailObjectKey
 	item.ModelURL = input.ModelURL
 	item.ModelObjectKey = input.ModelObjectKey
-	item.Format = strings.TrimPrefix(input.Format, ".")
+	item.Format = strings.TrimPrefix(strings.ToLower(input.Format), ".")
 	item.FileSize = input.FileSize
 	item.Sort = input.Sort
 	item.Status = input.Status

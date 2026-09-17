@@ -169,8 +169,16 @@ func (c Config) UploadAsset(ctx context.Context, assetType, filename, contentTyp
 }
 
 func (c Config) ValidateAssetReference(assetType, objectKey, assetURL string) bool {
+	if c.validate(false) != nil {
+		return false
+	}
 	directory, _, _ := assetRules(assetType)
-	if directory == "" || !strings.HasPrefix(objectKey, directory) || strings.Contains(objectKey, "..") {
+	if directory == "" || !strings.HasPrefix(objectKey, directory) || strings.Contains(objectKey, "..") || strings.Contains(objectKey, "\\") || strings.ContainsAny(objectKey, "?#") {
+		return false
+	}
+	ext := strings.ToLower(path.Ext(objectKey))
+	_, _, allowed := assetRules(assetType)
+	if !allowed[ext] || strings.TrimPrefix(objectKey, directory) == "" {
 		return false
 	}
 	base := strings.TrimSuffix(c.PublicBaseURL, "/")

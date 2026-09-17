@@ -18,8 +18,8 @@ type TapComfyModel struct {
 	ModelURL           string    `json:"model_url" gorm:"type:text;not null"`
 	ModelObjectKey     string    `json:"model_object_key" gorm:"type:varchar(512);not null"`
 	Format             string    `json:"format" gorm:"type:varchar(16);not null"`
-	FileSize           int64     `json:"file_size;not null"`
-	Sort               int       `json:"sort;not null;index"`
+	FileSize           int64     `json:"file_size" gorm:"not null"`
+	Sort               int       `json:"sort" gorm:"not null;index"`
 	Status             string    `json:"status" gorm:"type:varchar(16);not null;index"`
 	CreatedAt          time.Time `json:"created_at"`
 	UpdatedAt          time.Time `json:"updated_at"`

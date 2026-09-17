@@ -87,6 +87,10 @@ func TestStorageValidationAndAssetWhitelist(t *testing.T) {
 	assert.True(t, ok)
 	_, ok = assetContentAllowed("3d-thumbnail", ".png", "image/png", []byte("not a PNG"))
 	assert.False(t, ok)
+	config := Config{OSSEndpoint: "https://oss.example.com", Bucket: "bucket", Region: "region", AccessKeyID: "id", AccessKeySecret: "secret"}
+	assert.True(t, config.ValidateAssetReference("3d-model", "3d_models/models/example.glb", "https://bucket.oss.example.com/3d_models/models/example.glb"))
+	assert.False(t, config.ValidateAssetReference("3d-model", "3d_models/models/../secret.glb", "https://bucket.oss.example.com/3d_models/models/../secret.glb"))
+	assert.False(t, Config{}.ValidateAssetReference("3d-model", "3d_models/models/example.glb", "https://bucket.oss.example.com/3d_models/models/example.glb"))
 }
 
 func TestAssetContentAllowedValidates3DFormatsAndMIME(t *testing.T) {
