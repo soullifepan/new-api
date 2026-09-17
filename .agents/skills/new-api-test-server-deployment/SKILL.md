@@ -32,6 +32,56 @@ description: 发布、更新或排查 Tapcomfy New API 测试服务器，包括 
 5. 通过 HTTPS 域名确认主页和 API 可达，检查应用容器启动日志只包含正常迁移、插件同步与监听信息，并确认 PostgreSQL、Redis、Caddy 未被替换。
 6. 发生失败时，先保留日志和当前数据，再恢复上一个已验证二进制或镜像；不要用破坏性命令重置持久化数据。
 
+## TapComfy OSS、STS 与模型目录
+
+TapComfy 相关配置只属于 `new-api` 服务。远端部署根使用独立的
+`/opt/tapcomfy/newapi/tapcomfy-oss.env`：文件必须为 `root` 所有且权限为
+`0600`，并仅通过 `compose.yaml` 中 `new-api.env_file` 引用。不要将这些变量
+写入 Compose、Git、shell 历史或命令输出。
+
+- `TAPCOMFY_OSS_BUCKET` 是 STS 发给桌面端的普通客户端上传桶。
+- `TAPCOMFY_OSS_ASSETS_BUCKET` 是管理台 3D 素材上传、素材引用校验和默认公开
+  URL 使用的模型素材桶；未设置时服务端回退到 `TAPCOMFY_OSS_BUCKET`，以兼容
+  单桶部署。
+- 其余必需变量为 `TAPCOMFY_OSS_ACCESS_KEY_ID`、
+  `TAPCOMFY_OSS_ACCESS_KEY_SECRET`、`TAPCOMFY_OSS_REGION`、
+  `TAPCOMFY_STS_ROLE_ARN`、`TAPCOMFY_OSS_ENDPOINT`、
+  `TAPCOMFY_STS_ENDPOINT`。OSS endpoint 应从 region 规范化为
+  `https://oss-<region>.aliyuncs.com`，STS endpoint 为
+  `https://sts.aliyuncs.com`。不要猜测或设置 `TAPCOMFY_OSS_PUBLIC_BASE_URL`。
+
+变更此配置时，先为 `/opt/tapcomfy/newapi/compose.yaml` 建立带时间戳的备份，
+以临时同目录文件原子替换 secrets env 文件；完成后仅将合并 Compose 配置重定向
+到文件或 `/dev/null` 以验证语法，例如：
+
+```sh
+docker compose -f compose.yaml -f compose.test-runtime.yaml config >/dev/null
+```
+
+`docker compose config` 会解析环境变量，不能把它的输出显示或写入可访问日志。容器
+内验证只能逐个检查变量是否存在（输出 `present`/`missing`），不可执行 `env`、
+`printenv` 无参数或显示变量值。发布后检查 `/api/status`，可对公开
+`/api/tapcomfy/v1/models` 做状态码及 `data`、`page`、`limit`、`total` 结构检查；
+不要调用会签发凭据的 STS 端点，也不要用真实素材探测上传。
+
+### 一次性旧目录导入
+
+将旧 Supabase 目录迁入测试环境需要用户对源与目标的单独授权，绝不能作为普通
+`deploy-test.sh` 发布的一部分。导入前备份 PostgreSQL 的 `tap_comfy_models` 表并
+记录行数；导入失败时保留备份和诊断信息，不自动恢复数据库或删除 OSS 对象。
+
+优先在可信本地从旧源导出**仅元数据** JSON，以 `0600` 临时文件传入远端
+`/opt/tapcomfy/newapi/data/`，运行容器内的 `tapcomfy-import-models`。若旧源不是
+HTTPS，或未明确授权将 Supabase service-role 凭据放入远端，不得将该凭据写入
+`env_file`；使用 `TAPCOMFY_LEGACY_MODELS_FILE` 传递临时 JSON，并在导入后删除。
+先执行 `--dry-run`，再执行正式导入。旧目录的公开资产位于不符合新固定前缀的扁平
+路径时，使用 `--preserve-legacy-assets` 可保留已验证的 HTTPS 引用，保证桌面端无缝
+切换；新管理台上传仍必须写入当前服务的固定安全目录。
+
+导入以旧稳定 ID 幂等，完成后核对表行数、已发布条目数和公开模型目录响应。对迁移
+条目进行管理员更新时，未改变的旧引用可以保留；一旦替换文件，新的 URL 和 object key
+必须通过当前素材桶及固定目录校验。
+
 ## Task Plugin 发布与计费验收
 
 1. 使用 `new-api-task-plugin-development` 的本地校验结果和递增后的插件版本上传插件。
