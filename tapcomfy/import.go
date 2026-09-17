@@ -158,11 +158,26 @@ func (c Config) CopyLegacyAsset(ctx context.Context, assetType, sourceURL string
 	if _, err = temporary.Seek(0, io.SeekStart); err != nil {
 		return nil, 0, err
 	}
-	asset, err := c.UploadAsset(ctx, assetType, path.Base(parsed.Path), response.Header.Get("Content-Type"), size, temporary)
+	probe := make([]byte, 512)
+	n, readErr := temporary.Read(probe)
+	if readErr != nil && !errors.Is(readErr, io.EOF) {
+		return nil, 0, readErr
+	}
+	if _, err = temporary.Seek(0, io.SeekStart); err != nil {
+		return nil, 0, err
+	}
+	asset, err := c.UploadAsset(ctx, assetType, path.Base(parsed.Path), legacyDeclaredContentType(assetType, probe[:n]), size, temporary)
 	if err != nil {
 		return nil, 0, err
 	}
 	return asset, size, nil
+}
+
+func legacyDeclaredContentType(assetType string, content []byte) string {
+	if assetType == "3d-model" {
+		return ""
+	}
+	return http.DetectContentType(content)
 }
 
 func legacyHTTPClient() *http.Client {

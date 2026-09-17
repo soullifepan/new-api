@@ -135,3 +135,9 @@ func TestParseLegacyAssetURLUpgradesHTTPWithoutPermittingOtherSchemes(t *testing
 	_, err = parseLegacyAssetURL("ftp://legacy.example/3d_models/chair.glb", "3d-model")
 	require.Error(t, err)
 }
+
+func TestLegacyDeclaredContentTypeUsesBytesInsteadOfLegacyHeaders(t *testing.T) {
+	png := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}
+	assert.Equal(t, "image/png", legacyDeclaredContentType("3d-thumbnail", png))
+	assert.Empty(t, legacyDeclaredContentType("3d-model", []byte("not a trusted MIME declaration")))
+}
