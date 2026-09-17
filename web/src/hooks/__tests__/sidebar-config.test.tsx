@@ -180,3 +180,22 @@ describe('audit log sidebar entry', () => {
     expect(titles).toContain('Audit Logs')
   })
 })
+
+describe('TapComfy sidebar group', () => {
+  it('keeps 3D models inside a dedicated TapComfy secondary menu', () => {
+    const { result } = sidebarFor()
+    const adminItems =
+      result.current.find((group) => group.id === 'admin')?.items ?? []
+    expect(adminItems).toContainEqual(
+      expect.objectContaining({
+        title: 'TapComfy',
+        items: [
+          expect.objectContaining({
+            title: '3D 模型',
+            url: '/tapcomfy-models',
+          }),
+        ],
+      })
+    )
+  })
+})

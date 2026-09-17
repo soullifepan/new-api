@@ -1,0 +1,60 @@
+package main
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/tapcomfy"
+)
+
+const (
+	legacySupabaseURLEnv = "TAPCOMFY_LEGACY_SUPABASE_URL"
+	legacySupabaseKeyEnv = "TAPCOMFY_LEGACY_SUPABASE_SERVICE_ROLE_KEY"
+)
+
+func runTapComfyLegacyImport(args []string) int {
+	flags := flag.NewFlagSet("tapcomfy-import-models", flag.ContinueOnError)
+	flags.SetOutput(os.Stderr)
+	dryRun := flags.Bool("dry-run", false, "validate legacy catalogue access without writing data")
+	if err := flags.Parse(args); err != nil {
+		return 2
+	}
+	legacyURL := strings.TrimSpace(os.Getenv(legacySupabaseURLEnv))
+	legacyKey := strings.TrimSpace(os.Getenv(legacySupabaseKeyEnv))
+	if legacyURL == "" || legacyKey == "" {
+		fmt.Fprintln(os.Stderr, "TapComfy legacy catalogue credentials are not configured")
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+	rows, err := tapcomfy.FetchLegacyModels(ctx, legacyURL, legacyKey, 1000)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "TapComfy legacy catalogue import failed")
+		return 1
+	}
+	if *dryRun {
+		fmt.Fprintf(os.Stdout, "TapComfy legacy catalogue dry run succeeded: rows=%d\n", len(rows))
+		return 0
+	}
+
+	common.InitEnv()
+	if err := model.InitDB(); err != nil {
+		fmt.Fprintln(os.Stderr, "TapComfy import database initialization failed")
+		return 1
+	}
+	defer model.CloseDB()
+	config := tapcomfy.LoadConfig()
+	result, err := tapcomfy.ImportLegacyModels(ctx, model.DB, rows, config.CopyLegacyAsset)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "TapComfy legacy catalogue import failed")
+		return 1
+	}
+	fmt.Fprintf(os.Stdout, "TapComfy legacy catalogue import completed: created=%d skipped=%d\n", result.Created, result.Skipped)
+	return 0
+}
