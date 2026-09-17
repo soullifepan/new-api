@@ -24,6 +24,7 @@ func runTapComfyLegacyImport(args []string) int {
 	flags := flag.NewFlagSet("tapcomfy-import-models", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
 	dryRun := flags.Bool("dry-run", false, "validate legacy catalogue access without writing data")
+	preserveLegacyAssets := flags.Bool("preserve-legacy-assets", false, "keep verified legacy public asset URLs instead of copying them")
 	if err := flags.Parse(args); err != nil {
 		return 2
 	}
@@ -62,7 +63,11 @@ func runTapComfyLegacyImport(args []string) int {
 	model.LOG_DB = model.DB
 	defer model.CloseDB()
 	config := tapcomfy.LoadConfig()
-	result, err := tapcomfy.ImportLegacyModels(ctx, model.DB, rows, config.CopyLegacyAsset)
+	uploader := config.CopyLegacyAsset
+	if *preserveLegacyAssets {
+		uploader = tapcomfy.LegacyAssetReference
+	}
+	result, err := tapcomfy.ImportLegacyModels(ctx, model.DB, rows, uploader)
 	if err != nil {
 		if errors.Is(err, tapcomfy.ErrInvalidAsset) {
 			fmt.Fprintln(os.Stderr, "TapComfy legacy catalogue import failed: an asset did not satisfy validation")

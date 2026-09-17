@@ -173,6 +173,29 @@ func (c Config) CopyLegacyAsset(ctx context.Context, assetType, sourceURL string
 	return asset, size, nil
 }
 
+// LegacyAssetReference preserves a verified legacy public object when copying
+// into OSS is unavailable. It is used only by the one-time importer; admin
+// uploads remain constrained to the new fixed directories.
+func LegacyAssetReference(ctx context.Context, assetType, sourceURL string) (*UploadedAsset, int64, error) {
+	parsed, err := parseLegacyAssetURL(sourceURL, assetType)
+	if err != nil {
+		return nil, 0, err
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodHead, parsed.String(), nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	response, err := legacyHTTPClient().Do(request)
+	if err != nil || response == nil {
+		return nil, 0, errors.New("legacy asset reference check failed")
+	}
+	defer response.Body.Close()
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices || response.ContentLength <= 0 {
+		return nil, 0, errors.New("legacy asset reference check failed")
+	}
+	return &UploadedAsset{URL: parsed.String(), ObjectKey: strings.TrimPrefix(parsed.EscapedPath(), "/"), AssetType: assetType}, response.ContentLength, nil
+}
+
 func legacyDeclaredContentType(assetType string, content []byte) string {
 	if assetType == "3d-model" {
 		return ""
@@ -287,5 +310,8 @@ func validImportedAsset(assetType string, asset *UploadedAsset) bool {
 		return false
 	}
 	directory, _, allowed := assetRules(assetType)
-	return strings.HasPrefix(asset.ObjectKey, directory) && allowed[strings.ToLower(path.Ext(asset.ObjectKey))]
+	if !allowed[strings.ToLower(path.Ext(asset.ObjectKey))] {
+		return false
+	}
+	return strings.HasPrefix(asset.ObjectKey, directory) || (strings.HasPrefix(asset.ObjectKey, "3d_models/") && !strings.Contains(asset.ObjectKey, "..") && !strings.ContainsAny(asset.ObjectKey, "\\?#"))
 }
