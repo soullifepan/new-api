@@ -3,30 +3,64 @@ package tapcomfy
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
+	"time"
 
+	"github.com/aliyun/alibaba-cloud-sdk-go/services/sts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestAssumeRoleReturnsLegacyStorageContract(t *testing.T) {
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "AssumeRole", r.URL.Query().Get("Action"))
-		assert.NotEmpty(t, r.URL.Query().Get("Signature"))
-		_, _ = io.WriteString(w, `{"Credentials":{"AccessKeyId":"temporary-id","AccessKeySecret":"temporary-secret","SecurityToken":"temporary-token","Expiration":"2026-09-17T14:00:00Z"}}`)
-	}))
-	defer server.Close()
-	original := http.DefaultClient
-	http.DefaultClient = server.Client()
-	t.Cleanup(func() { http.DefaultClient = original })
-
-	config := Config{OSSEndpoint: "https://oss-cn-hangzhou.aliyuncs.com", Bucket: "tapcomfy-models", Region: "cn-hangzhou", AccessKeyID: "id", AccessKeySecret: "secret", STSEndpoint: server.URL, STSRoleARN: "acs:ram::123:role/tapcomfy"}
-	credentials, err := config.AssumeRole(context.Background())
+	config := Config{Bucket: "tapcomfy-models", Region: "cn-hangzhou"}
+	credentials, err := config.storageCredentials(sts.Credentials{AccessKeyId: "temporary-id", AccessKeySecret: "temporary-secret", SecurityToken: "temporary-token", Expiration: "2026-09-17T14:00:00Z"})
 	require.NoError(t, err)
 	assert.Equal(t, &STSCredentials{AccessKeyID: "temporary-id", AccessKeySecret: "temporary-secret", SecurityToken: "temporary-token", Expiration: "2026-09-17T14:00:00Z", Bucket: "tapcomfy-models", Region: "cn-hangzhou"}, credentials)
+	_, err = config.storageCredentials(sts.Credentials{AccessKeyId: "temporary-id"})
+	assert.ErrorContains(t, err, "incomplete")
+}
+
+func TestStorageHTTPGuardsRejectRedirectsAndTimeouts(t *testing.T) {
+	redirect := &rejectRedirectTransport{base: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusFound, Body: http.NoBody}, nil
+	})}
+	_, err := (&http.Client{Transport: redirect, Timeout: 20 * time.Millisecond}).Get("https://storage.example.com")
+	assert.ErrorContains(t, err, "redirects are not allowed")
+	timeout := &rejectRedirectTransport{base: roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+		<-request.Context().Done()
+		return nil, request.Context().Err()
+	})}
+	client := &http.Client{Transport: timeout, Timeout: 20 * time.Millisecond}
+	_, err = client.Get("https://storage.example.com")
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, context.DeadlineExceeded))
+}
+
+func TestAssumeRoleRejectsUpstreamNonSuccess(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, http.MethodPost, request.Method)
+		writer.WriteHeader(http.StatusBadGateway)
+		_, _ = io.WriteString(writer, `{"Message":"unavailable"}`)
+	}))
+	defer server.Close()
+	endpoint, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	transport := server.Client().Transport.(*http.Transport).Clone()
+	config := Config{OSSEndpoint: "https://oss-cn-hangzhou.aliyuncs.com", Bucket: "tapcomfy-models", Region: "cn-hangzhou", AccessKeyID: "id", AccessKeySecret: "secret", STSEndpoint: server.URL, STSRoleARN: "acs:ram::123:role/tapcomfy"}
+	_, err = config.assumeRole(context.Background(), transport)
+	require.Error(t, err)
+	assert.Contains(t, endpoint.Host, "127.0.0.1")
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripperFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return fn(request)
 }
 
 func TestStorageValidationAndAssetWhitelist(t *testing.T) {
@@ -49,4 +83,7 @@ func TestStorageValidationAndAssetWhitelist(t *testing.T) {
 	assert.ErrorIs(t, err, ErrInvalidAsset)
 	_, err = configured.UploadAsset(context.Background(), "3d-thumbnail", "preview.png", "image/png", 11<<20, bytes.NewReader([]byte("x")))
 	assert.ErrorIs(t, err, ErrInvalidAsset)
+	assert.True(t, assetMIMEAllowed("3d-thumbnail", ".png", "image/png", "image/png"))
+	assert.False(t, assetMIMEAllowed("3d-thumbnail", ".png", "image/jpeg", "image/png"))
+	assert.False(t, assetMIMEAllowed("3d-thumbnail", ".png", "image/png", "text/plain; charset=utf-8"))
 }

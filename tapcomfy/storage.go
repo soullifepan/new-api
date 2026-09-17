@@ -2,10 +2,8 @@
 package tapcomfy
 
 import (
+	"bytes"
 	"context"
-	"crypto/hmac"
-	"crypto/sha1" // Alibaba Cloud STS SignatureVersion 1.0 requires HMAC-SHA1.
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -17,9 +15,11 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aliyun/alibaba-cloud-sdk-go/sdk"
+	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/auth/credentials"
+	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
+	"github.com/aliyun/alibaba-cloud-sdk-go/services/sts"
+	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 	"github.com/google/uuid"
 )
 
@@ -37,6 +37,11 @@ const (
 var (
 	ErrNotConfigured = errors.New("TapComfy storage is not configured")
 	ErrInvalidAsset  = errors.New("invalid TapComfy asset")
+)
+
+const (
+	storageConnectTimeout = 5 * time.Second
+	storageRequestTimeout = 30 * time.Second
 )
 
 type Config struct {
@@ -80,39 +85,38 @@ func (c Config) AssumeRole(ctx context.Context) (*STSCredentials, error) {
 	if err := c.validate(true); err != nil {
 		return nil, err
 	}
-	params := url.Values{"Action": {"AssumeRole"}, "Version": {"2015-04-01"}, "Format": {"JSON"}, "AccessKeyId": {c.AccessKeyID}, "SignatureMethod": {"HMAC-SHA1"}, "Timestamp": {time.Now().UTC().Format("2006-01-02T15:04:05Z")}, "SignatureVersion": {"1.0"}, "SignatureNonce": {uuid.NewString()}, "RoleArn": {c.STSRoleARN}, "RoleSessionName": {"tapcomfy-storage"}}
-	canonical := params.Encode()
-	toSign := "GET&%2F&" + url.QueryEscape(canonical)
-	mac := hmac.New(sha1.New, []byte(c.AccessKeySecret+"&"))
-	_, _ = mac.Write([]byte(toSign))
-	params.Set("Signature", base64.StdEncoding.EncodeToString(mac.Sum(nil)))
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.STSEndpoint+"?"+params.Encode(), nil)
+	return c.assumeRole(ctx, http.DefaultTransport.(*http.Transport).Clone())
+}
+
+func (c Config) assumeRole(ctx context.Context, transport *http.Transport) (*STSCredentials, error) {
+	endpoint, _ := url.Parse(c.STSEndpoint)
+	client, err := sts.NewClientWithOptions(c.Region, sdk.NewConfig().WithScheme("HTTPS").WithTimeout(storageRequestTimeout).WithHttpTransport(transport), credentials.NewAccessKeyCredential(c.AccessKeyID, c.AccessKeySecret))
 	if err != nil {
 		return nil, err
 	}
-	response, err := http.DefaultClient.Do(req)
+	client.SetTransport(&rejectRedirectTransport{base: transport})
+	client.SetEndpointRules(map[string]string{c.Region: endpoint.Host}, "regional", "")
+	request := sts.CreateAssumeRoleRequest()
+	request.Method = requests.POST
+	request.RoleArn = c.STSRoleARN
+	request.RoleSessionName = "tapcomfy-storage"
+	request.SetConnectTimeout(storageConnectTimeout)
+	request.SetReadTimeout(storageRequestTimeout)
+	response, err := client.AssumeRole(request)
 	if err != nil {
 		return nil, err
 	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("STS returned %s", response.Status)
-	}
-	var payload struct {
-		Credentials struct {
-			AccessKeyID     string `json:"AccessKeyId"`
-			AccessKeySecret string `json:"AccessKeySecret"`
-			SecurityToken   string `json:"SecurityToken"`
-			Expiration      string `json:"Expiration"`
-		} `json:"Credentials"`
-	}
-	if err := common.DecodeJson(response.Body, &payload); err != nil {
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if payload.Credentials.AccessKeyID == "" || payload.Credentials.AccessKeySecret == "" || payload.Credentials.SecurityToken == "" || payload.Credentials.Expiration == "" {
+	return c.storageCredentials(response.Credentials)
+}
+
+func (c Config) storageCredentials(credentials sts.Credentials) (*STSCredentials, error) {
+	if credentials.AccessKeyId == "" || credentials.AccessKeySecret == "" || credentials.SecurityToken == "" || credentials.Expiration == "" {
 		return nil, errors.New("STS response is incomplete")
 	}
-	return &STSCredentials{AccessKeyID: payload.Credentials.AccessKeyID, AccessKeySecret: payload.Credentials.AccessKeySecret, SecurityToken: payload.Credentials.SecurityToken, Expiration: payload.Credentials.Expiration, Bucket: c.Bucket, Region: c.Region}, nil
+	return &STSCredentials{AccessKeyID: credentials.AccessKeyId, AccessKeySecret: credentials.AccessKeySecret, SecurityToken: credentials.SecurityToken, Expiration: credentials.Expiration, Bucket: c.Bucket, Region: c.Region}, nil
 }
 
 type UploadedAsset struct {
@@ -131,14 +135,28 @@ func (c Config) UploadAsset(ctx context.Context, assetType, filename, contentTyp
 	if !allowed[ext] {
 		return nil, ErrInvalidAsset
 	}
-	contentType, _, _ = mime.ParseMediaType(contentType)
-	if contentType == "" {
-		contentType = mime.TypeByExtension(ext)
+	declaredType, _, _ := mime.ParseMediaType(contentType)
+	probe := make([]byte, 512)
+	n, readErr := io.ReadFull(body, probe)
+	if readErr != nil && !errors.Is(readErr, io.ErrUnexpectedEOF) {
+		return nil, ErrInvalidAsset
 	}
+	probe = probe[:n]
+	detectedType := http.DetectContentType(probe)
+	if !assetMIMEAllowed(assetType, ext, declaredType, detectedType) {
+		return nil, ErrInvalidAsset
+	}
+	contentType = detectedType
 	objectKey := directory + uuid.NewString() + ext
-	client := s3.New(s3.Options{Region: c.Region, BaseEndpoint: aws.String(c.OSSEndpoint), UsePathStyle: true, Credentials: credentials.NewStaticCredentialsProvider(c.AccessKeyID, c.AccessKeySecret, "")})
-	_, err := client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(c.Bucket), Key: aws.String(objectKey), Body: body, ContentType: aws.String(contentType)})
+	client, err := oss.New(c.OSSEndpoint, c.AccessKeyID, c.AccessKeySecret, oss.Timeout(5, 30), oss.HTTPClient(&http.Client{Timeout: storageRequestTimeout, Transport: &rejectRedirectTransport{base: http.DefaultTransport.(*http.Transport).Clone()}}))
 	if err != nil {
+		return nil, err
+	}
+	bucket, err := client.Bucket(c.Bucket)
+	if err != nil {
+		return nil, err
+	}
+	if err := bucket.PutObject(objectKey, io.MultiReader(bytes.NewReader(probe), body), oss.ContentType(contentType)); err != nil {
 		return nil, err
 	}
 	base := strings.TrimSuffix(c.PublicBaseURL, "/")
@@ -146,6 +164,27 @@ func (c Config) UploadAsset(ctx context.Context, assetType, filename, contentTyp
 		base = "https://" + c.Bucket + "." + c.OSSEndpointHost()
 	}
 	return &UploadedAsset{URL: base + "/" + objectKey}, nil
+}
+
+func assetMIMEAllowed(assetType, extension, declared, detected string) bool {
+	if declared == "" {
+		return false
+	}
+	if assetType == "3d-thumbnail" {
+		return (extension == ".png" && declared == "image/png" && detected == "image/png") || ((extension == ".jpg" || extension == ".jpeg") && declared == "image/jpeg" && detected == "image/jpeg") || (extension == ".webp" && declared == "image/webp" && detected == "image/webp")
+	}
+	return (extension == ".glb" && declared == "model/gltf-binary" && detected == "application/octet-stream") || (extension == ".gltf" && declared == "model/gltf+json" && detected == "application/json") || (extension == ".fbx" && (declared == "application/octet-stream" || declared == "model/fbx") && detected == "application/octet-stream") || (extension == ".obj" && declared == "model/obj" && (detected == "text/plain; charset=utf-8" || detected == "text/plain; charset=us-ascii"))
+}
+
+type rejectRedirectTransport struct{ base http.RoundTripper }
+
+func (t *rejectRedirectTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	response, err := t.base.RoundTrip(request)
+	if err != nil || response.StatusCode < 300 || response.StatusCode >= 400 {
+		return response, err
+	}
+	response.Body.Close()
+	return nil, fmt.Errorf("redirects are not allowed")
 }
 
 func (c Config) OSSEndpointHost() string { u, _ := url.Parse(c.OSSEndpoint); return u.Host }
