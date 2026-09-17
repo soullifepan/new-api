@@ -25,6 +25,19 @@ func TestTapComfyRoutesRequireNewAPIAuthentication(t *testing.T) {
 	}
 }
 
+func TestTapComfyCatalogRoutesRegister(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	SetApiRouter(engine)
+	registered := map[string]bool{}
+	for _, route := range engine.Routes() {
+		registered[route.Method+" "+route.Path] = true
+	}
+	for _, route := range []string{"GET /api/tapcomfy/v1/models", "GET /api/tapcomfy/v1/admin/models", "POST /api/tapcomfy/v1/admin/models", "PUT /api/tapcomfy/v1/admin/models/:id", "DELETE /api/tapcomfy/v1/admin/models/:id"} {
+		assert.True(t, registered[route], route)
+	}
+}
+
 func TestTapComfyRouteRolesReachOnlyAuthorizedHandlers(t *testing.T) {
 	previousDB, previousLogDB, previousRedis := model.DB, model.LOG_DB, common.RedisEnabled
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})

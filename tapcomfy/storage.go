@@ -120,7 +120,9 @@ func (c Config) storageCredentials(credentials sts.Credentials) (*STSCredentials
 }
 
 type UploadedAsset struct {
-	URL string `json:"url"`
+	URL       string `json:"url"`
+	ObjectKey string `json:"objectKey"`
+	AssetType string `json:"assetType"`
 }
 
 func (c Config) UploadAsset(ctx context.Context, assetType, filename, contentType string, size int64, body io.Reader) (*UploadedAsset, error) {
@@ -163,7 +165,19 @@ func (c Config) UploadAsset(ctx context.Context, assetType, filename, contentTyp
 	if base == "" {
 		base = "https://" + c.Bucket + "." + c.OSSEndpointHost()
 	}
-	return &UploadedAsset{URL: base + "/" + objectKey}, nil
+	return &UploadedAsset{URL: base + "/" + objectKey, ObjectKey: objectKey, AssetType: assetType}, nil
+}
+
+func (c Config) ValidateAssetReference(assetType, objectKey, assetURL string) bool {
+	directory, _, _ := assetRules(assetType)
+	if directory == "" || !strings.HasPrefix(objectKey, directory) || strings.Contains(objectKey, "..") {
+		return false
+	}
+	base := strings.TrimSuffix(c.PublicBaseURL, "/")
+	if base == "" {
+		base = "https://" + c.Bucket + "." + c.OSSEndpointHost()
+	}
+	return assetURL == base+"/"+objectKey
 }
 
 func assetContentAllowed(assetType, extension, declared string, content []byte) (string, bool) {

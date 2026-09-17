@@ -29,7 +29,12 @@ func SetApiRouter(router *gin.Engine) {
 		tapComfyRoute := apiRouter.Group("/tapcomfy/v1")
 		{
 			tapComfyRoute.GET("/storage/sts", middleware.UserAuth(), controller.GetTapComfyStorageSTS)
+			tapComfyRoute.GET("/models", controller.GetTapComfyModels)
 			tapComfyRoute.POST("/admin/assets", middleware.AdminAuth(), controller.UploadTapComfyAsset)
+			tapComfyRoute.GET("/admin/models", middleware.AdminAuth(), controller.GetTapComfyAdminModels)
+			tapComfyRoute.POST("/admin/models", middleware.AdminAuth(), controller.CreateTapComfyModel)
+			tapComfyRoute.PUT("/admin/models/:id", middleware.AdminAuth(), controller.UpdateTapComfyModel)
+			tapComfyRoute.DELETE("/admin/models/:id", middleware.AdminAuth(), controller.DeleteTapComfyModel)
 		}
 		apiRouter.GET("/status/test", middleware.AdminAuth(), controller.TestStatus)
 		apiRouter.GET("/notice", controller.GetNotice)
