@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/QuantumNous/new-api/model"
@@ -45,6 +46,17 @@ func TestFetchLegacyModelsPaginatesAndRejectsNonSuccess(t *testing.T) {
 	require.Error(t, err)
 
 	_, err = FetchLegacyModels(context.Background(), "http://legacy.example", "service-role", 2)
+	require.Error(t, err)
+}
+
+func TestLoadLegacyModelsFileRejectsAnEmptyCatalogue(t *testing.T) {
+	file, err := os.CreateTemp(t.TempDir(), "legacy-models-*.json")
+	require.NoError(t, err)
+	_, err = file.WriteString(`[]`)
+	require.NoError(t, err)
+	require.NoError(t, file.Close())
+
+	_, err = LoadLegacyModelsFile(file.Name())
 	require.Error(t, err)
 }
 

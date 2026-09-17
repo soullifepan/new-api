@@ -51,6 +51,22 @@ func FetchLegacyModels(ctx context.Context, baseURL, serviceRoleKey string, page
 	return fetchLegacyModels(ctx, legacyHTTPClient(), baseURL, serviceRoleKey, pageSize)
 }
 
+// LoadLegacyModelsFile reads a locally exported legacy catalogue. It lets an
+// operator keep a legacy service-role credential off the New API host when the
+// legacy service only exposes an insecure endpoint.
+func LoadLegacyModelsFile(filename string) ([]LegacyModel, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, errors.New("legacy catalogue file is unavailable")
+	}
+	defer file.Close()
+	var rows []LegacyModel
+	if err := common.DecodeJson(io.LimitReader(file, 16<<20), &rows); err != nil || len(rows) == 0 || len(rows) > legacyImportMaxRows {
+		return nil, errors.New("legacy catalogue file is invalid")
+	}
+	return rows, nil
+}
+
 func fetchLegacyModels(ctx context.Context, client *http.Client, baseURL, serviceRoleKey string, pageSize int) ([]LegacyModel, error) {
 	baseURL = strings.TrimSuffix(strings.TrimSpace(baseURL), "/")
 	if baseURL == "" || strings.TrimSpace(serviceRoleKey) == "" {

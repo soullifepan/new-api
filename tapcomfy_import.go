@@ -16,6 +16,7 @@ import (
 const (
 	legacySupabaseURLEnv = "TAPCOMFY_LEGACY_SUPABASE_URL"
 	legacySupabaseKeyEnv = "TAPCOMFY_LEGACY_SUPABASE_SERVICE_ROLE_KEY"
+	legacyModelsFileEnv  = "TAPCOMFY_LEGACY_MODELS_FILE"
 )
 
 func runTapComfyLegacyImport(args []string) int {
@@ -25,15 +26,22 @@ func runTapComfyLegacyImport(args []string) int {
 	if err := flags.Parse(args); err != nil {
 		return 2
 	}
-	legacyURL := strings.TrimSpace(os.Getenv(legacySupabaseURLEnv))
-	legacyKey := strings.TrimSpace(os.Getenv(legacySupabaseKeyEnv))
-	if legacyURL == "" || legacyKey == "" {
-		fmt.Fprintln(os.Stderr, "TapComfy legacy catalogue credentials are not configured")
-		return 1
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
-	rows, err := tapcomfy.FetchLegacyModels(ctx, legacyURL, legacyKey, 1000)
+	legacyFile := strings.TrimSpace(os.Getenv(legacyModelsFileEnv))
+	var rows []tapcomfy.LegacyModel
+	var err error
+	if legacyFile != "" {
+		rows, err = tapcomfy.LoadLegacyModelsFile(legacyFile)
+	} else {
+		legacyURL := strings.TrimSpace(os.Getenv(legacySupabaseURLEnv))
+		legacyKey := strings.TrimSpace(os.Getenv(legacySupabaseKeyEnv))
+		if legacyURL == "" || legacyKey == "" {
+			fmt.Fprintln(os.Stderr, "TapComfy legacy catalogue source is not configured")
+			return 1
+		}
+		rows, err = tapcomfy.FetchLegacyModels(ctx, legacyURL, legacyKey, 1000)
+	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "TapComfy legacy catalogue import failed")
 		return 1
