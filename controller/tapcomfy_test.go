@@ -79,6 +79,12 @@ func TestTapComfyCatalogHandlersFilterAndValidateAssets(t *testing.T) {
 	assert.Equal(t, "glb", created.Format)
 	assert.Equal(t, model.TapComfyModelStatusHidden, created.Status)
 
+	require.NoError(t, db.Create(&model.TapComfyModel{ID: "legacy", Name: "Legacy", Category: "JC", ThumbnailURL: "https://legacy.example/3d_models/a.png", ThumbnailObjectKey: "3d_models/a.png", ModelURL: "https://legacy.example/3d_models/a.glb", ModelObjectKey: "3d_models/a.glb", Format: "glb", FileSize: 1, Status: model.TapComfyModelStatusPublished}).Error)
+	legacyUpdate := `{"name":"Legacy","category":"JC","thumbnail_url":"https://legacy.example/3d_models/a.png","thumbnail_object_key":"3d_models/a.png","model_url":"https://legacy.example/3d_models/a.glb","model_object_key":"3d_models/a.glb","format":"glb","file_size":1,"status":"hidden"}`
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodPut, "/models/legacy", bytes.NewBufferString(legacyUpdate)))
+	assert.Equal(t, http.StatusOK, recorder.Code)
+
 	recorder = httptest.NewRecorder()
 	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodDelete, "/models/"+created.ID, nil))
 	assert.Equal(t, http.StatusNoContent, recorder.Code)

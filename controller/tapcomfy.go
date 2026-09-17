@@ -101,6 +101,20 @@ func (input tapComfyModelInput) valid() bool {
 	}
 	return tapcomfy.LoadConfig().ValidateAssetReference("3d-model", input.ModelObjectKey, input.ModelURL) && tapcomfy.LoadConfig().ValidateAssetReference("3d-thumbnail", input.ThumbnailObjectKey, input.ThumbnailURL)
 }
+
+func (input tapComfyModelInput) validForUpdate(existing model.TapComfyModel) bool {
+	if strings.TrimSpace(input.Name) == "" || strings.TrimSpace(input.Category) == "" || input.FileSize <= 0 || (input.Status != model.TapComfyModelStatusPublished && input.Status != model.TapComfyModelStatusHidden) {
+		return false
+	}
+	format := "." + strings.TrimPrefix(strings.ToLower(input.Format), ".")
+	if !map[string]bool{".glb": true, ".gltf": true, ".fbx": true, ".obj": true}[format] || !strings.HasSuffix(input.ModelObjectKey, format) {
+		return false
+	}
+	config := tapcomfy.LoadConfig()
+	modelReferenceValid := config.ValidateAssetReference("3d-model", input.ModelObjectKey, input.ModelURL) || (input.ModelObjectKey == existing.ModelObjectKey && input.ModelURL == existing.ModelURL)
+	thumbnailReferenceValid := config.ValidateAssetReference("3d-thumbnail", input.ThumbnailObjectKey, input.ThumbnailURL) || (input.ThumbnailObjectKey == existing.ThumbnailObjectKey && input.ThumbnailURL == existing.ThumbnailURL)
+	return modelReferenceValid && thumbnailReferenceValid
+}
 func CreateTapComfyModel(c *gin.Context) {
 	var input tapComfyModelInput
 	if err := c.ShouldBindJSON(&input); err != nil || !input.valid() {
@@ -116,13 +130,13 @@ func CreateTapComfyModel(c *gin.Context) {
 }
 func UpdateTapComfyModel(c *gin.Context) {
 	var input tapComfyModelInput
-	if err := c.ShouldBindJSON(&input); err != nil || !input.valid() {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid model"})
-		return
-	}
 	var item model.TapComfyModel
 	if err := model.DB.Where("id = ?", c.Param("id")).First(&item).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "model not found"})
+		return
+	}
+	if err := c.ShouldBindJSON(&input); err != nil || !input.validForUpdate(item) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid model"})
 		return
 	}
 	item.Name = strings.TrimSpace(input.Name)
