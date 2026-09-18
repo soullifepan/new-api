@@ -47,7 +47,6 @@ export const meta = {
     { method: "POST", path: "/seedance-hub/api/v3/contents/generations/tasks", type: "submit", decode: "createTask", render: "taskCreated" },
     { method: "GET", path: "/seedance-hub/api/v3/contents/generations/tasks/:task_id", type: "query", render: "taskStatus" },
   ],
-  protocols: [{ name: "openai_responses", supports: ["stream", "sync", "background"], models: [...VIDEO_MODELS.keys()] }, { name: "openai_video", models: [...VIDEO_MODELS.keys()] }],
 };
 
 function text(value) { return typeof value === "string" ? value.trim() : ""; }
@@ -285,61 +284,3 @@ export function extractUsageOnComplete(task, result, body) {
   const tokens = Number(usage.completion_tokens || usage.total_tokens);
   return Number.isFinite(tokens) && tokens >= 0 ? { tokens: tokens } : {};
 }
-
-export function listArtifacts(task) {
-  if (task.status !== "SUCCESS") return [];
-  const content = responseBody(task.data).content || {};
-  return text(content.video_url) ? [{ key: "video", type: "video" }] : [];
-}
-
-export function buildContentRequest(ctx) {
-  const content = responseBody(ctx.data).content || {};
-  if (ctx.artifactKey !== "video" || !text(content.video_url)) throw new Error("artifact_not_found");
-  return { url: content.video_url, method: ctx.clientRequest.method, credentialless: true };
-}
-
-export const protocols = {
-  openai_video: {
-    decodeRequest: function (ctx) {
-      const body = bodyValue(ctx);
-      const model = text(body.model);
-      if (!VIDEO_MODELS.has(model)) throw new Error("unsupported Seedance model");
-      const content = [];
-      if (text(body.prompt)) content.push({ type: "text", text: body.prompt });
-      if (text(body.image)) content.push({ type: "image_url", image_url: { url: body.image } });
-      if (!content.length) throw new Error("prompt or image is required");
-      const request = validateVideo({ model: model, content: content, duration: own(body, "seconds") ? body.seconds : body.duration, resolution: body.resolution || body.size });
-      const intent = { kind: "submit", model: model, action: taskAction(request.request.content), requestBody: { model: model, metadata: request.request } };
-      if (request.originTaskIds.length) intent.originTaskIds = request.originTaskIds;
-      return intent;
-    },
-    render: function (_ctx, task) { return native.taskStatus({}, task); },
-  },
-  openai_responses: {
-    decodeRequest: function (ctx) {
-      const body = bodyValue(ctx);
-      const model = text(body.model);
-      if (!VIDEO_MODELS.has(model)) throw new Error("unsupported Seedance model");
-      const input = Array.isArray(body.input) ? body.input : [body.input];
-      const content = [];
-      for (const item of input) {
-        if (typeof item === "string") content.push({ type: "text", text: item });
-        else if (item && typeof item === "object" && Array.isArray(item.content)) for (const part of item.content) {
-          if (part && part.type === "input_text") content.push({ type: "text", text: part.text });
-          if (part && part.type === "input_image") content.push({ type: "image_url", image_url: { url: typeof part.image_url === "object" ? part.image_url.url : part.image_url } });
-        }
-      }
-      const metadata = object(body.metadata || {}, "metadata must be an object");
-      const request = validateVideo(Object.assign({}, metadata, { model: model, content: content, duration: own(metadata, "duration") ? metadata.duration : 5 }));
-      const intent = { kind: "submit", model: model, action: taskAction(request.request.content), requestBody: { model: model, metadata: request.request } };
-      if (request.originTaskIds.length) intent.originTaskIds = request.originTaskIds;
-      return intent;
-    },
-    renderEvents: function (_ctx, task, previous) {
-      if (task.status === "SUCCESS") return { events: previous && previous.status === "SUCCESS" ? [] : [{ type: "output", data: "Video generated" }], state: { status: "SUCCESS" }, done: true };
-      if (task.status === "FAILURE") return { events: [{ type: "error", code: "task_failed", message: task.fail_reason || "task failed" }], state: { status: "FAILURE" }, done: true };
-      return { events: [{ type: "progress", message: String(task.status || "queued").toLowerCase() }], state: { status: task.status }, done: false };
-    },
-    renderFinal: function (_ctx, task) { return { output: [{ type: "message", status: "completed", role: "assistant", content: [{ type: "output_text", text: JSON.stringify(native.taskStatus({}, task)), annotations: [], logprobs: [] }] }] }; },
-  },
-};
