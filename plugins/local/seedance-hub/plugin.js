@@ -225,7 +225,9 @@ export function buildSubmitRequest(ctx) {
     return { url: assetURL(ctx.baseUrl, ctx.action), method: "POST", headers: headers(ctx.apiKey), body: replaceResourceIDs(ctx.requestBody, ctx.originTasks), action: ctx.action };
   }
   const metadata = replaceAssetReferences(copy(ctx.requestBody.metadata || {}), ctx.originTasks);
-  metadata.model = ctx.upstreamModel || UPSTREAM_MODELS.get(ctx.model) || ctx.model;
+  const expectedUpstream = UPSTREAM_MODELS.get(ctx.model) || ctx.model;
+  if (ctx.upstreamModel && ctx.upstreamModel !== expectedUpstream) throw new Error("upstream model does not match the Seedance Hub alias");
+  metadata.model = expectedUpstream;
   return { url: ctx.baseUrl + "/api/v3/contents/generations/tasks", method: "POST", headers: headers(ctx.apiKey), body: metadata, action: taskAction(metadata.content), rewriteModel: metadata.model };
 }
 

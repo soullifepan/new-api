@@ -33,6 +33,12 @@
       "expectedError": "asset reference must be a gateway asset ID"
     },
     {
+      "name": "rejects a channel mapping that changes the documented upstream model",
+      "hook": "buildSubmitRequest",
+      "args": [{"model":"doubao-seedance-2-0-hub","upstreamModel":"other-model","baseUrl":"https://hub.example/api/hub","apiKey":"fixture-key","requestBody":{"metadata":{"content":[{"type":"text","text":"cat"}]}}}],
+      "expectedError": "upstream model does not match the Seedance Hub alias"
+    },
+    {
       "name": "does not expose a shared-channel upstream asset list",
       "hook": "native",
       "member": "decodeAssetAction",
