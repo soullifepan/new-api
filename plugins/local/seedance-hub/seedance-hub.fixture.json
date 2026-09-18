@@ -1,0 +1,43 @@
+{
+  "cases": [
+    {
+      "name": "creates an asset group as an immediate owned resource task",
+      "hook": "native",
+      "member": "decodeAssetAction",
+      "args": [{"query":{"Action":["CreateAssetGroup"]},"body":{"kind":"json","value":{"Name":"video assets","GroupType":"AIGC"}}}],
+      "expected": {"kind":"submit","model":"seedance-hub-asset","action":"CreateAssetGroup","requestBody":{"Name":"video assets","GroupType":"AIGC"}}
+    },
+    {
+      "name": "uses the hub action URL and preserves the bearer key",
+      "hook": "buildSubmitRequest",
+      "args": [{"model":"seedance-hub-asset","action":"CreateAssetGroup","baseUrl":"https://hub.example/api/hub","apiKey":"fixture-key","requestBody":{"Name":"video assets","GroupType":"AIGC"}}],
+      "expected": {"url":"https://hub.example/api/hub/v1/api/asset?Action=CreateAssetGroup&Version=2024-01-01","method":"POST","headers":{"Accept":"application/json","Content-Type":"application/json","Authorization":"Bearer fixture-key"},"body":{"Name":"video assets","GroupType":"AIGC"},"action":"CreateAssetGroup"}
+    },
+    {
+      "name": "keeps a created asset pending for GetAsset polling",
+      "hook": "parseSubmitResponse",
+      "args": [{"model":"seedance-hub-asset","action":"CreateAsset"},{"body":{"Id":"asset-private","Status":"Processing"}}],
+      "expected": {"taskId":"asset-private","taskData":{"action":"CreateAsset","body":{"Id":"asset-private","Status":"Processing"}}}
+    },
+    {
+      "name": "uses only an owned active asset reference in a video request",
+      "hook": "buildSubmitRequest",
+      "args": [{"model":"doubao-seedance-2-0-260128","upstreamModel":"doubao-seedance-2-0-260128","action":"video_generation","baseUrl":"https://hub.example/api/hub","apiKey":"fixture-key","requestBody":{"model":"doubao-seedance-2-0-260128","metadata":{"model":"doubao-seedance-2-0-260128","content":[{"type":"image_url","image_url":{"url":"asset://cgt-hub-public-asset"}},{"type":"text","text":"cat"}],"duration":5,"resolution":"720p"}},"originTasks":[{"taskId":"cgt-hub-public-asset","upstreamTaskId":"asset-private","action":"CreateAsset","status":"SUCCESS","data":{"Id":"asset-private","Status":"Active"}}]}],
+      "expected": {"url":"https://hub.example/api/hub/api/v3/contents/generations/tasks","method":"POST","headers":{"Accept":"application/json","Content-Type":"application/json","Authorization":"Bearer fixture-key"},"body":{"model":"doubao-seedance-2-0-260128","content":[{"type":"image_url","image_url":{"url":"asset://asset-private"}},{"type":"text","text":"cat"}],"duration":5,"resolution":"720p"},"action":"image_to_video","rewriteModel":"doubao-seedance-2-0-260128"}
+    },
+    {
+      "name": "rejects a raw upstream asset reference",
+      "hook": "native",
+      "member": "createTask",
+      "args": [{"body":{"kind":"json","value":{"model":"doubao-seedance-2-0-260128","content":[{"type":"image_url","image_url":{"url":"asset://private"}}],"duration":5}}}],
+      "expectedError": "asset reference must be a gateway asset ID"
+    },
+    {
+      "name": "does not expose a shared-channel upstream asset list",
+      "hook": "native",
+      "member": "decodeAssetAction",
+      "args": [{"query":{"Action":["ListAssets"]},"body":{"kind":"json","value":{}}}],
+      "expectedError": "unsupported asset Action"
+    }
+  ]
+}
