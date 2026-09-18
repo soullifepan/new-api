@@ -5,10 +5,16 @@
 const ASSET_MODEL = "seedance-hub-asset";
 const VERSION = "2024-01-01";
 const VIDEO_MODELS = new Map([
-  ["doubao-seedance-2-0-260128", ["480p", "720p", "1080p", "4k", 15]],
-  ["doubao-seedance-2-0-fast-260128", ["480p", "720p", 15]],
-  ["doubao-seedance-2-0-mini-260615", ["480p", "720p", 15]],
-  ["doubao-seedance-2-5-260628", ["480p", "720p", "1080p", 30]],
+  ["doubao-seedance-2-0-hub", ["480p", "720p", "1080p", "4k", 15]],
+  ["doubao-seedance-2-0-fast-hub", ["480p", "720p", 15]],
+  ["doubao-seedance-2-0-mini-hub", ["480p", "720p", 15]],
+  ["doubao-seedance-2-5-hub", ["480p", "720p", "1080p", 30]],
+]);
+const UPSTREAM_MODELS = new Map([
+  ["doubao-seedance-2-0-hub", "doubao-seedance-2-0-260128"],
+  ["doubao-seedance-2-0-fast-hub", "doubao-seedance-2-0-fast-260128"],
+  ["doubao-seedance-2-0-mini-hub", "doubao-seedance-2-0-mini-260615"],
+  ["doubao-seedance-2-5-hub", "doubao-seedance-2-5-260628"],
 ]);
 const ASSET_ACTIONS = new Set([
   "CreateAssetGroup", "GetAssetGroup", "UpdateAssetGroup", "DeleteAssetGroup",
@@ -219,7 +225,7 @@ export function buildSubmitRequest(ctx) {
     return { url: assetURL(ctx.baseUrl, ctx.action), method: "POST", headers: headers(ctx.apiKey), body: replaceResourceIDs(ctx.requestBody, ctx.originTasks), action: ctx.action };
   }
   const metadata = replaceAssetReferences(copy(ctx.requestBody.metadata || {}), ctx.originTasks);
-  metadata.model = ctx.upstreamModel || ctx.model;
+  metadata.model = ctx.upstreamModel || UPSTREAM_MODELS.get(ctx.model) || ctx.model;
   return { url: ctx.baseUrl + "/api/v3/contents/generations/tasks", method: "POST", headers: headers(ctx.apiKey), body: metadata, action: taskAction(metadata.content), rewriteModel: metadata.model };
 }
 
