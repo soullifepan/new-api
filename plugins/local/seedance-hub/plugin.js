@@ -27,7 +27,7 @@ export const meta = {
   name: "Seedance Hub",
   icon: "Doubao.Color",
   description: { en: "Seedance video generation and owned asset management through the Hub API", zh: "通过 Hub API 生成 Seedance 视频并管理归属素材" },
-  version: "1.0.0",
+  version: "1.0.1",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   models: [...VIDEO_MODELS.keys()],
