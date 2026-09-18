@@ -5,18 +5,18 @@
       "hook": "native",
       "member": "decodeAssetAction",
       "args": [{"query":{"Action":["CreateAssetGroup"]},"body":{"kind":"json","value":{"Name":"video assets","GroupType":"AIGC"}}}],
-      "expected": {"kind":"submit","model":"seedance-hub-asset","action":"CreateAssetGroup","requestBody":{"Name":"video assets","GroupType":"AIGC"}}
+      "expected": {"kind":"submit","model":"doubao-seedance-2-0-hub","action":"CreateAssetGroup","requestBody":{"Name":"video assets","GroupType":"AIGC"}}
     },
     {
       "name": "uses the hub action URL and preserves the bearer key",
       "hook": "buildSubmitRequest",
-      "args": [{"model":"seedance-hub-asset","action":"CreateAssetGroup","baseUrl":"https://hub.example/api/hub","apiKey":"fixture-key","requestBody":{"Name":"video assets","GroupType":"AIGC"}}],
+      "args": [{"model":"doubao-seedance-2-0-hub","action":"CreateAssetGroup","baseUrl":"https://hub.example/api/hub","apiKey":"fixture-key","requestBody":{"Name":"video assets","GroupType":"AIGC"}}],
       "expected": {"url":"https://hub.example/api/hub/v1/api/asset?Action=CreateAssetGroup&Version=2024-01-01","method":"POST","headers":{"Accept":"application/json","Content-Type":"application/json","Authorization":"Bearer fixture-key"},"body":{"Name":"video assets","GroupType":"AIGC"},"action":"CreateAssetGroup"}
     },
     {
       "name": "keeps a created asset pending for GetAsset polling",
       "hook": "parseSubmitResponse",
-      "args": [{"model":"seedance-hub-asset","action":"CreateAsset"},{"body":{"Id":"asset-private","Status":"Processing"}}],
+      "args": [{"model":"doubao-seedance-2-0-hub","action":"CreateAsset"},{"body":{"Id":"asset-private","Status":"Processing"}}],
       "expected": {"taskId":"asset-private","taskData":{"action":"CreateAsset","body":{"Id":"asset-private","Status":"Processing"}}}
     },
     {

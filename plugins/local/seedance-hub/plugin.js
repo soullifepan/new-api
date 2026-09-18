@@ -2,7 +2,7 @@
 // type-61 channel. Public asset IDs are gateway task IDs; upstream asset IDs
 // never leave driver hooks.
 
-const ASSET_MODEL = "seedance-hub-asset";
+const ASSET_ROUTING_MODEL = "doubao-seedance-2-0-hub";
 const VERSION = "2024-01-01";
 const VIDEO_MODELS = new Map([
   ["doubao-seedance-2-0-hub", ["480p", "720p", "1080p", "4k", 15]],
@@ -30,7 +30,7 @@ export const meta = {
   version: "1.0.0",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
-  models: [...VIDEO_MODELS.keys(), ASSET_MODEL],
+  models: [...VIDEO_MODELS.keys()],
   usageProfiles: [...VIDEO_MODELS.keys()].map(function (model) {
     return {
       models: [model],
@@ -41,7 +41,7 @@ export const meta = {
       },
       examples: [{ label: "720p · 5s", facts: { tokens: 108000, resolution: "720p", video_input: "none" } }],
     };
-  }).concat([{ models: [ASSET_MODEL], schema: {}, examples: [] }]),
+  }),
   routes: [
     { method: "POST", path: "/seedance-hub/v1/api/asset", type: "dynamic", decode: "decodeAssetAction", render: "renderAsset" },
     { method: "POST", path: "/seedance-hub/api/v3/contents/generations/tasks", type: "submit", decode: "createTask", render: "taskCreated" },
@@ -188,7 +188,7 @@ export const native = {
     const action = actionValue(ctx);
     const body = bodyValue(ctx);
     const originTaskIds = assetReferencesFromBody(body);
-    const intent = { kind: "submit", model: ASSET_MODEL, action: action, requestBody: copy(body) };
+    const intent = { kind: "submit", model: ASSET_ROUTING_MODEL, action: action, requestBody: copy(body) };
     if (originTaskIds.length) intent.originTaskIds = originTaskIds;
     return intent;
   },
@@ -220,8 +220,10 @@ export const native = {
   error: function (_ctx, error) { return { error: { code: error.code, message: error.message } }; },
 };
 
+function isAssetAction(action) { return ASSET_ACTIONS.has(action); }
+
 export function buildSubmitRequest(ctx) {
-  if (ctx.model === ASSET_MODEL) {
+  if (isAssetAction(ctx.action)) {
     return { url: assetURL(ctx.baseUrl, ctx.action), method: "POST", headers: headers(ctx.apiKey), body: replaceResourceIDs(ctx.requestBody, ctx.originTasks), action: ctx.action };
   }
   const metadata = replaceAssetReferences(copy(ctx.requestBody.metadata || {}), ctx.originTasks);
@@ -235,7 +237,7 @@ export function parseSubmitResponse(ctx, response) {
   const body = object(response && response.body, "invalid upstream response");
   const failure = providerError(body);
   if (failure) throw new Error(failure);
-  if (ctx.model !== ASSET_MODEL) {
+  if (!isAssetAction(ctx.action)) {
     const id = responseID(body);
     if (!id) throw new Error("task_id is empty");
     return { taskId: id, taskData: body };
@@ -270,7 +272,7 @@ export function parseTaskResult(ctx, body) {
 }
 
 export function extractUsage(ctx) {
-  if (ctx.model === ASSET_MODEL) return {};
+  if (isAssetAction(ctx.action)) return { tokens: 0, resolution: "720p", video_input: "none" };
   const metadata = ctx.requestBody.metadata || {};
   const seconds = Number(metadata.duration || 5);
   const resolution = text(metadata.resolution || "720p").toLowerCase();
@@ -278,7 +280,7 @@ export function extractUsage(ctx) {
 }
 
 export function extractUsageOnComplete(task, result, body) {
-  if (task.model === ASSET_MODEL || result.status !== "SUCCESS") return {};
+  if (isAssetAction(task.action) || result.status !== "SUCCESS") return {};
   const usage = body && body.usage || {};
   const tokens = Number(usage.completion_tokens || usage.total_tokens);
   return Number.isFinite(tokens) && tokens >= 0 ? { tokens: tokens } : {};
