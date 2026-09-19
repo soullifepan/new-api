@@ -14,23 +14,70 @@
       "expected": {"url":"https://hub.example/api/hub/v1/api/asset?Action=CreateAssetGroup&Version=2024-01-01","method":"POST","headers":{"Accept":"application/json","Content-Type":"application/json","Authorization":"Bearer fixture-key"},"body":{"Name":"video assets","GroupType":"AIGC"},"action":"CreateAssetGroup"}
     },
     {
+      "name": "lists exact AIGC asset groups through the native action contract",
+      "hook": "native",
+      "member": "decodeAssetAction",
+      "args": [{"query":{"Action":["ListAssetGroups"]},"body":{"kind":"json","value":{"Filter":{"Name":"tapcomfy","GroupType":"AIGC"},"PageNumber":1,"PageSize":10}}}],
+      "expected": {"kind":"submit","model":"doubao-seedance-2-0-hub","action":"ListAssetGroups","requestBody":{"Filter":{"Name":"tapcomfy","GroupType":"AIGC"},"PageNumber":1,"PageSize":10}}
+    },
+    {
+      "name": "lists assets through the native action contract",
+      "hook": "native",
+      "member": "decodeAssetAction",
+      "args": [{"query":{"Action":["ListAssets"]},"body":{"kind":"json","value":{"Filter":{"GroupIds":["group-1"]},"PageNumber":1,"PageSize":10}}}],
+      "expected": {"kind":"submit","model":"doubao-seedance-2-0-hub","action":"ListAssets","requestBody":{"Filter":{"GroupIds":["group-1"]},"PageNumber":1,"PageSize":10}}
+    },
+    {
+      "name": "creates a visual validation session through the native action contract",
+      "hook": "native",
+      "member": "decodeAssetAction",
+      "args": [{"query":{"Action":["CreateVisualValidateSession"]},"body":{"kind":"json","value":{"CallbackURL":"https://example.com/callback"}}}],
+      "expected": {"kind":"submit","model":"doubao-seedance-2-0-hub","action":"CreateVisualValidateSession","requestBody":{"CallbackURL":"https://example.com/callback"}}
+    },
+    {
+      "name": "gets a visual validation result through the native action contract",
+      "hook": "native",
+      "member": "decodeAssetAction",
+      "args": [{"query":{"Action":["GetVisualValidateResult"]},"body":{"kind":"json","value":{"BytedToken":"token-value"}}}],
+      "expected": {"kind":"submit","model":"doubao-seedance-2-0-hub","action":"GetVisualValidateResult","requestBody":{"BytedToken":"token-value"}}
+    },
+    {
+      "name": "returns the native upstream group identifier after creation",
+      "hook": "native",
+      "member": "renderAsset",
+      "args": [{"query":{"Action":["CreateAssetGroup"]}},{"task_id":"task-public","data":{"action":"CreateAssetGroup","body":{"Id":"group-20260919213757-22wx5","Name":"tapcomfy","GroupType":"AIGC"}}}],
+      "expected": {"Id":"group-20260919213757-22wx5","Name":"tapcomfy","GroupType":"AIGC"}
+    },
+    {
+      "name": "returns the native asset group list envelope including an empty list",
+      "hook": "native",
+      "member": "renderAsset",
+      "args": [{"query":{"Action":["ListAssetGroups"]}},{"task_id":"task-public","data":{"action":"ListAssetGroups","body":{"Items":[],"TotalCount":0,"PageNumber":1,"PageSize":10}}}],
+      "expected": {"Items":[],"TotalCount":0,"PageNumber":1,"PageSize":10}
+    },
+    {
       "name": "keeps a created asset pending for GetAsset polling",
       "hook": "parseSubmitResponse",
       "args": [{"model":"doubao-seedance-2-0-hub","action":"CreateAsset"},{"body":{"Id":"asset-private","Status":"Processing"}}],
       "expected": {"taskId":"asset-private","taskData":{"action":"CreateAsset","body":{"Id":"asset-private","Status":"Processing"}}}
     },
     {
-      "name": "uses only an owned active asset reference in a video request",
+      "name": "passes a native asset reference through in a video request",
       "hook": "buildSubmitRequest",
-      "args": [{"model":"doubao-seedance-2-0-hub","action":"video_generation","baseUrl":"https://hub.example/api/hub","apiKey":"fixture-key","requestBody":{"model":"doubao-seedance-2-0-hub","metadata":{"model":"doubao-seedance-2-0-hub","content":[{"type":"image_url","image_url":{"url":"asset://cgt-hub-public-asset"}},{"type":"text","text":"cat"}],"duration":5,"resolution":"720p"}},"originTasks":[{"taskId":"cgt-hub-public-asset","upstreamTaskId":"asset-private","action":"CreateAsset","status":"SUCCESS","data":{"Id":"asset-private","Status":"Active"}}]}],
-      "expected": {"url":"https://hub.example/api/hub/api/v3/contents/generations/tasks","method":"POST","headers":{"Accept":"application/json","Content-Type":"application/json","Authorization":"Bearer fixture-key"},"body":{"model":"doubao-seedance-2-0-260128","content":[{"type":"image_url","image_url":{"url":"asset://asset-private"}},{"type":"text","text":"cat"}],"duration":5,"resolution":"720p"},"action":"image_to_video","rewriteModel":"doubao-seedance-2-0-260128"}
+      "args": [{"model":"doubao-seedance-2-0-hub","action":"video_generation","baseUrl":"https://hub.example/api/hub","apiKey":"fixture-key","requestBody":{"model":"doubao-seedance-2-0-hub","metadata":{"model":"doubao-seedance-2-0-hub","content":[{"type":"image_url","image_url":{"url":"asset://asset-private"}},{"type":"text","text":"cat"}],"duration":5,"resolution":"720p"}}}],
+      "expected": {"url":"https://hub.example/api/hub/api/v3/contents/generations/tasks","method":"POST","headers":{"Accept":"application/json","Content-Type":"application/json","Authorization":"Bearer fixture-key"},"body":{"model":"doubao-seedance-2-0-260128","content":[{"type":"image_url","image_url":{"url":"asset://asset-private"}},{"type":"text","text":"cat"}],"duration":5,"resolution":"720p"},"action":"image_to_video"}
     },
     {
-      "name": "rejects a raw upstream asset reference",
-      "hook": "native",
-      "member": "createTask",
-      "args": [{"body":{"kind":"json","value":{"model":"doubao-seedance-2-0-hub","content":[{"type":"image_url","image_url":{"url":"asset://private"}}],"duration":5}}}],
-      "expectedError": "asset reference must be a gateway asset ID"
+      "name": "maps the public Mini alias when the channel has no explicit model mapping",
+      "hook": "buildSubmitRequest",
+      "args": [{"model":"doubao-seedance-2-0-mini-hub","upstreamModel":"doubao-seedance-2-0-mini-hub","action":"video_generation","baseUrl":"https://hub.example/api/hub","apiKey":"fixture-key","requestBody":{"metadata":{"model":"doubao-seedance-2-0-mini-hub","content":[{"type":"text","text":"cat"}],"duration":5,"resolution":"720p"}}}],
+      "expected": {"url":"https://hub.example/api/hub/api/v3/contents/generations/tasks","method":"POST","headers":{"Accept":"application/json","Content-Type":"application/json","Authorization":"Bearer fixture-key"},"body":{"model":"doubao-seedance-2-0-mini-260615","content":[{"type":"text","text":"cat"}],"duration":5,"resolution":"720p"},"action":"text_to_video"}
+    },
+    {
+      "name": "passes a native group identifier into CreateAsset",
+      "hook": "buildSubmitRequest",
+      "args": [{"model":"doubao-seedance-2-0-hub","action":"CreateAsset","baseUrl":"https://hub.example/api/hub","apiKey":"fixture-key","requestBody":{"Name":"cat","GroupId":"group-20260919213757-22wx5","URL":"https://example.com/cat.jpg","AssetType":"Image"}}],
+      "expected": {"url":"https://hub.example/api/hub/v1/api/asset?Action=CreateAsset&Version=2024-01-01","method":"POST","headers":{"Accept":"application/json","Content-Type":"application/json","Authorization":"Bearer fixture-key"},"body":{"Name":"cat","GroupId":"group-20260919213757-22wx5","URL":"https://example.com/cat.jpg","AssetType":"Image"},"action":"CreateAsset"}
     },
     {
       "name": "rejects a channel mapping that changes the documented upstream model",
@@ -39,10 +86,10 @@
       "expectedError": "upstream model does not match the Seedance Hub alias"
     },
     {
-      "name": "does not expose a shared-channel upstream asset list",
+      "name": "rejects an undocumented asset action",
       "hook": "native",
       "member": "decodeAssetAction",
-      "args": [{"query":{"Action":["ListAssets"]},"body":{"kind":"json","value":{}}}],
+      "args": [{"query":{"Action":["UnknownAction"]},"body":{"kind":"json","value":{}}}],
       "expectedError": "unsupported asset Action"
     }
   ]

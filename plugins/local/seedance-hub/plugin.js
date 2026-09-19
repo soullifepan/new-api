@@ -1,6 +1,5 @@
 // Seedance Hub exposes Volcengine's native video and asset APIs through a
-// type-61 channel. Public asset IDs are gateway task IDs; upstream asset IDs
-// never leave driver hooks.
+// type-61 channel. Asset Action responses preserve the provider's native IDs.
 
 const ASSET_ROUTING_MODEL = "doubao-seedance-2-0-hub";
 const VERSION = "2024-01-01";
@@ -17,8 +16,9 @@ const UPSTREAM_MODELS = new Map([
   ["doubao-seedance-2-5-hub", "doubao-seedance-2-5-260628"],
 ]);
 const ASSET_ACTIONS = new Set([
-  "CreateAssetGroup", "GetAssetGroup", "UpdateAssetGroup", "DeleteAssetGroup",
-  "CreateAsset", "GetAsset", "UpdateAsset", "DeleteAsset",
+  "CreateAssetGroup", "ListAssetGroups", "GetAssetGroup", "UpdateAssetGroup", "DeleteAssetGroup",
+  "CreateAsset", "ListAssets", "GetAsset", "UpdateAsset", "DeleteAsset",
+  "CreateVisualValidateSession", "GetVisualValidateResult",
 ]);
 
 export const meta = {
@@ -27,7 +27,7 @@ export const meta = {
   name: "Seedance Hub",
   icon: "Doubao.Color",
   description: { en: "Seedance video generation and owned asset management through the Hub API", zh: "通过 Hub API 生成 Seedance 视频并管理归属素材" },
-  version: "1.0.1",
+  version: "2.0.3",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   models: [...VIDEO_MODELS.keys()],
@@ -74,40 +74,16 @@ function copy(value) {
   }
   return value;
 }
-function readAssetReference(value, references) {
+function validateAssetReferences(value) {
   if (typeof value === "string") {
-    const match = /^asset:\/\/(cgt-hub-[A-Za-z0-9_-]+)$/.exec(value);
-    if (match) references.add(match[1]);
-    else if (value.startsWith("asset://")) throw new Error("asset reference must be a gateway asset ID");
+    if (value.startsWith("asset://") && !/^asset:\/\/[A-Za-z0-9][A-Za-z0-9_-]*$/.test(value)) throw new Error("invalid asset reference");
     return;
   }
   if (Array.isArray(value)) {
-    for (const item of value) readAssetReference(item, references);
+    for (const item of value) validateAssetReferences(item);
   } else if (value && typeof value === "object") {
-    for (const item of Object.values(value)) readAssetReference(item, references);
+    for (const item of Object.values(value)) validateAssetReferences(item);
   }
-}
-function upstreamAssetID(originTasks, publicID) {
-  for (const task of originTasks || []) {
-    if (task.taskId !== publicID || task.action !== "CreateAsset" || task.status !== "SUCCESS") continue;
-    const body = responseBody(task.data);
-    if (text(body.Status) !== "Active") throw new Error("asset is not active");
-    if (text(task.upstreamTaskId)) return text(task.upstreamTaskId);
-  }
-  throw new Error("asset reference is not an owned active asset");
-}
-function replaceAssetReferences(value, originTasks) {
-  if (typeof value === "string") {
-    const match = /^asset:\/\/(cgt-hub-[A-Za-z0-9_-]+)$/.exec(value);
-    return match ? "asset://" + upstreamAssetID(originTasks, match[1]) : value;
-  }
-  if (Array.isArray(value)) return value.map(function (item) { return replaceAssetReferences(item, originTasks); });
-  if (value && typeof value === "object") {
-    const result = {};
-    for (const key of Object.keys(value)) result[key] = replaceAssetReferences(value[key], originTasks);
-    return result;
-  }
-  return value;
 }
 function validateVideo(body) {
   const model = text(body.model);
@@ -123,9 +99,8 @@ function validateVideo(body) {
   const request = copy(body);
   request.duration = duration;
   request.resolution = resolution;
-  const references = new Set();
-  readAssetReference(content, references);
-  return { model: model, request: request, originTaskIds: [...references] };
+  validateAssetReferences(content);
+  return { model: model, request: request };
 }
 function taskAction(content) {
   return Array.isArray(content) && content.some(function (item) {
@@ -149,23 +124,6 @@ function providerError(body) {
   if (metadata && metadata.Error) return text(metadata.Error.Message || metadata.Error.Code);
   return "";
 }
-function assetReferencesFromBody(body) {
-  const references = new Set();
-  for (const key of ["Id", "GroupId"]) if (text(body[key])) references.add(text(body[key]));
-  if (body.Filter && typeof body.Filter === "object" && Array.isArray(body.Filter.GroupIds)) for (const id of body.Filter.GroupIds) if (text(id)) references.add(text(id));
-  return [...references];
-}
-function replaceResourceIDs(value, originTasks) {
-  const body = copy(value);
-  const mapID = function (id) {
-    for (const task of originTasks || []) if (task.taskId === id && text(task.upstreamTaskId)) return text(task.upstreamTaskId);
-    throw new Error("resource is not owned by the current user");
-  };
-  if (text(body.Id)) body.Id = mapID(text(body.Id));
-  if (text(body.GroupId)) body.GroupId = mapID(text(body.GroupId));
-  if (body.Filter && typeof body.Filter === "object" && Array.isArray(body.Filter.GroupIds)) body.Filter.GroupIds = body.Filter.GroupIds.map(function (id) { return mapID(text(id)); });
-  return body;
-}
 function assetURL(baseUrl, action) { return baseUrl + "/v1/api/asset?Action=" + action + "&Version=" + VERSION; }
 function headers(apiKey) { return { Accept: "application/json", "Content-Type": "application/json", Authorization: "Bearer " + apiKey }; }
 function resolutionMaxPixels(resolution) {
@@ -186,16 +144,11 @@ export const native = {
   decodeAssetAction: function (ctx) {
     const action = actionValue(ctx);
     const body = bodyValue(ctx);
-    const originTaskIds = assetReferencesFromBody(body);
-    const intent = { kind: "submit", model: ASSET_ROUTING_MODEL, action: action, requestBody: copy(body) };
-    if (originTaskIds.length) intent.originTaskIds = originTaskIds;
-    return intent;
+    return { kind: "submit", model: ASSET_ROUTING_MODEL, action: action, requestBody: copy(body) };
   },
   createTask: function (ctx) {
     const video = validateVideo(bodyValue(ctx));
-    const intent = { kind: "submit", model: video.model, action: taskAction(video.request.content), requestBody: { model: video.model, metadata: video.request } };
-    if (video.originTaskIds.length) intent.originTaskIds = video.originTaskIds;
-    return intent;
+    return { kind: "submit", model: video.model, action: taskAction(video.request.content), requestBody: { model: video.model, metadata: video.request } };
   },
   taskCreated: function (_ctx, task) { return { id: task.task_id }; },
   taskStatus: function (_ctx, task) {
@@ -209,12 +162,8 @@ export const native = {
     return result;
   },
   renderAsset: function (ctx, task) {
-    const body = responseBody(task.data);
-    const action = actionValue(ctx);
-    const result = copy(body);
-    if (action === "CreateAsset" || action === "CreateAssetGroup") result.Id = task.task_id;
-    else if (task.data && text(task.data.resourcePublicID)) result.Id = task.data.resourcePublicID;
-    return result;
+    actionValue(ctx);
+    return copy(responseBody(task.data));
   },
   error: function (_ctx, error) { return { error: { code: error.code, message: error.message } }; },
 };
@@ -223,13 +172,13 @@ function isAssetAction(action) { return ASSET_ACTIONS.has(action); }
 
 export function buildSubmitRequest(ctx) {
   if (isAssetAction(ctx.action)) {
-    return { url: assetURL(ctx.baseUrl, ctx.action), method: "POST", headers: headers(ctx.apiKey), body: replaceResourceIDs(ctx.requestBody, ctx.originTasks), action: ctx.action };
+    return { url: assetURL(ctx.baseUrl, ctx.action), method: "POST", headers: headers(ctx.apiKey), body: copy(ctx.requestBody), action: ctx.action };
   }
-  const metadata = replaceAssetReferences(copy(ctx.requestBody.metadata || {}), ctx.originTasks);
+  const metadata = copy(ctx.requestBody.metadata || {});
   const expectedUpstream = UPSTREAM_MODELS.get(ctx.model) || ctx.model;
-  if (ctx.upstreamModel && ctx.upstreamModel !== expectedUpstream) throw new Error("upstream model does not match the Seedance Hub alias");
+  if (ctx.upstreamModel && ctx.upstreamModel !== ctx.model && ctx.upstreamModel !== expectedUpstream) throw new Error("upstream model does not match the Seedance Hub alias");
   metadata.model = expectedUpstream;
-  return { url: ctx.baseUrl + "/api/v3/contents/generations/tasks", method: "POST", headers: headers(ctx.apiKey), body: metadata, action: taskAction(metadata.content), rewriteModel: metadata.model };
+  return { url: ctx.baseUrl + "/api/v3/contents/generations/tasks", method: "POST", headers: headers(ctx.apiKey), body: metadata, action: taskAction(metadata.content) };
 }
 
 export function parseSubmitResponse(ctx, response) {
@@ -242,7 +191,6 @@ export function parseSubmitResponse(ctx, response) {
     return { taskId: id, taskData: body };
   }
   const taskData = { action: ctx.action, body: body };
-  if (ctx.requestBody && text(ctx.requestBody.Id)) taskData.resourcePublicID = text(ctx.requestBody.Id);
   const id = responseID(body) || ctx.publicTaskId || utils.uuid();
   if (ctx.action === "CreateAsset") return { taskId: id, taskData: taskData };
   return { taskId: id, taskData: taskData, immediate: { status: "SUCCESS", progress: "100%" } };
