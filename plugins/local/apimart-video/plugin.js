@@ -81,6 +81,15 @@ for (const [model, resolutions] of [
   ["seedance-2.5", ["480p", "720p", "1080p"]],
 ]) MODELS.set(model + "-am", { upstream: model, seconds: [4, model === "seedance-2.5" ? 30 : 15, 5], resolutions: resolutions, defaultResolution: "720p", fields: SEEDANCE_FIELDS });
 
+// Estimated upstream credits per second. AM settles completed Seedance tasks in
+// credits, where one credit is $0.1; completion usage replaces this estimate.
+const SEEDANCE_CREDITS_PER_SECOND = {
+  "seedance-2.0-am": { "480p": [0.66, 0.4], "720p": [1.42, 0.8584], "1080p": [3.544, 2.1568], "4k": [7.22, 4.4432] },
+  "seedance-2.0-fast-am": { "480p": [0.3984, 0.2368], "720p": [0.856, 0.5128] },
+  "seedance-2.0-mini-am": { "480p": [0.1056, 0.064], "720p": [0.2288, 0.1384] },
+  "seedance-2.5-am": { "480p": [0.9608, 0.576], "720p": [2.16, 1.296], "1080p": [3.8488, 2.2992] },
+};
+
 function usageSchema(model) {
   const schema = {
     seconds: { type: "number", unit: "second", description: { en: "Video generation unit price", zh: "视频生成单价" } },
@@ -92,10 +101,8 @@ function usageSchema(model) {
     schema.requests = { type: "number", unit: "count", description: { en: "Completed video requests.", zh: "完成的视频请求次数。" } };
   }
   if (model.startsWith("seedance-")) {
-    schema.action = { enum: ["generation", "asset"], description: { en: "Generate video or review assets", zh: "生成视频或审核素材" } };
-    schema.billing_phase = { enum: ["estimate", "actual"], description: { en: "Billing stage", zh: "计费阶段" }, enumLabels: { estimate: { en: "Estimate", zh: "预估" }, actual: { en: "AM actual charge", zh: "AM 实际扣费" } } };
-    schema.video_input = { enum: ["none", "video"], description: { en: "Reference video input", zh: "参考视频输入" } };
-    schema.input_seconds = { type: "number", unit: "second", description: { en: "Reference video unit price", zh: "参考视频单价" } };
+    delete schema.seconds;
+    delete schema.resolution;
     schema.upstream_credits = { type: "number", unit: "credit", description: { en: "AM settlement credit unit price", zh: "AM 结算积分单价" } };
   }
   return schema;
@@ -109,8 +116,11 @@ for (const [model, spec] of MODELS) {
     ? { requests: 1, resolution: spec.defaultResolution || spec.resolutions[0] }
     : { seconds: spec.defaultDuration || spec.seconds[2], resolution: spec.defaultResolution || spec.resolutions[0] };
   if (model === "pixverse-v6-am") facts.audio = "off";
-  if (model.startsWith("seedance-")) Object.assign(facts, { action: "generation", billing_phase: "estimate", video_input: "none", input_seconds: 0, upstream_credits: 0 });
-  examples[model] = [{ label: "Default", facts: facts }];
+  if (model.startsWith("seedance-")) {
+    examples[model] = Object.entries(SEEDANCE_CREDITS_PER_SECOND[model]).map(function (entry) {
+      return { label: entry[0] + " · 5s", facts: { upstream_credits: Math.round(entry[1][0] * 5 * 1e8) / 1e8 } };
+    });
+  } else examples[model] = [{ label: "Default", facts: facts }];
 }
 
 export const meta = {
@@ -119,7 +129,7 @@ export const meta = {
   name: "AM Video",
   icon: "text:AV",
   description: { en: "Validated AM asynchronous video generation tasks.", zh: "经过逐模型校验的 AM 异步视频生成任务。" },
-  version: "0.3.0",
+  version: "0.3.2",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   allowedHosts: ["api.apib.ai", "api.apimart.ai", "upload.apimart.ai", "cdn.apimart.ai"],
@@ -453,10 +463,15 @@ export function extractUsage(ctx) {
   if (model.startsWith("seedance-")) {
     const asset = ctx.action === "asset";
     const body = asset ? normalizeAssets(request) : normalize(model, request);
+    if (asset) return { upstream_credits: 0 };
     const hasVideo = !asset && !!body.video_urls;
     // Remote media durations are not client-trusted billing facts. Reserve the
     // documented total-input ceiling; final cost replaces this estimate.
-    return { action: asset ? "asset" : "generation", billing_phase: "estimate", resolution: body.resolution || "720p", video_input: hasVideo ? "video" : "none", seconds: asset ? 0 : body.duration === -1 ? 30 : body.duration, input_seconds: hasVideo ? (model === "seedance-2.5-am" ? 30 : 15.2) : 0, upstream_credits: 0 };
+    const seconds = body.duration === -1 ? 30 : body.duration;
+    const inputSeconds = hasVideo ? (model === "seedance-2.5-am" ? 30 : 15.2) : 0;
+    const rates = SEEDANCE_CREDITS_PER_SECOND[model][body.resolution || "720p"];
+    const rate = rates[hasVideo ? 1 : 0];
+    return { upstream_credits: Math.round((seconds + inputSeconds) * rate * 1e8) / 1e8 };
   }
   const body = normalize(model, request);
   const usage = { resolution: body.resolution };
@@ -478,7 +493,7 @@ function seedanceCost(data) {
 export function extractUsageOnComplete(ctx, result, body) {
   if (!String(ctx.model || "").startsWith("seedance-") || ctx.action === "asset") return null;
   if (result.status !== "SUCCESS") return null;
-  return { billing_phase: "actual", upstream_credits: seedanceCost(object(body.data, "missing AM task data")) };
+  return { upstream_credits: seedanceCost(object(body.data, "missing AM task data")) };
 }
 
 export function buildQueryRequest(ctx) {

@@ -9,7 +9,6 @@ const source = readFileSync(new URL("../plugins/local/apimart-video/plugin.js", 
 const hash = createHash("sha256").update(source).digest("hex");
 const quote = value => "'" + String(value).replaceAll("'", "''") + "'";
 const models = Object.keys(seedanceBilling);
-const mapping = Object.fromEntries(models.map(model => [model, model.slice(0, -3)]));
 const modes = Object.fromEntries(models.map(model => [model, "tiered_expr"]));
 const overrides = Object.fromEntries(Object.entries(seedanceBilling).map(([model, expr]) => ["am-video::" + model, expr]));
 const options = {
@@ -19,35 +18,26 @@ const options = {
 };
 const sql = `
 BEGIN;
-LOCK TABLE task_plugins, channels, abilities, options IN SHARE ROW EXCLUSIVE MODE;
+LOCK TABLE task_plugins, channels, options IN SHARE ROW EXCLUSIVE MODE;
 DO $$ BEGIN
-  IF (SELECT count(*) FROM task_plugins WHERE key='am-video' AND active AND version='0.2.0') <> 1 THEN
-    RAISE EXCEPTION 'Expected active am-video 0.2.0';
+  IF (SELECT count(*) FROM task_plugins WHERE key='am-video' AND active AND version='0.3.1') <> 1 THEN
+    RAISE EXCEPTION 'Expected active am-video 0.3.1';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM channels WHERE id=11 AND status=1 AND setting::jsonb->>'task_plugin_key'='am-video') THEN
     RAISE EXCEPTION 'Expected enabled test channel 11';
   END IF;
 END $$;
 -- Restricted rollback snapshot: no credentials, users, request data or unrelated options.
-CREATE TABLE am_seedance_release_030_backup AS
-SELECT 'channel'::text AS kind, jsonb_build_object('id',id,'models',models,'model_mapping',model_mapping) AS value
-FROM channels WHERE id=11
-UNION ALL SELECT 'option',jsonb_build_object('key',key,'value',value) FROM options
+CREATE TABLE am_seedance_release_032_backup AS
+SELECT 'option'::text AS kind, jsonb_build_object('key',key,'value',value) AS value FROM options
 WHERE key IN ('billing_setting.billing_mode','billing_setting.billing_expr','billing_setting.plugin_billing_expr');
 INSERT INTO task_plugins (key,api_version,version,source,source_hash,icon,enabled,active,created_at,remark)
-SELECT 'am-video',1,'0.3.0',${quote(source)},${quote(hash)},icon,true,false,extract(epoch from now())::bigint,'Seedance estimates and validated upstream cost settlement'
+SELECT 'am-video',1,'0.3.2',${quote(source)},${quote(hash)},icon,true,false,extract(epoch from now())::bigint,'Seedance credit estimates and validated upstream settlement'
 FROM task_plugins WHERE key='am-video' AND active;
-UPDATE channels SET models=models||','||${quote(models.join(","))},
-model_mapping=(COALESCE(NULLIF(model_mapping,''),'{}')::jsonb||${quote(JSON.stringify(mapping))}::jsonb)::text WHERE id=11;
-INSERT INTO abilities ("group",model,channel_id,enabled,priority,weight,tag)
-SELECT a."group",m.model,11,a.enabled,a.priority,a.weight,a.tag
-FROM (SELECT DISTINCT "group",enabled,priority,weight,tag FROM abilities WHERE channel_id=11) a
-CROSS JOIN (VALUES ${models.map(model => "(" + quote(model) + ")").join(",")}) m(model)
-WHERE NOT EXISTS (SELECT 1 FROM abilities old WHERE old.channel_id=11 AND old."group"=a."group" AND old.model=m.model);
 ${Object.entries(options).map(([key, value]) => `INSERT INTO options (key,value) VALUES (${quote(key)},${quote(JSON.stringify(value))})
 ON CONFLICT (key) DO UPDATE SET value=(COALESCE(NULLIF(options.value,''),'{}')::jsonb||EXCLUDED.value::jsonb)::text;`).join("\n")}
 UPDATE task_plugins SET active=false WHERE key='am-video' AND active;
-UPDATE task_plugins SET active=true WHERE key='am-video' AND version='0.3.0';
+UPDATE task_plugins SET active=true WHERE key='am-video' AND version='0.3.2';
 COMMIT;
 SELECT key,version,active,source_hash FROM task_plugins WHERE key='am-video' ORDER BY version;
 `;
