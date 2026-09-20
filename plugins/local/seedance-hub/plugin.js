@@ -33,7 +33,7 @@ export const meta = {
   name: "Seedance Hub",
   icon: "Doubao.Color",
   description: { en: "Seedance video generation and owned asset management through the Hub API", zh: "通过 Hub API 生成 Seedance 视频并管理归属素材" },
-  version: "2.0.4",
+  version: "2.0.5",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   models: [...VIDEO_MODELS.keys()],
@@ -239,4 +239,21 @@ export function extractUsageOnComplete(task, result, body) {
   const usage = body && body.usage || {};
   const tokens = Number(usage.completion_tokens || usage.total_tokens);
   return Number.isFinite(tokens) && tokens >= 0 ? { tokens: tokens } : {};
+}
+
+export function listArtifacts(task) {
+  if (String(task && task.status || "").toUpperCase() !== "SUCCESS") return [];
+  const content = responseBody(task.data).content || {};
+  const artifacts = [];
+  if (text(content.video_url)) artifacts.push({ key: "video", type: "video" });
+  if (text(content.last_frame_url)) artifacts.push({ key: "last_frame", type: "image", mimeType: "image/png" });
+  return artifacts;
+}
+
+export function buildContentRequest(ctx) {
+  const content = responseBody(ctx.data).content || {};
+  const urls = { video: content.video_url, last_frame: content.last_frame_url };
+  const url = text(urls[ctx.artifactKey]);
+  if (!url) throw new Error("artifact_not_found");
+  return { url: url, method: ctx.clientRequest.method, credentialless: true };
 }

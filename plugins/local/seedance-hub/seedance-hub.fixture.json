@@ -91,6 +91,30 @@
       "member": "decodeAssetAction",
       "args": [{"query":{"Action":["UnknownAction"]},"body":{"kind":"json","value":{}}}],
       "expectedError": "unsupported asset Action"
+    },
+    {
+      "name": "lists generated video and last frame artifacts",
+      "hook": "listArtifacts",
+      "args": [{"status":"SUCCESS","data":{"content":{"video_url":"https://media.example/video.mp4","last_frame_url":"https://media.example/last.png"}}}],
+      "expected": [{"key":"video","type":"video"},{"key":"last_frame","type":"image","mimeType":"image/png"}]
+    },
+    {
+      "name": "does not list artifacts before task success",
+      "hook": "listArtifacts",
+      "args": [{"status":"IN_PROGRESS","data":{"content":{"video_url":"https://media.example/video.mp4"}}}],
+      "expected": []
+    },
+    {
+      "name": "builds a credentialless video content request",
+      "hook": "buildContentRequest",
+      "args": [{"artifactKey":"video","clientRequest":{"method":"GET"},"data":{"content":{"video_url":"https://media.example/video.mp4"}}}],
+      "expected": {"url":"https://media.example/video.mp4","method":"GET","credentialless":true}
+    },
+    {
+      "name": "rejects an unavailable artifact",
+      "hook": "buildContentRequest",
+      "args": [{"artifactKey":"video","clientRequest":{"method":"GET"},"data":{"content":{}}}],
+      "expectedError": "artifact_not_found"
     }
   ]
 }
