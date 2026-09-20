@@ -15,6 +15,12 @@ const UPSTREAM_MODELS = new Map([
   ["doubao-seedance-2-0-mini-hub", "doubao-seedance-2-0-mini-260615"],
   ["doubao-seedance-2-5-hub", "doubao-seedance-2-5-260628"],
 ]);
+const EXAMPLE_TOKENS = {
+  "doubao-seedance-2-0-hub": { "480p": 50220, "720p": 108000, "1080p": 243000, "4k": 972000 },
+  "doubao-seedance-2-0-fast-hub": { "480p": 50220, "720p": 108000 },
+  "doubao-seedance-2-0-mini-hub": { "480p": 50220, "720p": 108000 },
+  "doubao-seedance-2-5-hub": { "480p": 48037.5, "720p": 108000, "1080p": 243000 },
+};
 const ASSET_ACTIONS = new Set([
   "CreateAssetGroup", "ListAssetGroups", "GetAssetGroup", "UpdateAssetGroup", "DeleteAssetGroup",
   "CreateAsset", "ListAssets", "GetAsset", "UpdateAsset", "DeleteAsset",
@@ -27,7 +33,7 @@ export const meta = {
   name: "Seedance Hub",
   icon: "Doubao.Color",
   description: { en: "Seedance video generation and owned asset management through the Hub API", zh: "通过 Hub API 生成 Seedance 视频并管理归属素材" },
-  version: "2.0.3",
+  version: "2.0.4",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   models: [...VIDEO_MODELS.keys()],
@@ -39,7 +45,9 @@ export const meta = {
         resolution: { enum: VIDEO_MODELS.get(model).slice(0, -1), description: { en: "Output video resolution", zh: "输出视频分辨率" } },
         video_input: { enum: ["none", "video"], description: { en: "Reference video input", zh: "参考视频输入" } },
       },
-      examples: [{ label: "720p · 5s", facts: { tokens: 108000, resolution: "720p", video_input: "none" } }],
+      examples: VIDEO_MODELS.get(model).slice(0, -1).map(function (resolution) {
+        return { label: resolution + " · 5s", facts: { tokens: EXAMPLE_TOKENS[model][resolution], resolution: resolution, video_input: "none" } };
+      }),
     };
   }),
   routes: [
