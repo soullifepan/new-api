@@ -165,7 +165,8 @@ func reserveTokenQuotaDB(id int, quota int) (bool, error) {
 
 // TryReserveUserQuota atomically checks and deducts a user's wallet quota.
 // 缓存命中时以缓存余额为准（避免批量模式下过期的数据库余额放大并发超扣）；
-// Redis 异常或水合失败时降级为数据库条件更新，保证服务可用。
+// 非批量模式下 Redis 异常或水合失败时降级为数据库条件更新；
+// 批量模式必须拒绝无法确认的缓存余额，避免用未结算的数据库余额超扣。
 func TryReserveUserQuota(id int, quota int) (bool, error) {
 	if quota < 0 {
 		return false, errors.New("quota 不能为负数！")
@@ -173,8 +174,9 @@ func TryReserveUserQuota(id int, quota int) (bool, error) {
 	if quota == 0 {
 		return true, nil
 	}
-	if common.BatchUpdateEnabled && common.RedisEnabled {
-		lock := walletBatchUserLock(id)
+	batchMode := common.BatchUpdateEnabled && common.RedisEnabled
+	lock := walletBatchUserLock(id)
+	if batchMode {
 		lock.Lock()
 		defer lock.Unlock()
 		if err := ensureWalletBatchMarker(id); err != nil {
@@ -187,7 +189,19 @@ func TryReserveUserQuota(id int, quota int) (bool, error) {
 
 	result, err := cacheTryReserveUserQuota(id, int64(quota))
 	if err == nil && result == cacheQuotaMiss {
-		if _, hydrateErr := GetUserCache(id); hydrateErr != nil {
+		// Hydration also takes the user's lock so it can combine the database
+		// balance with this instance's unflushed delta without racing a flush.
+		if batchMode {
+			lock.Unlock()
+		}
+		_, hydrateErr := GetUserCache(id)
+		if batchMode {
+			lock.Lock()
+			if markerErr := ensureWalletBatchMarker(id); markerErr != nil {
+				return false, markerErr
+			}
+		}
+		if hydrateErr != nil {
 			if common.BatchUpdateEnabled {
 				return false, hydrateErr
 			}

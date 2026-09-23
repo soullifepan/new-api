@@ -103,6 +103,10 @@ func flushWalletBatch() {
 // getWalletUserCache holds the user row while rebuilding an expired Redis
 // balance, so a transfer cannot commit between the DB read and cache write.
 func getWalletUserCache(userID int) (*UserBase, error) {
+	lock := walletBatchUserLock(userID)
+	lock.Lock()
+	defer lock.Unlock()
+
 	var user User
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
@@ -122,7 +126,13 @@ func getWalletUserCache(userID int) (*UserBase, error) {
 			batchUpdateLocks[BatchUpdateTypeUserQuota].Lock()
 			delta, queued := batchUpdateStores[BatchUpdateTypeUserQuota][userID]
 			batchUpdateLocks[BatchUpdateTypeUserQuota].Unlock()
-			if len(markers) != 1 || markers[0].InstanceID != walletBatchInstanceID || !queued || delta != 0 {
+			if len(markers) != 1 || markers[0].InstanceID != walletBatchInstanceID || !queued ||
+				user.Quota < 0 || user.Quota > common.MaxWalletQuota ||
+				delta < -common.MaxWalletQuota || delta > common.MaxWalletQuota {
+				return ErrWalletQuotaPending
+			}
+			user.Quota += delta
+			if user.Quota < 0 || user.Quota > common.MaxWalletQuota {
 				return ErrWalletQuotaPending
 			}
 		}

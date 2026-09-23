@@ -146,6 +146,38 @@ func TestRedisBatchReserveNeverFallsBackToStaleDatabaseBalance(t *testing.T) {
 	assert.Equal(t, 7, reloadedToken.UsedQuota)
 }
 
+func TestRedisBatchCacheMissRebuildsUnflushedBalance(t *testing.T) {
+	truncateTables(t)
+	resetBatchUpdateTestState(t)
+	useUserCacheMiniRedis(t)
+	common.BatchUpdateEnabled = true
+
+	user := createReserveTestUser(t, 10)
+	reserved, err := TryReserveUserQuota(user.Id, 8)
+	require.NoError(t, err)
+	require.True(t, reserved)
+	require.Equal(t, 10, getUserQuotaFromDB(t, user.Id))
+
+	// The cache can expire before a batch flush. Authentication
+	// must recover the pending balance without restoring the stale DB quota.
+	require.NoError(t, common.RedisDelKey(getUserCacheKey(user.Id)))
+	cached, err := GetUserCache(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, 2, cached.Quota)
+
+	reserved, err = TryReserveUserQuota(user.Id, 3)
+	require.NoError(t, err)
+	assert.False(t, reserved)
+
+	batchUpdate()
+	assert.Equal(t, 2, getUserQuotaFromDB(t, user.Id))
+
+	require.NoError(t, DB.Create(&WalletBatchMarker{UserID: user.Id, InstanceID: "another-instance"}).Error)
+	require.NoError(t, common.RedisDelKey(getUserCacheKey(user.Id)))
+	_, err = GetUserCache(user.Id)
+	assert.ErrorIs(t, err, ErrWalletQuotaPending)
+}
+
 func TestBatchUpdateAccumulatesTwoMaximumRequestCharges(t *testing.T) {
 	truncateTables(t)
 	resetBatchUpdateTestState(t)
@@ -355,6 +387,19 @@ func TestWalletTransferDatabaseMatrix(t *testing.T) {
 			_, err = TransferWalletQuota(freshSender.Id, freshRecipient.Id, freshSender.Id, common.RoleCommonUser, 180, "wallet-fresh-schema")
 			require.NoError(t, err)
 			assert.Equal(t, 20, getUserQuotaFromDB(t, freshSender.Id))
+
+			useUserCacheMiniRedis(t)
+			common.BatchUpdateEnabled = true
+			batchUser := createReserveTestUser(t, 10)
+			reserved, err := TryReserveUserQuota(batchUser.Id, 8)
+			require.NoError(t, err)
+			require.True(t, reserved)
+			require.NoError(t, common.RedisDelKey(getUserCacheKey(batchUser.Id)))
+			cached, err := GetUserCache(batchUser.Id)
+			require.NoError(t, err)
+			assert.Equal(t, 2, cached.Quota)
+			batchUpdate()
+			assert.Equal(t, 2, getUserQuotaFromDB(t, batchUser.Id))
 		})
 	}
 }
