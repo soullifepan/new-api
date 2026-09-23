@@ -39,7 +39,7 @@ export const meta = {
     en: "AM asynchronous image generation tasks",
     zh: "AM 异步图片生成任务",
   },
-  version: "0.10.1",
+  version: "0.10.2",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   usageProfiles: (function () {
@@ -390,7 +390,7 @@ function normalizeGPT25(model, request) {
       throw new Error("pixel dimensions must be multiples of 16, at most 3840 per edge, 655360 to 8294400 pixels, and at most 3:1");
     }
   }
-  const output = { model, prompt, size, resolution: ext ? resolution.toUpperCase() : resolution, n };
+  const output = { model, prompt, size, resolution, n };
   const images = imageURLs(request.image_urls, 16);
   if (images) {
     for (const url of images) {
@@ -649,6 +649,8 @@ export function buildSubmitRequest(ctx) {
   }
   if (!isDeclaredModel(publicModel)) throw new Error("unsupported AM image model");
   const body = Object.assign({}, normalizeAPIMartModelRequest(publicModel, request), { model: model });
+  // Keep canonical request and usage tiers lowercase; only the vendor wire format uses uppercase.
+  if (publicModel === gpt25Ext) body.resolution = body.resolution.toUpperCase();
   return {
     url: ctx.baseUrl + "/v1/images/generations",
     method: "POST",
