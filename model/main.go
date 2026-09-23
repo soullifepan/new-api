@@ -349,6 +349,8 @@ func migrateDB() error {
 		&Log{},
 		&Midjourney{},
 		&TopUp{},
+		&WalletTransfer{},
+		&WalletBatchMarker{},
 		&QuotaData{},
 		&Task{},
 		&TaskPlugin{},

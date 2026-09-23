@@ -11,6 +11,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+var ErrWalletQuotaPending = errors.New("wallet quota cache is pending settlement")
+
 const userCacheSchemaVersion = 2
 
 type UserBase struct {
@@ -90,6 +92,9 @@ func GetUserCache(userId int) (*UserBase, error) {
 	userCache, err := cacheGetUserBase(userId)
 	if err == nil {
 		return userCache, nil
+	}
+	if common.BatchUpdateEnabled && common.RedisEnabled {
+		return getWalletUserCache(userId)
 	}
 
 	// Redis misses and read failures both fall back to the shared database. A

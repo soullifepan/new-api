@@ -2,10 +2,13 @@ package model
 
 import (
 	"math"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -57,6 +60,9 @@ func getTokenFromDB(t *testing.T, id int) Token {
 
 func resetBatchUpdateTestState(t *testing.T) {
 	t.Helper()
+	walletBatchUncertain.Clear()
+	require.NoError(t, DB.AutoMigrate(&WalletBatchMarker{}))
+	require.NoError(t, DB.Exec("DELETE FROM wallet_batch_markers").Error)
 	oldBatchEnabled := common.BatchUpdateEnabled
 	common.BatchUpdateEnabled = false
 	for i := range BatchUpdateTypeCount {
@@ -65,6 +71,8 @@ func resetBatchUpdateTestState(t *testing.T) {
 		batchUpdateLocks[i].Unlock()
 	}
 	t.Cleanup(func() {
+		walletBatchUncertain.Clear()
+		require.NoError(t, DB.Exec("DELETE FROM wallet_batch_markers").Error)
 		common.BatchUpdateEnabled = oldBatchEnabled
 		for i := range BatchUpdateTypeCount {
 			batchUpdateLocks[i].Lock()
@@ -258,4 +266,156 @@ func TestTokenCacheInitPreservesLiveQuotaAndFenceBlocksStaleSnapshot(t *testing.
 	cached, err = cacheGetTokenByKey(token.Key)
 	require.NoError(t, err)
 	assert.Equal(t, 100, cached.RemainQuota)
+}
+
+func TestWalletTransferDatabaseMatrix(t *testing.T) {
+	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
+		t.Run(dialect, func(t *testing.T) {
+			var dsn string
+			switch dialect {
+			case "sqlite":
+				oldPath := common.SQLitePath
+				common.SQLitePath = filepath.Join(t.TempDir(), "wallet-transfer.db")
+				t.Cleanup(func() { common.SQLitePath = oldPath })
+			case "mysql":
+				dsn = os.Getenv("TEST_MYSQL_DSN")
+			case "postgres":
+				dsn = os.Getenv("TEST_POSTGRES_DSN")
+			}
+			if dialect != "sqlite" && dsn == "" {
+				t.Skip("test database DSN is not configured")
+			}
+			t.Setenv("WALLET_TRANSFER_TEST_DSN", dsn)
+			db, dbType, err := chooseDB("WALLET_TRANSFER_TEST_DSN", false)
+			require.NoError(t, err)
+			sqlDB, err := db.DB()
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = sqlDB.Close() })
+
+			oldDB, oldType := DB, common.MainDatabaseType()
+			oldRedis, oldBatch, oldUnit := common.RedisEnabled, common.BatchUpdateEnabled, common.QuotaPerUnit
+			oldDisplay := operation_setting.GetGeneralSetting().QuotaDisplayType
+			DB = db
+			common.SetMainDatabaseType(dbType)
+			common.RedisEnabled, common.BatchUpdateEnabled, common.QuotaPerUnit = false, false, 1
+			operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeTokens
+			initCol()
+			t.Cleanup(func() {
+				DB = oldDB
+				common.SetMainDatabaseType(oldType)
+				common.RedisEnabled, common.BatchUpdateEnabled, common.QuotaPerUnit = oldRedis, oldBatch, oldUnit
+				operation_setting.GetGeneralSetting().QuotaDisplayType = oldDisplay
+				initCol()
+			})
+
+			require.NoError(t, db.Migrator().DropTable(&WalletTransfer{}, &WalletBatchMarker{}, &User{}))
+			t.Cleanup(func() { _ = db.Migrator().DropTable(&WalletTransfer{}, &WalletBatchMarker{}, &User{}) })
+			require.NoError(t, db.AutoMigrate(&User{}))
+			sender := createReserveTestUser(t, 250)
+			recipient := createReserveTestUser(t, 0)
+			// Upgrade existing users, then repeat migration to verify idempotency.
+			require.NoError(t, db.AutoMigrate(&WalletTransfer{}, &WalletBatchMarker{}))
+			require.NoError(t, db.AutoMigrate(&WalletTransfer{}, &WalletBatchMarker{}))
+			available, err := GetTransferableWalletQuota(sender.Id)
+			require.NoError(t, err)
+			assert.Equal(t, 230, available)
+			_, err = TransferWalletQuota(sender.Id, recipient.Id, sender.Id, common.RoleCommonUser, 231, "wallet-reserve-too-much")
+			assert.ErrorIs(t, err, ErrWalletTransferInsufficient)
+			transfer, err := TransferWalletQuota(sender.Id, recipient.Id, sender.Id, common.RoleCommonUser, 230, "wallet-reserve-exact")
+			require.NoError(t, err)
+			assert.Equal(t, 20, getUserQuotaFromDB(t, sender.Id))
+			assert.Equal(t, 230, getUserQuotaFromDB(t, recipient.Id))
+			again, err := TransferWalletQuota(sender.Id, recipient.Id, sender.Id, common.RoleCommonUser, 230, "wallet-reserve-exact")
+			require.NoError(t, err)
+			assert.Equal(t, transfer.ID, again.ID)
+			assert.Error(t, db.Create(&WalletTransfer{SourceUserID: sender.Id, TargetUserID: recipient.Id, ActorUserID: sender.Id, Quota: 1, RequestID: "wallet-reserve-exact"}).Error)
+
+			batchSource := createReserveTestUser(t, 250)
+			common.BatchUpdateEnabled = true
+			require.NoError(t, DecreaseUserQuota(batchSource.Id, 50, false))
+			available, err = GetTransferableWalletQuota(batchSource.Id)
+			require.NoError(t, err)
+			assert.Zero(t, available)
+			_, err = TransferWalletQuota(batchSource.Id, recipient.Id, batchSource.Id, common.RoleCommonUser, 1, "wallet-batch-pending")
+			assert.ErrorIs(t, err, ErrWalletTransferUnavailable)
+			batchUpdate()
+			available, err = GetTransferableWalletQuota(batchSource.Id)
+			require.NoError(t, err)
+			assert.Equal(t, 180, available)
+			_, err = TransferWalletQuota(batchSource.Id, recipient.Id, batchSource.Id, common.RoleCommonUser, 180, "wallet-batch-settled")
+			require.NoError(t, err)
+			assert.Equal(t, 20, getUserQuotaFromDB(t, batchSource.Id))
+
+			common.BatchUpdateEnabled = false
+			require.NoError(t, db.Migrator().DropTable(&WalletTransfer{}, &WalletBatchMarker{}, &User{}))
+			require.NoError(t, db.AutoMigrate(&User{}, &WalletTransfer{}, &WalletBatchMarker{}))
+			require.NoError(t, db.AutoMigrate(&User{}, &WalletTransfer{}, &WalletBatchMarker{}))
+			freshSender := createReserveTestUser(t, 200)
+			freshRecipient := createReserveTestUser(t, 0)
+			_, err = TransferWalletQuota(freshSender.Id, freshRecipient.Id, freshSender.Id, common.RoleCommonUser, 180, "wallet-fresh-schema")
+			require.NoError(t, err)
+			assert.Equal(t, 20, getUserQuotaFromDB(t, freshSender.Id))
+		})
+	}
+}
+
+func TestWalletTransferReserveWithRedisAndBatch(t *testing.T) {
+	truncateTables(t)
+	resetBatchUpdateTestState(t)
+	useUserCacheMiniRedis(t)
+	oldUnit := common.QuotaPerUnit
+	oldDisplay := operation_setting.GetGeneralSetting().QuotaDisplayType
+	common.QuotaPerUnit = 1
+	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeTokens
+	t.Cleanup(func() {
+		common.QuotaPerUnit = oldUnit
+		operation_setting.GetGeneralSetting().QuotaDisplayType = oldDisplay
+	})
+	require.NoError(t, DB.AutoMigrate(&WalletTransfer{}))
+	t.Cleanup(func() { require.NoError(t, DB.Exec("DELETE FROM wallet_transfers").Error) })
+
+	sender := createReserveTestUser(t, 250)
+	recipient := createReserveTestUser(t, 0)
+	_, err := TransferWalletQuota(sender.Id, recipient.Id, sender.Id, common.RoleCommonUser, 231, "wallet-redis-too-much")
+	assert.ErrorIs(t, err, ErrWalletTransferInsufficient)
+	_, err = TransferWalletQuota(sender.Id, recipient.Id, sender.Id, common.RoleCommonUser, 230, "wallet-redis-exact")
+	require.NoError(t, err)
+	cached, err := GetUserCache(sender.Id)
+	require.NoError(t, err)
+	assert.Equal(t, 20, cached.Quota)
+	assert.Equal(t, 20, getUserQuotaFromDB(t, sender.Id))
+
+	batchSender := createReserveTestUser(t, 250)
+	common.BatchUpdateEnabled = true
+	require.NoError(t, DecreaseUserQuota(batchSender.Id, 50, false))
+	_, err = TransferWalletQuota(batchSender.Id, recipient.Id, batchSender.Id, common.RoleCommonUser, 1, "wallet-redis-batch-wait")
+	assert.ErrorIs(t, err, ErrWalletTransferUnavailable)
+	batchUpdate()
+	_, err = TransferWalletQuota(batchSender.Id, recipient.Id, batchSender.Id, common.RoleCommonUser, 180, "wallet-redis-batch-ready")
+	require.NoError(t, err)
+	cached, err = GetUserCache(batchSender.Id)
+	require.NoError(t, err)
+	assert.Equal(t, 20, cached.Quota)
+	assert.Equal(t, 20, getUserQuotaFromDB(t, batchSender.Id))
+}
+
+func TestWalletTransferReserveIsFixedUSD(t *testing.T) {
+	oldUnit := common.QuotaPerUnit
+	oldDisplay := operation_setting.GetGeneralSetting().QuotaDisplayType
+	oldRate := operation_setting.USDExchangeRate
+	t.Cleanup(func() {
+		common.QuotaPerUnit = oldUnit
+		operation_setting.GetGeneralSetting().QuotaDisplayType = oldDisplay
+		operation_setting.USDExchangeRate = oldRate
+	})
+	common.QuotaPerUnit = 500000
+	operation_setting.USDExchangeRate = 7
+	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeUSD
+	reserve, err := WalletTransferReserveQuota()
+	require.NoError(t, err)
+	assert.Equal(t, 10000000, reserve)
+	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeCNY
+	reserve, err = WalletTransferReserveQuota()
+	require.NoError(t, err)
+	assert.Equal(t, 10000000, reserve)
 }

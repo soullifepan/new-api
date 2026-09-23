@@ -122,6 +122,11 @@ export function SidebarModulesCard() {
           description: t('Balance and top-up management'),
         },
         {
+          key: 'transfer',
+          title: t('Balance Transfers'),
+          description: t('Move wallet balance between accounts'),
+        },
+        {
           key: 'personal',
           title: t('Personal Settings'),
           description: t('Personal info settings'),

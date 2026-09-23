@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import {
   Activity,
+  ArrowLeftRight,
   Box,
   ClipboardList,
   CreditCard,
@@ -115,6 +116,11 @@ export function useSidebarData(): SidebarData {
             title: t('Wallet'),
             url: '/wallet',
             icon: Wallet,
+          },
+          {
+            title: t('Balance Transfers'),
+            url: '/wallet-transfers',
+            icon: ArrowLeftRight,
           },
           {
             title: t('Profile'),

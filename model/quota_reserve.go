@@ -24,7 +24,7 @@ if tonumber(redis.call('HGET', KEYS[1], 'Id') or '0') ~= tonumber(ARGV[2])
   return -1
 end
 local quota = tonumber(redis.call('HGET', KEYS[1], 'Quota'))
-if quota == nil or quota < tonumber(ARGV[1]) then
+if quota == nil or quota < tonumber(ARGV[1]) + tonumber(ARGV[4] or '0') then
   return 0
 end
 redis.call('HINCRBY', KEYS[1], 'Quota', -tonumber(ARGV[1]))
@@ -79,9 +79,13 @@ func quotaResultFromLua(result int, err error) (cacheQuotaResult, error) {
 	}
 }
 
-func cacheTryReserveUserQuota(userID int, amount int64) (cacheQuotaResult, error) {
+func cacheTryReserveUserQuota(userID int, amount int64, floor ...int64) (cacheQuotaResult, error) {
+	minimum := int64(0)
+	if len(floor) != 0 {
+		minimum = floor[0]
+	}
 	result, err := common.RDB.Eval(context.Background(), userQuotaReserveScript,
-		[]string{getUserCacheKey(userID)}, amount, userID, userCacheSchemaVersion).Int()
+		[]string{getUserCacheKey(userID)}, amount, userID, userCacheSchemaVersion, minimum).Int()
 	return quotaResultFromLua(result, err)
 }
 
@@ -169,17 +173,32 @@ func TryReserveUserQuota(id int, quota int) (bool, error) {
 	if quota == 0 {
 		return true, nil
 	}
+	if common.BatchUpdateEnabled && common.RedisEnabled {
+		lock := walletBatchUserLock(id)
+		lock.Lock()
+		defer lock.Unlock()
+		if err := ensureWalletBatchMarker(id); err != nil {
+			return false, err
+		}
+	}
 	if !common.RedisEnabled {
 		return reserveUserQuotaDB(id, quota)
 	}
 
 	result, err := cacheTryReserveUserQuota(id, int64(quota))
 	if err == nil && result == cacheQuotaMiss {
-		if _, hydrateErr := GetUserCache(id); hydrateErr == nil {
+		if _, hydrateErr := GetUserCache(id); hydrateErr != nil {
+			if common.BatchUpdateEnabled {
+				return false, hydrateErr
+			}
+		} else {
 			result, err = cacheTryReserveUserQuota(id, int64(quota))
 		}
 	}
 	if err != nil || result == cacheQuotaMiss {
+		if common.BatchUpdateEnabled {
+			return false, ErrWalletQuotaPending
+		}
 		if err != nil {
 			common.SysLog("user quota cache reserve unavailable, falling back to database: " + err.Error())
 		}
