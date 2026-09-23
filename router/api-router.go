@@ -30,6 +30,7 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			tapComfyRoute.GET("/storage/sts", middleware.UserAuth(), controller.GetTapComfyStorageSTS)
 			tapComfyRoute.GET("/wallet", middleware.UserAuth(), middleware.DisableCache(), controller.GetWalletTransferSummary)
+			tapComfyRoute.GET("/invitations", middleware.UserAuth(), middleware.DisableCache(), controller.GetTapComfyInvitedUsers)
 			tapComfyRoute.GET("/wallet/transfers", middleware.UserAuth(), middleware.DisableCache(), controller.GetWalletTransfers)
 			tapComfyRoute.POST("/wallet/transfers", middleware.UserAuth(), middleware.DisableCache(), middleware.UserCriticalRateLimit("wallet-transfer"), controller.TransferWalletBalance)
 			tapComfyRoute.POST("/admin/wallet/transfers", middleware.AdminAuth(), middleware.DisableCache(), middleware.UserCriticalRateLimit("admin-wallet-transfer"), controller.AdminTransferWalletBalance)

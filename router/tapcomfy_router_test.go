@@ -1,8 +1,10 @@
 package router
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -13,6 +15,8 @@ import (
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -24,6 +28,7 @@ func TestTapComfyRoutesRequireNewAPIAuthentication(t *testing.T) {
 		{http.MethodGet, "/api/tapcomfy/v1/storage/sts"},
 		{http.MethodPost, "/api/tapcomfy/v1/admin/assets"},
 		{http.MethodGet, "/api/tapcomfy/v1/wallet"},
+		{http.MethodGet, "/api/tapcomfy/v1/invitations"},
 		{http.MethodGet, "/api/tapcomfy/v1/wallet/transfers"},
 		{http.MethodPost, "/api/tapcomfy/v1/wallet/transfers"},
 		{http.MethodPost, "/api/tapcomfy/v1/admin/wallet/transfers"},
@@ -42,8 +47,92 @@ func TestTapComfyCatalogRoutesRegister(t *testing.T) {
 	for _, route := range engine.Routes() {
 		registered[route.Method+" "+route.Path] = true
 	}
-	for _, route := range []string{"GET /api/tapcomfy/v1/models", "GET /api/tapcomfy/v1/admin/models", "POST /api/tapcomfy/v1/admin/models", "PUT /api/tapcomfy/v1/admin/models/:id", "DELETE /api/tapcomfy/v1/admin/models/:id", "GET /api/tapcomfy/v1/wallet", "GET /api/tapcomfy/v1/wallet/transfers", "POST /api/tapcomfy/v1/wallet/transfers", "POST /api/tapcomfy/v1/admin/wallet/transfers"} {
+	for _, route := range []string{"GET /api/tapcomfy/v1/models", "GET /api/tapcomfy/v1/admin/models", "POST /api/tapcomfy/v1/admin/models", "PUT /api/tapcomfy/v1/admin/models/:id", "DELETE /api/tapcomfy/v1/admin/models/:id", "GET /api/tapcomfy/v1/wallet", "GET /api/tapcomfy/v1/invitations", "GET /api/tapcomfy/v1/wallet/transfers", "POST /api/tapcomfy/v1/wallet/transfers", "POST /api/tapcomfy/v1/admin/wallet/transfers"} {
 		assert.True(t, registered[route], route)
+	}
+}
+
+func TestTapComfyInvitationsReturnOnlyCurrentUsersInvitees(t *testing.T) {
+	for _, database := range []struct {
+		name, env string
+		open      func(string) gorm.Dialector
+	}{
+		{name: "sqlite", open: func(dsn string) gorm.Dialector { return sqlite.Open(dsn) }},
+		{name: "mysql", env: "TEST_MYSQL_DSN", open: func(dsn string) gorm.Dialector { return mysql.Open(dsn) }},
+		{name: "postgres", env: "TEST_POSTGRES_DSN", open: func(dsn string) gorm.Dialector {
+			return postgres.New(postgres.Config{DSN: dsn, PreferSimpleProtocol: true})
+		}},
+	} {
+		t.Run(database.name, func(t *testing.T) {
+			dsn := ":memory:"
+			if database.env != "" {
+				dsn = os.Getenv(database.env)
+				if dsn == "" {
+					t.Skip(database.env + " is not configured")
+				}
+			}
+			previousDB, previousLogDB, previousRedis := model.DB, model.LOG_DB, common.RedisEnabled
+			db, err := gorm.Open(database.open(dsn), &gorm.Config{})
+			require.NoError(t, err)
+			sqlDB, err := db.DB()
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = sqlDB.Close() })
+			require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.AuditLog{}))
+			model.DB, model.LOG_DB, common.RedisEnabled = db, db, false
+			t.Cleanup(func() { model.DB, model.LOG_DB, common.RedisEnabled = previousDB, previousLogDB, previousRedis })
+			ownerToken, otherToken := "invite-owner-pat", "invite-other-pat"
+			owner := model.User{Username: "invite-owner", Password: "placeholder", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, Group: "default", AffCode: "owner-aff", AccessToken: &ownerToken, AuthVersion: 1}
+			other := model.User{Username: "invite-other", Password: "placeholder", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, Group: "default", AffCode: "other-aff", AccessToken: &otherToken, AuthVersion: 1}
+			require.NoError(t, db.Create(&owner).Error)
+			require.NoError(t, db.Create(&other).Error)
+			for i := range 21 {
+				username := fmt.Sprintf("invited-%02d", i)
+				require.NoError(t, db.Create(&model.User{Username: username, Password: "placeholder", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, Group: "default", AffCode: username, InviterId: owner.Id}).Error)
+			}
+			require.NoError(t, db.Create(&model.User{Username: "other-invitee", Password: "placeholder", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, Group: "default", AffCode: "other-invitee", InviterId: other.Id}).Error)
+
+			gin.SetMode(gin.TestMode)
+			engine := gin.New()
+			SetApiRouter(engine)
+			for _, tc := range []struct {
+				name, token, path, first string
+				count, total             int
+			}{
+				{name: "first page", token: ownerToken, path: "/api/tapcomfy/v1/invitations", first: "invited-20", count: 20, total: 21},
+				{name: "second page", token: ownerToken, path: "/api/tapcomfy/v1/invitations?page=2", first: "invited-00", count: 1, total: 21},
+				{name: "empty page", token: ownerToken, path: "/api/tapcomfy/v1/invitations?page=3", count: 0, total: 21},
+				{name: "another inviter", token: otherToken, path: "/api/tapcomfy/v1/invitations?user_id=1", first: "other-invitee", count: 1, total: 1},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					request := httptest.NewRequest(http.MethodGet, tc.path, nil)
+					request.Header.Set("Authorization", "Bearer "+tc.token)
+					recorder := httptest.NewRecorder()
+					engine.ServeHTTP(recorder, request)
+					require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+					var result struct {
+						Success bool `json:"success"`
+						Data    struct {
+							Items []map[string]any `json:"items"`
+							Total int              `json:"total"`
+						} `json:"data"`
+					}
+					require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &result))
+					require.True(t, result.Success)
+					assert.Equal(t, tc.total, result.Data.Total)
+					require.Len(t, result.Data.Items, tc.count)
+					if tc.count > 0 {
+						assert.Equal(t, tc.first, result.Data.Items[0]["username"])
+						assert.Len(t, result.Data.Items[0], 2)
+						assert.NotZero(t, result.Data.Items[0]["created_at"])
+					}
+				})
+			}
+			request := httptest.NewRequest(http.MethodGet, "/api/tapcomfy/v1/invitations?page=0", nil)
+			request.Header.Set("Authorization", "Bearer "+ownerToken)
+			recorder := httptest.NewRecorder()
+			engine.ServeHTTP(recorder, request)
+			assert.Equal(t, http.StatusBadRequest, recorder.Code)
+		})
 	}
 }
 
