@@ -1,5 +1,8 @@
 {
   "cases": [
+{"name": "GPT25 Ext canonical request accepts 2K", "hook": "native", "member": "decodeImageGeneration", "args": [{"body": {"kind": "json", "value": {"model": "gpt-image-2.5-ext-am", "prompt": "test", "resolution": "2K", "size": "21:9"}}}], "expected": {"kind": "submit", "model": "gpt-image-2.5-ext-am", "action": "image_generation", "requestBody": {"model": "gpt-image-2.5-ext-am", "prompt": "test", "resolution": "2k", "size": "21:9", "n": 1, "version": "flare"}}},
+{"name": "GPT25 Ext canonical request accepts 2k", "hook": "native", "member": "decodeImageGeneration", "args": [{"body": {"kind": "json", "value": {"model": "gpt-image-2.5-ext-am", "prompt": "test", "resolution": "2k", "size": "21:9"}}}], "expected": {"kind": "submit", "model": "gpt-image-2.5-ext-am", "action": "image_generation", "requestBody": {"model": "gpt-image-2.5-ext-am", "prompt": "test", "resolution": "2k", "size": "21:9", "n": 1, "version": "flare"}}},
+{"name": "GPT25 Ext converts canonical resolution only for upstream", "hook": "buildSubmitRequest", "args": [{"model": "gpt-image-2.5-ext-am", "baseUrl": "https://example.test", "apiKey": "fixture", "requestBody": {"prompt": "test", "resolution": "2k", "size": "21:9", "n": 1, "version": "flare"}}], "expected": {"url": "https://example.test/v1/images/generations", "method": "POST", "headers": {"Accept": "application/json", "Content-Type": "application/json", "Authorization": "Bearer fixture"}, "body": {"model": "gpt-image-2.5-ext", "prompt": "test", "resolution": "2K", "size": "21:9", "n": 1, "version": "flare"}, "action": "image_generation"}},
 {"name":"GPT 2.5 rejects count_zero","hook":"native","member":"decodeImageGeneration","args":[{"body":{"kind":"json","value":{"model":"gpt-image-2.5-flare-am","prompt":"test","n":0}}}],"expectedError":"n must be an integer between 1 and 4"},
 {"name":"GPT 2.5 rejects count_five","hook":"native","member":"decodeImageGeneration","args":[{"body":{"kind":"json","value":{"model":"gpt-image-2.5-flare-am","prompt":"test","n":5}}}],"expectedError":"n must be an integer between 1 and 4"},
 {"name":"GPT 2.5 rejects count_string","hook":"native","member":"decodeImageGeneration","args":[{"body":{"kind":"json","value":{"model":"gpt-image-2.5-flare-am","prompt":"test","n":"1"}}}],"expectedError":"n must be an integer between 1 and 4"},
@@ -22,7 +25,7 @@
       "name": "GPT 2.5 Ext defaults and Sunburst version",
       "hook": "native", "member": "decodeImageGeneration",
       "args": [{"body":{"kind":"json","value":{"model":"gpt-image-2.5-ext-am","version":"sunburst","prompt":"test"}}}],
-      "expected": {"kind":"submit","model":"gpt-image-2.5-ext-am","action":"image_generation","requestBody":{"model":"gpt-image-2.5-ext-am","version":"sunburst","prompt":"test","size":"auto","resolution":"1K","n":1}}
+      "expected": {"kind":"submit","model":"gpt-image-2.5-ext-am","action":"image_generation","requestBody":{"model":"gpt-image-2.5-ext-am","version":"sunburst","prompt":"test","size":"auto","resolution":"1k","n":1}}
     },
     {
       "name": "GPT 2.5 standard settles actual USD without another discount",
