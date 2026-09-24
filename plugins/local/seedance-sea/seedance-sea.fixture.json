@@ -111,8 +111,7 @@
             "duration": 5,
             "resolution": "720p"
           }
-        },
-        "originTaskIds": []
+        }
       },
       "member": "createTask"
     },
@@ -353,7 +352,7 @@
       "expected": {
         "taskId": "asset-private",
         "taskData": {
-          "id": "asset-private"
+          "Id": "asset-private"
         }
       }
     },
@@ -447,255 +446,6 @@
         "status": "UNKNOWN",
         "reason": "unrecognized asset status"
       }
-    },
-    {
-      "name": "query delegates ownership checks to the host",
-      "hook": "native",
-      "args": [
-        {
-          "query": {
-            "id": [
-              "task_owned"
-            ]
-          }
-        }
-      ],
-      "expected": {
-        "kind": "query",
-        "taskIds": [
-          "task_owned"
-        ]
-      },
-      "member": "getAsset"
-    },
-    {
-      "name": "asset response only exposes gateway reference",
-      "hook": "native",
-      "args": [
-        {},
-        [
-          {
-            "task_id": "task_owned",
-            "status": "SUCCESS",
-            "data": {
-              "id": "asset-private",
-              "Status": "Active",
-              "assetUri": "asset://asset-private"
-            }
-          }
-        ]
-      ],
-      "expected": {
-        "id": "task_owned",
-        "Status": "Active",
-        "assetUri": "asset://task_owned"
-      },
-      "member": "assetStatus"
-    },
-    {
-      "name": "video declares asset ownership dependency",
-      "hook": "native",
-      "args": [
-        {
-          "body": {
-            "kind": "json",
-            "value": {
-              "model": "doubao-seedance-2-0-sea",
-              "content": [
-                {
-                  "type": "image_url",
-                  "image_url": {
-                    "url": "asset://task_owned"
-                  }
-                }
-              ],
-              "duration": 5,
-              "resolution": "720p"
-            }
-          }
-        }
-      ],
-      "expected": {
-        "kind": "submit",
-        "model": "doubao-seedance-2-0-sea",
-        "action": "image_to_video",
-        "requestBody": {
-          "model": "doubao-seedance-2-0-sea",
-          "metadata": {
-            "model": "doubao-seedance-2-0-sea",
-            "content": [
-              {
-                "type": "image_url",
-                "image_url": {
-                  "url": "asset://task_owned"
-                }
-              }
-            ],
-            "duration": 5,
-            "resolution": "720p"
-          }
-        },
-        "originTaskIds": [
-          "task_owned"
-        ]
-      },
-      "member": "createTask"
-    },
-    {
-      "name": "video resolves owned Active asset id",
-      "hook": "buildSubmitRequest",
-      "args": [
-        {
-          "model": "doubao-seedance-2-0-sea",
-          "baseUrl": "https://seedance.0a.com",
-          "apiKey": "fixture-key",
-          "action": "image_to_video",
-          "requestBody": {
-            "metadata": {
-              "model": "doubao-seedance-2-0-sea",
-              "content": [
-                {
-                  "type": "image_url",
-                  "image_url": {
-                    "url": "asset://task_owned"
-                  }
-                }
-              ],
-              "duration": 5,
-              "resolution": "720p"
-            }
-          },
-          "originTasks": [
-            {
-              "taskId": "task_owned",
-              "upstreamTaskId": "asset-private",
-              "action": "createMedia",
-              "status": "SUCCESS"
-            }
-          ]
-        }
-      ],
-      "expected": {
-        "url": "https://seedance.0a.com/api/token/v3/contents/generations/tasks",
-        "method": "POST",
-        "headers": {
-          "Accept": "application/json",
-          "Content-Type": "application/json",
-          "Authorization": "Bearer fixture-key"
-        },
-        "body": {
-          "model": "doubao-seedance-2-0-260128",
-          "content": [
-            {
-              "type": "image_url",
-              "image_url": {
-                "url": "asset://asset-private"
-              }
-            }
-          ],
-          "duration": 5,
-          "resolution": "720p"
-        },
-        "action": "image_to_video"
-      }
-    },
-    {
-      "name": "reject unowned pending or non asset origin 23",
-      "hook": "buildSubmitRequest",
-      "args": [
-        {
-          "model": "doubao-seedance-2-0-sea",
-          "baseUrl": "https://seedance.0a.com",
-          "apiKey": "fixture-key",
-          "requestBody": {
-            "metadata": {
-              "model": "doubao-seedance-2-0-sea",
-              "content": [
-                {
-                  "type": "image_url",
-                  "image_url": {
-                    "url": "asset://task_owned"
-                  }
-                }
-              ],
-              "duration": 5,
-              "resolution": "720p"
-            }
-          },
-          "originTasks": []
-        }
-      ],
-      "expectedError": "asset is not owned or not Active"
-    },
-    {
-      "name": "reject unowned pending or non asset origin 24",
-      "hook": "buildSubmitRequest",
-      "args": [
-        {
-          "model": "doubao-seedance-2-0-sea",
-          "baseUrl": "https://seedance.0a.com",
-          "apiKey": "fixture-key",
-          "requestBody": {
-            "metadata": {
-              "model": "doubao-seedance-2-0-sea",
-              "content": [
-                {
-                  "type": "image_url",
-                  "image_url": {
-                    "url": "asset://task_owned"
-                  }
-                }
-              ],
-              "duration": 5,
-              "resolution": "720p"
-            }
-          },
-          "originTasks": [
-            {
-              "taskId": "task_owned",
-              "upstreamTaskId": "asset-private",
-              "action": "createMedia",
-              "status": "IN_PROGRESS"
-            }
-          ]
-        }
-      ],
-      "expectedError": "asset is not owned or not Active"
-    },
-    {
-      "name": "reject unowned pending or non asset origin 25",
-      "hook": "buildSubmitRequest",
-      "args": [
-        {
-          "model": "doubao-seedance-2-0-sea",
-          "baseUrl": "https://seedance.0a.com",
-          "apiKey": "fixture-key",
-          "requestBody": {
-            "metadata": {
-              "model": "doubao-seedance-2-0-sea",
-              "content": [
-                {
-                  "type": "image_url",
-                  "image_url": {
-                    "url": "asset://task_owned"
-                  }
-                }
-              ],
-              "duration": 5,
-              "resolution": "720p"
-            }
-          },
-          "originTasks": [
-            {
-              "taskId": "task_owned",
-              "upstreamTaskId": "asset-private",
-              "action": "text_to_video",
-              "status": "SUCCESS"
-            }
-          ]
-        }
-      ],
-      "expectedError": "asset is not owned or not Active"
     },
     {
       "name": "successful task uses documented total_tokens",
@@ -847,6 +597,150 @@
         }
       },
       "member": "taskStatus"
+    },
+    {
+      "name": "query uses original native asset id",
+      "hook": "native",
+      "member": "getAsset",
+      "args": [
+        {
+          "query": {
+            "id": [
+              "asset-native"
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "doubao-seedance-2-0-sea",
+        "action": "get",
+        "requestBody": {
+          "id": "asset-native"
+        }
+      }
+    },
+    {
+      "name": "native asset lookup goes to Token0A",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "model": "doubao-seedance-2-0-sea",
+          "action": "get",
+          "baseUrl": "https://seedance.0a.com",
+          "apiKey": "fixture-key",
+          "requestBody": {
+            "id": "asset-native"
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://seedance.0a.com/api/token/v7/asset/get?id=asset-native",
+        "method": "GET",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        }
+      }
+    },
+    {
+      "name": "created asset returns native id, never task id",
+      "hook": "native",
+      "member": "assetCreated",
+      "args": [
+        {},
+        {
+          "task_id": "task_gateway",
+          "data": {
+            "Id": "asset-native",
+            "Status": "Processing"
+          }
+        }
+      ],
+      "expected": {
+        "id": "asset-native",
+        "Status": "Processing"
+      }
+    },
+    {
+      "name": "lookup preserves native status and failure details",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {
+          "action": "get",
+          "publicTaskId": "task_lookup"
+        },
+        {
+          "body": {
+            "id": "asset-native",
+            "Status": "Failed",
+            "Error": {
+              "Message": "rejected"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "taskId": "task_lookup",
+        "taskData": {
+          "id": "asset-native",
+          "Status": "Failed",
+          "Error": {
+            "Message": "rejected"
+          }
+        },
+        "immediate": {
+          "status": "SUCCESS",
+          "progress": "100%"
+        }
+      }
+    },
+    {
+      "name": "passes native asset reference to video unchanged",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "model": "doubao-seedance-2-0-sea",
+          "baseUrl": "https://seedance.0a.com",
+          "apiKey": "fixture-key",
+          "requestBody": {
+            "metadata": {
+              "content": [
+                {
+                  "type": "image_url",
+                  "image_url": {
+                    "url": "asset://asset-native"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://seedance.0a.com/api/token/v3/contents/generations/tasks",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "model": "doubao-seedance-2-0-260128",
+          "content": [
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "asset://asset-native"
+              }
+            }
+          ],
+          "duration": 5,
+          "resolution": "720p"
+        },
+        "action": "image_to_video"
+      }
     }
   ]
 }

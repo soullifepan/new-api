@@ -1,5 +1,5 @@
-// Token0A video and asset adapter. Asset references are gateway task IDs;
-// originTasks supplies ownership-checked upstream IDs and pins the channel.
+// Token0A video and asset adapter. Like Hub, asset APIs preserve the native
+// asset ID and video requests forward asset://asset-... references unchanged.
 
 const ASSET_ROUTING_MODEL = "doubao-seedance-2-0-sea";
 const VIDEO_MODELS = new Map([
@@ -20,7 +20,7 @@ const EXAMPLE_TOKENS = {
   "doubao-seedance-2-0-mini-sea": { "480p": 50220, "720p": 108000 },
   "doubao-seedance-2-5-sea": { "480p": 50220, "720p": 108000 },
 };
-const ASSET_ACTIONS = new Set(["create", "createMedia"]);
+const ASSET_ACTIONS = new Set(["create", "createMedia", "get"]);
 const VIDEO_FIELDS = new Set(["model", "content", "duration", "resolution", "ratio", "watermark", "generate_audio", "seed", "camera_fixed", "return_last_frame"]);
 
 export const meta = {
@@ -29,7 +29,7 @@ export const meta = {
   name: "Seedance Sea",
   icon: "Doubao.Color",
   description: { en: "Seedance video generation and owned asset management through the Token0A API", zh: "通过 Token0A API 生成 Seedance 视频并管理归属素材" },
-  version: "1.0.0",
+  version: "1.0.1",
   author: { name: "Tapcomfy" },
   baseUrl: "https://seedance.0a.com",
   fetchMode: "per_task",
@@ -75,33 +75,22 @@ function copy(value) {
   }
   return value;
 }
-function assetReferences(value, ids, origins) {
+function validateAssetReferences(value) {
   if (typeof value === "string") {
-    if (!value.startsWith("asset://")) return value;
-    const id = value.slice(8);
-    if (!/^task_[A-Za-z0-9_-]+$/.test(id)) throw new Error("asset reference must use a gateway asset task ID");
-    if (!ids.includes(id)) ids.push(id);
-    if (!origins) return value;
-    const origin = origins.find(function (item) { return item.taskId === id; });
-    if (!origin || !["create", "createMedia"].includes(origin.action) || origin.status !== "SUCCESS") throw new Error("asset is not owned or not Active");
-    return "asset://" + origin.upstreamTaskId;
+    if (value.startsWith("asset://") && !/^asset:\/\/asset-[A-Za-z0-9_-]+$/.test(value)) throw new Error("invalid native asset reference");
+    return;
   }
-  if (Array.isArray(value)) return value.map(function (item) { return assetReferences(item, ids, origins); });
-  if (value && typeof value === "object") {
-    const result = {};
-    for (const key of Object.keys(value)) result[key] = assetReferences(value[key], ids, origins);
-    return result;
+  if (Array.isArray(value)) {
+    for (const item of value) validateAssetReferences(item);
+  } else if (value && typeof value === "object") {
+    for (const item of Object.values(value)) validateAssetReferences(item);
   }
-  return value;
 }
 function assetView(task) {
-  const body = responseBody(task.data);
-  const status = { SUCCESS: "Active", FAILURE: "Failed" }[task.status] || "Processing";
-  const result = { id: task.task_id, Status: status, assetUri: "asset://" + task.task_id };
-  for (const key of ["name", "Name", "url", "URL", "assetType", "AssetType", "group_id", "created_at"]) if (own(body, key)) result[key] = body[key];
-  if (task.fail_reason) result.Error = { Message: task.fail_reason };
-  else if (body.errorMessage || body.Error) result.Error = body.Error || { Code: body.errorCode, Message: body.errorMessage };
-  return result;
+  const body = copy(responseBody(task.data));
+  // Uppercase Id is a native asset field, not a private video task ID.
+  if (text(body.Id)) { body.id = body.Id; delete body.Id; }
+  return body;
 }
 function validateVideo(body) {
   const model = text(body.model);
@@ -119,7 +108,7 @@ function validateVideo(body) {
   const request = copy(body);
   request.duration = duration;
   request.resolution = resolution;
-  assetReferences(content, []);
+  validateAssetReferences(content);
   return { model: model, request: request };
 }
 function taskAction(content) {
@@ -181,16 +170,14 @@ export const native = {
   },
   getAsset: function (ctx) {
     const id = text(ctx.query && ctx.query.id && ctx.query.id[0]);
-    if (!id) throw new Error("asset id is required");
-    return { kind: "query", taskIds: [id] };
+    if (!/^asset-[A-Za-z0-9_-]+$/.test(id)) throw new Error("native asset id is required");
+    return { kind: "submit", model: ASSET_ROUTING_MODEL, action: "get", requestBody: { id: id } };
   },
   assetCreated: function (_ctx, task) { return assetView(task); },
-  assetStatus: function (_ctx, tasks) { return assetView(tasks[0]); },
+  assetStatus: function (_ctx, task) { return assetView(task); },
   createTask: function (ctx) {
     const video = validateVideo(bodyValue(ctx));
-    const ids = [];
-    assetReferences(video.request.content, ids);
-    return { kind: "submit", model: video.model, action: taskAction(video.request.content), requestBody: { model: video.model, metadata: video.request }, originTaskIds: ids };
+    return { kind: "submit", model: video.model, action: taskAction(video.request.content), requestBody: { model: video.model, metadata: video.request } };
   },
   taskCreated: function (_ctx, task) { return { id: task.task_id }; },
   taskStatus: function (_ctx, task) {
@@ -213,12 +200,15 @@ function isAssetAction(action) { return ASSET_ACTIONS.has(action); }
 export function buildSubmitRequest(ctx) {
   if (isAssetAction(ctx.action)) {
     const body = copy(ctx.requestBody);
+    if (ctx.action === "get") {
+      if (!/^asset-[A-Za-z0-9_-]+$/.test(text(body.id))) throw new Error("native asset id is required");
+      return { url: assetURL(ctx.baseUrl, "get") + "?id=" + encodeURIComponent(body.id), method: "GET", headers: headers(ctx.apiKey) };
+    }
     return { url: assetURL(ctx.baseUrl, ctx.action), method: "POST", headers: headers(ctx.apiKey), body: body, action: ctx.action };
   }
   const metadata = validateVideo(Object.assign({}, ctx.requestBody.metadata || {}, { model: ctx.model })).request;
   const expectedUpstream = UPSTREAM_MODELS.get(ctx.model) || ctx.model;
   if (ctx.upstreamModel && ctx.upstreamModel !== ctx.model && ctx.upstreamModel !== expectedUpstream) throw new Error("upstream model does not match the Seedance Sea alias");
-  metadata.content = assetReferences(metadata.content, [], ctx.originTasks || []);
   metadata.model = expectedUpstream;
   return { url: ctx.baseUrl.replace(/\/+$/, "") + "/api/token/v3/contents/generations/tasks", method: "POST", headers: headers(ctx.apiKey), body: metadata, action: taskAction(metadata.content) };
 }
@@ -226,15 +216,19 @@ export function buildSubmitRequest(ctx) {
 export function parseSubmitResponse(ctx, response) {
   const body = object(response && response.body, "invalid upstream response");
   const failure = providerError(body);
-  if (failure) throw new Error(failure);
+  if (failure && !(ctx.action === "get" && text(body.Status || body.status).toLowerCase() === "failed")) throw new Error(failure);
   if (!isAssetAction(ctx.action)) {
     const id = responseID(body);
     if (!id) throw new Error("task_id is empty");
     return { taskId: id, taskData: body };
   }
+  if (ctx.action === "get") return { taskId: ctx.publicTaskId || utils.uuid(), taskData: body, immediate: { status: "SUCCESS", progress: "100%" } };
   const id = responseID(body);
-  if (!id) throw new Error("asset id is empty");
-  return { taskId: id, taskData: body };
+  if (!/^asset-[A-Za-z0-9_-]+$/.test(id)) throw new Error("native asset id is empty or invalid");
+  const asset = copy(body);
+  asset.Id = id;
+  delete asset.id;
+  return { taskId: id, taskData: asset };
 }
 
 export function buildQueryRequest(ctx) {

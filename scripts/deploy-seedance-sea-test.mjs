@@ -29,7 +29,7 @@ DO $$ BEGIN
   IF (SELECT count(*) FROM jsonb_each_text((SELECT value::jsonb FROM options WHERE key='billing_setting.plugin_billing_expr')) WHERE key LIKE 'seedance-hub::%') <> 4 THEN RAISE EXCEPTION 'Expected four Hub provider prices'; END IF;
 END $$;
 INSERT INTO task_plugins (key,api_version,version,source,source_hash,enabled,active,created_at,remark)
-VALUES ('seedance-sea',1,'1.0.0',${quote(source)},${quote(hash)},true,true,extract(epoch from now())::bigint,'Token0A video and OSS URL asset registration');
+VALUES ('seedance-sea',1,'1.0.1',${quote(source)},${quote(hash)},true,true,extract(epoch from now())::bigint,'Token0A video and OSS URL asset registration');
 INSERT INTO channels (type,key,status,name,weight,created_time,base_url,models,"group",model_mapping,priority,auto_ban,setting,channel_info)
 VALUES (61,'1',2,'seedance-sea',0,extract(epoch from now())::bigint,'https://seedance.0a.com',
 'doubao-seedance-2-0-sea,doubao-seedance-2-0-fast-sea,doubao-seedance-2-0-mini-sea,doubao-seedance-2-5-sea',
