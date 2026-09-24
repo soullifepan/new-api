@@ -1,5 +1,5 @@
 // Huanxing video and asset adapter. Like Hub, asset APIs preserve the native
-// asset ID and video requests forward asset://asset-... references unchanged.
+// asset ID and video requests forward asset://<native-id> references unchanged.
 
 const ASSET_ROUTING_MODEL = "doubao-seedance-2-0-hx";
 const VIDEO_MODELS = new Map([
@@ -29,7 +29,7 @@ export const meta = {
   name: "Seedance HX",
   icon: "Doubao.Color",
   description: { en: "Seedance video generation and owned asset management through the Huanxing API", zh: "通过 Huanxing API 生成 Seedance 视频并管理归属素材" },
-  version: "1.0.1",
+  version: "1.0.2",
   author: { name: "Tapcomfy" },
   baseUrl: "https://api.huanxing.ai",
   fetchMode: "per_task",
@@ -76,7 +76,7 @@ function copy(value) {
 }
 function validateAssetReferences(value) {
   if (typeof value === "string") {
-    if (value.startsWith("asset://") && !/^asset:\/\/asset-[A-Za-z0-9_-]+$/.test(value)) throw new Error("invalid native asset reference");
+    if (value.startsWith("asset://") && !validResourceID(value.slice("asset://".length))) throw new Error("invalid native asset reference");
     return;
   }
   if (Array.isArray(value)) {
@@ -138,7 +138,7 @@ function providerError(body) {
   if (metadata && metadata.Error) return text(metadata.Error.Message || metadata.Error.Code);
   return "";
 }
-function validGroupID(value) { return typeof value === "string" && /^[A-Za-z0-9_-]{1,256}$/.test(value); }
+function validResourceID(value) { return typeof value === "string" && /^[A-Za-z0-9_-]{1,256}$/.test(value); }
 function assetURL(baseUrl, action) { return baseUrl.replace(/\/+$/, "") + "/api/material?Action=" + action; }
 function headers(apiKey) { return { Accept: "application/json", "Content-Type": "application/json", Authorization: "Bearer " + apiKey }; }
 function resolutionMaxPixels(resolution) {
@@ -168,10 +168,10 @@ export const native = {
       request = { Name: text(body.Name) };
       if (own(body, "Description")) request.Description = text(body.Description);
     } else if (action === "GetAssetGroup") {
-      if (!validGroupID(body.Id)) throw new Error("native group id is required");
+      if (!validResourceID(body.Id)) throw new Error("native group id is required");
       request = { Id: text(body.Id) };
     } else {
-      if (!validGroupID(body.GroupId)) throw new Error("native group id is required");
+      if (!validResourceID(body.GroupId)) throw new Error("native group id is required");
       if (!/^https?:\/\/[^\s]+$/.test(text(body.URL))) throw new Error("asset URL must be HTTP or HTTPS");
       if (!text(body.Name)) throw new Error("asset name is required");
       if (!["Image", "Video", "Audio"].includes(body.AssetType)) throw new Error("unsupported AssetType");
@@ -241,10 +241,10 @@ export function parseSubmitResponse(ctx, response) {
   }
   const id = responseID(body);
   if (ctx.action === "CreateAsset") {
-    if (!/^asset-[A-Za-z0-9_-]+$/.test(id)) throw new Error("native asset id is empty or invalid");
+    if (!validResourceID(id)) throw new Error("native asset id is empty or invalid");
     return { taskId: id, taskData: body };
   }
-  if (!validGroupID(id)) throw new Error("native group id is empty or invalid");
+  if (!validResourceID(id)) throw new Error("native group id is empty or invalid");
   return { taskId: id, taskData: body, immediate: { status: "SUCCESS", progress: "100%" } };
 }
 
@@ -264,7 +264,7 @@ export function parseTaskResult(ctx, body) {
     if (failure) return { status: "UNKNOWN", reason: failure };
     if (ctx.taskId && asset.Id !== ctx.taskId) return { status: "UNKNOWN", reason: "asset id mismatch" };
     if (status === "active") {
-      if (!/^asset-[A-Za-z0-9_-]+$/.test(text(asset.Id))) return { status: "UNKNOWN", reason: "invalid native asset id" };
+      if (!validResourceID(asset.Id)) return { status: "UNKNOWN", reason: "invalid native asset id" };
       return { status: "SUCCESS", progress: "100%" };
     }
     if (status === "processing") return { status: "IN_PROGRESS", progress: "50%" };

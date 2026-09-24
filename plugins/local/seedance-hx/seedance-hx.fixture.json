@@ -409,7 +409,7 @@
       "expectedError": "non-empty text"
     },
     {
-      "name": "reject {'content': [{'type': 'text', 'text': 'cat'}, {'type': 'image_url', 'image_url': {'url': 'asset://task_private'}}]}",
+      "name": "reject malformed native asset URI",
       "hook": "native",
       "args": [
         {
@@ -425,7 +425,7 @@
                 {
                   "type": "image_url",
                   "image_url": {
-                    "url": "asset://task_private"
+                    "url": "asset://bad/id"
                   }
                 }
               ]
@@ -1450,6 +1450,182 @@
         "resolution": "720p",
         "video_input": "none"
       }
+    },
+    {
+      "name": "create accepts actual HX sa identifier format",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {
+          "action": "CreateAsset"
+        },
+        {
+          "body": {
+            "Result": {
+              "Id": "sa_0123456789abcdef0123456789abcdef",
+              "Status": "Processing"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "taskId": "sa_0123456789abcdef0123456789abcdef",
+        "taskData": {
+          "Result": {
+            "Id": "sa_0123456789abcdef0123456789abcdef",
+            "Status": "Processing"
+          }
+        }
+      }
+    },
+    {
+      "name": "query forwards native sa identifier unchanged",
+      "hook": "buildQueryRequest",
+      "args": [
+        {
+          "action": "CreateAsset",
+          "taskId": "sa_0123456789abcdef0123456789abcdef",
+          "baseUrl": "https://api.huanxing.ai",
+          "apiKey": "fixture-key"
+        }
+      ],
+      "expected": {
+        "url": "https://api.huanxing.ai/api/material?Action=GetAsset",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "Id": "sa_0123456789abcdef0123456789abcdef"
+        }
+      }
+    },
+    {
+      "name": "active sa asset succeeds",
+      "hook": "parseTaskResult",
+      "args": [
+        {
+          "action": "CreateAsset",
+          "taskId": "sa_0123456789abcdef0123456789abcdef"
+        },
+        {
+          "Result": {
+            "Id": "sa_0123456789abcdef0123456789abcdef",
+            "Status": "Active"
+          }
+        }
+      ],
+      "expected": {
+        "status": "SUCCESS",
+        "progress": "100%"
+      }
+    },
+    {
+      "name": "video forwards asset sa URI unchanged",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.huanxing.ai",
+          "apiKey": "fixture-key",
+          "model": "doubao-seedance-2-0-hx",
+          "requestBody": {
+            "metadata": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cat"
+                },
+                {
+                  "type": "image_url",
+                  "role": "reference_image",
+                  "image_url": {
+                    "url": "asset://sa_0123456789abcdef0123456789abcdef"
+                  }
+                }
+              ],
+              "duration": 15,
+              "resolution": "4k",
+              "watermark": false,
+              "generate_audio": false
+            }
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://api.huanxing.ai/api/v3/contents/generations/tasks",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "action": "image_to_video",
+        "body": {
+          "model": "doubao-seedance-2.0",
+          "content": [
+            {
+              "type": "text",
+              "text": "cat"
+            },
+            {
+              "type": "image_url",
+              "role": "reference_image",
+              "image_url": {
+                "url": "asset://sa_0123456789abcdef0123456789abcdef"
+              }
+            }
+          ],
+          "duration": 15,
+          "resolution": "4k",
+          "generate_audio": false,
+          "metadata": {
+            "watermark": false
+          }
+        }
+      }
+    },
+    {
+      "name": "presenter preserves sa id and public task id",
+      "hook": "native",
+      "member": "assetStatus",
+      "args": [
+        {},
+        {
+          "task_id": "task_gateway",
+          "status": "SUCCESS",
+          "data": {
+            "Result": {
+              "Id": "sa_0123456789abcdef0123456789abcdef",
+              "Status": "Active"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "task_id": "task_gateway",
+        "Result": {
+          "Id": "sa_0123456789abcdef0123456789abcdef",
+          "Status": "Active"
+        }
+      }
+    },
+    {
+      "name": "empty native asset id rejected",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {
+          "action": "CreateAsset"
+        },
+        {
+          "body": {
+            "Result": {
+              "Id": ""
+            }
+          }
+        }
+      ],
+      "expectedError": "native asset id is empty or invalid"
     }
   ]
 }
