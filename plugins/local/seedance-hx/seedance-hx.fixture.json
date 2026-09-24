@@ -1,0 +1,1151 @@
+{
+  "cases": [
+    {
+      "name": "maps doubao-seedance-2-0-hx",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.huanxing.ai",
+          "apiKey": "fixture-key",
+          "model": "doubao-seedance-2-0-hx",
+          "requestBody": {
+            "metadata": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cat"
+                }
+              ],
+              "duration": 15,
+              "resolution": "4k",
+              "watermark": false,
+              "generate_audio": false
+            }
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://api.huanxing.ai/api/v3/contents/generations/tasks",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "action": "text_to_video",
+        "body": {
+          "model": "doubao-seedance-2.0",
+          "content": [
+            {
+              "type": "text",
+              "text": "cat"
+            }
+          ],
+          "duration": 15,
+          "resolution": "4k",
+          "generate_audio": false,
+          "metadata": {
+            "watermark": false
+          }
+        }
+      }
+    },
+    {
+      "name": "maps doubao-seedance-2-0-fast-hx",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.huanxing.ai",
+          "apiKey": "fixture-key",
+          "model": "doubao-seedance-2-0-fast-hx",
+          "requestBody": {
+            "metadata": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cat"
+                }
+              ],
+              "duration": 15,
+              "resolution": "720p",
+              "watermark": false,
+              "generate_audio": false
+            }
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://api.huanxing.ai/api/v3/contents/generations/tasks",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "action": "text_to_video",
+        "body": {
+          "model": "doubao-seedance-2.0-fast",
+          "content": [
+            {
+              "type": "text",
+              "text": "cat"
+            }
+          ],
+          "duration": 15,
+          "resolution": "720p",
+          "generate_audio": false,
+          "metadata": {
+            "watermark": false
+          }
+        }
+      }
+    },
+    {
+      "name": "maps doubao-seedance-2-0-mini-hx",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.huanxing.ai",
+          "apiKey": "fixture-key",
+          "model": "doubao-seedance-2-0-mini-hx",
+          "requestBody": {
+            "metadata": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cat"
+                }
+              ],
+              "duration": 4,
+              "resolution": "480p",
+              "watermark": false,
+              "generate_audio": false
+            }
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://api.huanxing.ai/api/v3/contents/generations/tasks",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "action": "text_to_video",
+        "body": {
+          "model": "doubao-seedance-2.0-mini",
+          "content": [
+            {
+              "type": "text",
+              "text": "cat"
+            }
+          ],
+          "duration": 4,
+          "resolution": "480p",
+          "generate_audio": false,
+          "metadata": {
+            "watermark": false
+          }
+        }
+      }
+    },
+    {
+      "name": "maps doubao-seedance-2-5-hx",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.huanxing.ai",
+          "apiKey": "fixture-key",
+          "model": "doubao-seedance-2-5-hx",
+          "requestBody": {
+            "metadata": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cat"
+                }
+              ],
+              "duration": 30,
+              "resolution": "1080p",
+              "watermark": false,
+              "generate_audio": false
+            }
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://api.huanxing.ai/api/v3/contents/generations/tasks",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "action": "text_to_video",
+        "body": {
+          "model": "doubao-seedance-2.5",
+          "content": [
+            {
+              "type": "text",
+              "text": "cat"
+            }
+          ],
+          "duration": 30,
+          "resolution": "1080p",
+          "generate_audio": false,
+          "metadata": {
+            "watermark": false
+          }
+        }
+      }
+    },
+    {
+      "name": "reject duration 0",
+      "hook": "native",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "doubao-seedance-2-0-hx",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cat"
+                }
+              ],
+              "duration": 0
+            }
+          }
+        }
+      ],
+      "member": "createTask",
+      "expectedError": "duration is outside"
+    },
+    {
+      "name": "reject duration -1",
+      "hook": "native",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "doubao-seedance-2-0-hx",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cat"
+                }
+              ],
+              "duration": -1
+            }
+          }
+        }
+      ],
+      "member": "createTask",
+      "expectedError": "duration is outside"
+    },
+    {
+      "name": "reject duration 3",
+      "hook": "native",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "doubao-seedance-2-0-hx",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cat"
+                }
+              ],
+              "duration": 3
+            }
+          }
+        }
+      ],
+      "member": "createTask",
+      "expectedError": "duration is outside"
+    },
+    {
+      "name": "reject duration 16",
+      "hook": "native",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "doubao-seedance-2-0-hx",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cat"
+                }
+              ],
+              "duration": 16
+            }
+          }
+        }
+      ],
+      "member": "createTask",
+      "expectedError": "duration is outside"
+    },
+    {
+      "name": "reject duration 4.5",
+      "hook": "native",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "doubao-seedance-2-0-hx",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cat"
+                }
+              ],
+              "duration": 4.5
+            }
+          }
+        }
+      ],
+      "member": "createTask",
+      "expectedError": "duration is outside"
+    },
+    {
+      "name": "reject duration 1000000",
+      "hook": "native",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "doubao-seedance-2-0-hx",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cat"
+                }
+              ],
+              "duration": 1000000
+            }
+          }
+        }
+      ],
+      "member": "createTask",
+      "expectedError": "duration is outside"
+    },
+    {
+      "name": "reject {'resolution': '1080p'}",
+      "hook": "native",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "doubao-seedance-2-0-fast-hx",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cat"
+                }
+              ],
+              "resolution": "1080p"
+            }
+          }
+        }
+      ],
+      "member": "createTask",
+      "expectedError": "unsupported resolution"
+    },
+    {
+      "name": "reject {'n': 2}",
+      "hook": "native",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "doubao-seedance-2-0-fast-hx",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cat"
+                }
+              ],
+              "n": 2
+            }
+          }
+        }
+      ],
+      "member": "createTask",
+      "expectedError": "unsupported video field"
+    },
+    {
+      "name": "reject {'content': [{'type': 'image_url', 'image_url': {'url': 'asset://asset-native'}}]}",
+      "hook": "native",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "doubao-seedance-2-0-fast-hx",
+              "content": [
+                {
+                  "type": "image_url",
+                  "image_url": {
+                    "url": "asset://asset-native"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "member": "createTask",
+      "expectedError": "non-empty text"
+    },
+    {
+      "name": "reject {'content': [{'type': 'text', 'text': 'cat'}, {'type': 'image_url', 'image_url': {'url': 'asset://task_private'}}]}",
+      "hook": "native",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "doubao-seedance-2-0-fast-hx",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cat"
+                },
+                {
+                  "type": "image_url",
+                  "image_url": {
+                    "url": "asset://task_private"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "member": "createTask",
+      "expectedError": "invalid native asset"
+    },
+    {
+      "name": "CreateAssetGroup native decoder",
+      "hook": "native",
+      "args": [
+        {
+          "query": {
+            "Action": [
+              "CreateAssetGroup"
+            ]
+          },
+          "body": {
+            "kind": "json",
+            "value": {
+              "Name": "tapcomfy"
+            }
+          }
+        }
+      ],
+      "member": "createMaterial",
+      "expected": {
+        "kind": "submit",
+        "model": "doubao-seedance-2-0-hx",
+        "action": "CreateAssetGroup",
+        "requestBody": {
+          "Name": "tapcomfy"
+        }
+      }
+    },
+    {
+      "name": "CreateAssetGroup upstream POST",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.huanxing.ai",
+          "apiKey": "fixture-key",
+          "action": "CreateAssetGroup",
+          "requestBody": {
+            "Name": "tapcomfy"
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://api.huanxing.ai/api/material?Action=CreateAssetGroup",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "Name": "tapcomfy"
+        },
+        "action": "CreateAssetGroup"
+      }
+    },
+    {
+      "name": "GetAssetGroup native decoder",
+      "hook": "native",
+      "args": [
+        {
+          "query": {
+            "Action": [
+              "GetAssetGroup"
+            ]
+          },
+          "body": {
+            "kind": "json",
+            "value": {
+              "Id": "group-native"
+            }
+          }
+        }
+      ],
+      "member": "createMaterial",
+      "expected": {
+        "kind": "submit",
+        "model": "doubao-seedance-2-0-hx",
+        "action": "GetAssetGroup",
+        "requestBody": {
+          "Id": "group-native"
+        }
+      }
+    },
+    {
+      "name": "GetAssetGroup upstream POST",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.huanxing.ai",
+          "apiKey": "fixture-key",
+          "action": "GetAssetGroup",
+          "requestBody": {
+            "Id": "group-native"
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://api.huanxing.ai/api/material?Action=GetAssetGroup",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "Id": "group-native"
+        },
+        "action": "GetAssetGroup"
+      }
+    },
+    {
+      "name": "CreateAsset native decoder",
+      "hook": "native",
+      "args": [
+        {
+          "query": {
+            "Action": [
+              "CreateAsset"
+            ]
+          },
+          "body": {
+            "kind": "json",
+            "value": {
+              "GroupId": "group-native",
+              "URL": "https://media.example/image.png",
+              "Name": "cat",
+              "AssetType": "Image"
+            }
+          }
+        }
+      ],
+      "member": "createMaterial",
+      "expected": {
+        "kind": "submit",
+        "model": "doubao-seedance-2-0-hx",
+        "action": "CreateAsset",
+        "requestBody": {
+          "GroupId": "group-native",
+          "URL": "https://media.example/image.png",
+          "Name": "cat",
+          "AssetType": "Image"
+        }
+      }
+    },
+    {
+      "name": "CreateAsset upstream POST",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.huanxing.ai",
+          "apiKey": "fixture-key",
+          "action": "CreateAsset",
+          "requestBody": {
+            "GroupId": "group-native",
+            "URL": "https://media.example/image.png",
+            "Name": "cat",
+            "AssetType": "Image"
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://api.huanxing.ai/api/material?Action=CreateAsset",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "GroupId": "group-native",
+          "URL": "https://media.example/image.png",
+          "Name": "cat",
+          "AssetType": "Image"
+        },
+        "action": "CreateAsset"
+      }
+    },
+    {
+      "name": "material rejects unsupported Action",
+      "hook": "native",
+      "args": [
+        {
+          "query": {
+            "Action": [
+              "ListAssetGroups"
+            ]
+          },
+          "body": {
+            "kind": "json",
+            "value": {}
+          }
+        }
+      ],
+      "member": "createMaterial",
+      "expectedError": "unsupported material Action"
+    },
+    {
+      "name": "native asset backs registration task",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {
+          "action": "CreateAsset"
+        },
+        {
+          "body": {
+            "ResponseMetadata": {
+              "Action": "CreateAsset"
+            },
+            "Result": {
+              "Id": "asset-native"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "taskId": "asset-native",
+        "taskData": {
+          "ResponseMetadata": {
+            "Action": "CreateAsset"
+          },
+          "Result": {
+            "Id": "asset-native"
+          }
+        }
+      }
+    },
+    {
+      "name": "registration exposes public polling task separately",
+      "hook": "native",
+      "args": [
+        {
+          "query": {
+            "Action": [
+              "CreateAsset"
+            ]
+          }
+        },
+        {
+          "task_id": "task_gateway",
+          "data": {
+            "ResponseMetadata": {
+              "Action": "CreateAsset"
+            },
+            "Result": {
+              "Id": "asset-native"
+            }
+          }
+        }
+      ],
+      "member": "materialCreated",
+      "expected": {
+        "ResponseMetadata": {
+          "Action": "CreateAsset"
+        },
+        "Result": {
+          "Id": "asset-native",
+          "Status": "Processing"
+        },
+        "task_id": "task_gateway"
+      }
+    },
+    {
+      "name": "background queries documented POST GetAsset",
+      "hook": "buildQueryRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.huanxing.ai",
+          "apiKey": "fixture-key",
+          "action": "CreateAsset",
+          "taskId": "asset-native"
+        }
+      ],
+      "expected": {
+        "url": "https://api.huanxing.ai/api/material?Action=GetAsset",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "Id": "asset-native"
+        }
+      }
+    },
+    {
+      "name": "wrapped asset Active",
+      "hook": "parseTaskResult",
+      "args": [
+        {
+          "action": "CreateAsset",
+          "taskId": "asset-native"
+        },
+        {
+          "Result": {
+            "Id": "asset-native",
+            "Status": "Active"
+          }
+        }
+      ],
+      "expected": {
+        "status": "SUCCESS",
+        "progress": "100%"
+      }
+    },
+    {
+      "name": "wrapped asset Processing",
+      "hook": "parseTaskResult",
+      "args": [
+        {
+          "action": "CreateAsset",
+          "taskId": "asset-native"
+        },
+        {
+          "Result": {
+            "Id": "asset-native",
+            "Status": "Processing"
+          }
+        }
+      ],
+      "expected": {
+        "status": "IN_PROGRESS",
+        "progress": "50%"
+      }
+    },
+    {
+      "name": "wrapped asset Failed",
+      "hook": "parseTaskResult",
+      "args": [
+        {
+          "action": "CreateAsset",
+          "taskId": "asset-native"
+        },
+        {
+          "Result": {
+            "Id": "asset-native",
+            "Status": "Failed",
+            "Error": {
+              "Code": "Rejected",
+              "Message": "rejected"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "status": "FAILURE",
+        "progress": "100%",
+        "reason": "rejected"
+      }
+    },
+    {
+      "name": "wrapped asset Unrecognized",
+      "hook": "parseTaskResult",
+      "args": [
+        {
+          "action": "CreateAsset",
+          "taskId": "asset-native"
+        },
+        {
+          "Result": {
+            "Id": "asset-native",
+            "Status": "Unrecognized"
+          }
+        }
+      ],
+      "expected": {
+        "status": "UNKNOWN",
+        "reason": "unrecognized asset status"
+      }
+    },
+    {
+      "name": "wrong native asset never completes task",
+      "hook": "parseTaskResult",
+      "args": [
+        {
+          "action": "CreateAsset",
+          "taskId": "asset-native"
+        },
+        {
+          "Result": {
+            "Id": "asset-other",
+            "Status": "Active"
+          }
+        }
+      ],
+      "expected": {
+        "status": "UNKNOWN",
+        "reason": "asset id mismatch"
+      }
+    },
+    {
+      "name": "temporary asset error stays unknown",
+      "hook": "parseTaskResult",
+      "args": [
+        {
+          "action": "CreateAsset"
+        },
+        {
+          "Result": {
+            "Error": {
+              "Code": "InternalError",
+              "Message": "unavailable"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "status": "UNKNOWN",
+        "reason": "unavailable"
+      }
+    },
+    {
+      "name": "create business error is rejected",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {
+          "action": "CreateAsset"
+        },
+        {
+          "body": {
+            "Result": {
+              "Error": {
+                "Code": "InvalidRequest"
+              }
+            }
+          }
+        }
+      ],
+      "expectedError": "InvalidRequest"
+    },
+    {
+      "name": "group lookup preserves missing-group code",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {
+          "action": "GetAssetGroup",
+          "publicTaskId": "task_lookup"
+        },
+        {
+          "body": {
+            "Result": {
+              "Error": {
+                "Code": "ResourceNotFound"
+              }
+            }
+          }
+        }
+      ],
+      "expected": {
+        "taskId": "task_lookup",
+        "taskData": {
+          "Result": {
+            "Error": {
+              "Code": "ResourceNotFound"
+            }
+          }
+        },
+        "immediate": {
+          "status": "FAILURE",
+          "reason": "ResourceNotFound"
+        }
+      }
+    },
+    {
+      "name": "host failure overrides stale material processing",
+      "hook": "native",
+      "args": [
+        {},
+        {
+          "task_id": "task_gateway",
+          "status": "FAILURE",
+          "fail_reason": "query timeout",
+          "data": {
+            "Result": {
+              "Id": "asset-native",
+              "Status": "Processing"
+            }
+          }
+        }
+      ],
+      "member": "assetStatus",
+      "expected": {
+        "task_id": "task_gateway",
+        "Result": {
+          "Id": "asset-native",
+          "Status": "Failed",
+          "Error": {
+            "Message": "query timeout"
+          }
+        }
+      }
+    },
+    {
+      "name": "settles measured tokens {'completion_tokens': 86400, 'total_tokens': 86400}",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "action": "text_to_video"
+        },
+        {
+          "status": "SUCCESS"
+        },
+        {
+          "usage": {
+            "completion_tokens": 86400,
+            "total_tokens": 86400
+          }
+        }
+      ],
+      "expected": {
+        "tokens": 86400
+      }
+    },
+    {
+      "name": "settles measured tokens {'completion_tokens': 0, 'total_tokens': 10}",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "action": "text_to_video"
+        },
+        {
+          "status": "SUCCESS"
+        },
+        {
+          "usage": {
+            "completion_tokens": 0,
+            "total_tokens": 10
+          }
+        }
+      ],
+      "expected": {
+        "tokens": 0
+      }
+    },
+    {
+      "name": "settles measured tokens {'total_tokens': 42}",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "action": "text_to_video"
+        },
+        {
+          "status": "SUCCESS"
+        },
+        {
+          "usage": {
+            "total_tokens": 42
+          }
+        }
+      ],
+      "expected": {
+        "tokens": 42
+      }
+    },
+    {
+      "name": "sample video completes with reported usage",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "status": "succeeded",
+          "content": {
+            "video_url": "https://media.example/result.mp4"
+          },
+          "usage": {
+            "completion_tokens": 86400,
+            "total_tokens": 86400
+          }
+        }
+      ],
+      "expected": {
+        "status": "SUCCESS",
+        "progress": "100%",
+        "totalTokens": 86400
+      }
+    },
+    {
+      "name": "reject invalid usage {}",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "status": "succeeded",
+          "usage": {}
+        }
+      ],
+      "expectedError": "invalid billing tokens"
+    },
+    {
+      "name": "reject invalid usage {'completion_tokens': None}",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "status": "succeeded",
+          "usage": {
+            "completion_tokens": null
+          }
+        }
+      ],
+      "expectedError": "invalid billing tokens"
+    },
+    {
+      "name": "reject invalid usage {'completion_tokens': -1}",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "status": "succeeded",
+          "usage": {
+            "completion_tokens": -1
+          }
+        }
+      ],
+      "expectedError": "invalid billing tokens"
+    },
+    {
+      "name": "reject invalid usage {'completion_tokens': '12'}",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "status": "succeeded",
+          "usage": {
+            "completion_tokens": "12"
+          }
+        }
+      ],
+      "expectedError": "invalid billing tokens"
+    },
+    {
+      "name": "reject invalid usage {'completion_tokens': 1.5}",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "status": "succeeded",
+          "usage": {
+            "completion_tokens": 1.5
+          }
+        }
+      ],
+      "expectedError": "invalid billing tokens"
+    },
+    {
+      "name": "reject invalid usage {'completion_tokens': 2147483648}",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "status": "succeeded",
+          "usage": {
+            "completion_tokens": 2147483648
+          }
+        }
+      ],
+      "expectedError": "invalid billing tokens"
+    },
+    {
+      "name": "poll failure is not generation failure",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "error": {
+            "code": "VIDEO_POLL_FAILED",
+            "message": "query timeout"
+          }
+        },
+        {
+          "status": 502
+        }
+      ],
+      "expected": {
+        "status": "UNKNOWN",
+        "reason": "unrecognized status"
+      }
+    },
+    {
+      "name": "generation failure is terminal",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "status": "failed",
+          "error": {
+            "code": "VIDEO_GENERATION_FAILED",
+            "message": "rejected"
+          }
+        }
+      ],
+      "expected": {
+        "status": "FAILURE",
+        "progress": "100%",
+        "reason": "rejected"
+      }
+    },
+    {
+      "name": "material creation has zero video usage",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "CreateAsset"
+        }
+      ],
+      "expected": {
+        "tokens": 0,
+        "resolution": "720p",
+        "video_input": "none"
+      }
+    }
+  ]
+}
