@@ -620,7 +620,7 @@
         {
           "query": {
             "Action": [
-              "ListAssetGroups"
+              "DeleteAsset"
             ]
           },
           "body": {
@@ -1139,6 +1139,310 @@
       "args": [
         {
           "action": "CreateAsset"
+        }
+      ],
+      "expected": {
+        "tokens": 0,
+        "resolution": "720p",
+        "video_input": "none"
+      }
+    },
+    {
+      "name": "ListAssetGroups supports HX group contract",
+      "hook": "native",
+      "member": "createMaterial",
+      "args": [
+        {
+          "query": {
+            "Action": [
+              "ListAssetGroups"
+            ]
+          },
+          "body": {
+            "kind": "json",
+            "value": {}
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "doubao-seedance-2-0-hx",
+        "action": "ListAssetGroups",
+        "requestBody": {}
+      }
+    },
+    {
+      "name": "GetAssetGroup supports HX group contract",
+      "hook": "native",
+      "member": "createMaterial",
+      "args": [
+        {
+          "query": {
+            "Action": [
+              "GetAssetGroup"
+            ]
+          },
+          "body": {
+            "kind": "json",
+            "value": {
+              "Id": "sag_0123456789abcdef0123456789abcdef"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "doubao-seedance-2-0-hx",
+        "action": "GetAssetGroup",
+        "requestBody": {
+          "Id": "sag_0123456789abcdef0123456789abcdef"
+        }
+      }
+    },
+    {
+      "name": "CreateAsset supports HX group contract",
+      "hook": "native",
+      "member": "createMaterial",
+      "args": [
+        {
+          "query": {
+            "Action": [
+              "CreateAsset"
+            ]
+          },
+          "body": {
+            "kind": "json",
+            "value": {
+              "GroupId": "sag_0123456789abcdef0123456789abcdef",
+              "URL": "https://example.com/a.jpg",
+              "Name": "fixture",
+              "AssetType": "Image"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "doubao-seedance-2-0-hx",
+        "action": "CreateAsset",
+        "requestBody": {
+          "GroupId": "sag_0123456789abcdef0123456789abcdef",
+          "URL": "https://example.com/a.jpg",
+          "Name": "fixture",
+          "AssetType": "Image"
+        }
+      }
+    },
+    {
+      "name": "CreateAssetGroup accepts sag identifier",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {
+          "action": "CreateAssetGroup"
+        },
+        {
+          "body": {
+            "Result": {
+              "Id": "sag_0123456789abcdef0123456789abcdef"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "taskId": "sag_0123456789abcdef0123456789abcdef",
+        "taskData": {
+          "Result": {
+            "Id": "sag_0123456789abcdef0123456789abcdef"
+          }
+        },
+        "immediate": {
+          "status": "SUCCESS",
+          "progress": "100%"
+        }
+      }
+    },
+    {
+      "name": "GetAssetGroup accepts sag identifier",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {
+          "action": "GetAssetGroup"
+        },
+        {
+          "body": {
+            "Result": {
+              "Id": "sag_0123456789abcdef0123456789abcdef"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "taskId": "sag_0123456789abcdef0123456789abcdef",
+        "taskData": {
+          "Result": {
+            "Id": "sag_0123456789abcdef0123456789abcdef"
+          }
+        },
+        "immediate": {
+          "status": "SUCCESS",
+          "progress": "100%"
+        }
+      }
+    },
+    {
+      "name": "list groups returns empty result",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {
+          "action": "ListAssetGroups",
+          "publicTaskId": "task_list"
+        },
+        {
+          "body": {
+            "Result": {
+              "Items": []
+            }
+          }
+        }
+      ],
+      "expected": {
+        "taskId": "task_list",
+        "taskData": {
+          "Result": {
+            "Items": []
+          }
+        },
+        "immediate": {
+          "status": "SUCCESS",
+          "progress": "100%"
+        }
+      }
+    },
+    {
+      "name": "list groups returns existing result",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {
+          "action": "ListAssetGroups",
+          "publicTaskId": "task_list"
+        },
+        {
+          "body": {
+            "Result": {
+              "Items": [
+                {
+                  "Id": "sag_0123456789abcdef0123456789abcdef",
+                  "Name": "tapcomfy",
+                  "GroupType": "AIGC"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "expected": {
+        "taskId": "task_list",
+        "taskData": {
+          "Result": {
+            "Items": [
+              {
+                "Id": "sag_0123456789abcdef0123456789abcdef",
+                "Name": "tapcomfy",
+                "GroupType": "AIGC"
+              }
+            ]
+          }
+        },
+        "immediate": {
+          "status": "SUCCESS",
+          "progress": "100%"
+        }
+      }
+    },
+    {
+      "name": "list groups errors must not become empty list",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {
+          "action": "ListAssetGroups"
+        },
+        {
+          "body": {
+            "Result": {
+              "Error": {
+                "Code": "AccessDenied"
+              }
+            }
+          }
+        }
+      ],
+      "expectedError": "AccessDenied"
+    },
+    {
+      "name": "list groups missing Items is invalid",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {
+          "action": "ListAssetGroups"
+        },
+        {
+          "body": {
+            "Result": {}
+          }
+        }
+      ],
+      "expectedError": "invalid asset group list"
+    },
+    {
+      "name": "group rejects control characters",
+      "hook": "native",
+      "member": "createMaterial",
+      "args": [
+        {
+          "query": {
+            "Action": [
+              "GetAssetGroup"
+            ]
+          },
+          "body": {
+            "kind": "json",
+            "value": {
+              "Id": "sag_a\nb"
+            }
+          }
+        }
+      ],
+      "expectedError": "native group id is required"
+    },
+    {
+      "name": "ListAssetGroups upstream POST without parameters",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "baseUrl": "https://api.huanxing.ai",
+          "apiKey": "fixture-key",
+          "action": "ListAssetGroups",
+          "requestBody": {}
+        }
+      ],
+      "expected": {
+        "url": "https://api.huanxing.ai/api/material?Action=ListAssetGroups",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {},
+        "action": "ListAssetGroups"
+      }
+    },
+    {
+      "name": "list groups has zero usage",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "ListAssetGroups"
         }
       ],
       "expected": {
