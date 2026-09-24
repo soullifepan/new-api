@@ -29,7 +29,7 @@ export const meta = {
   name: "Seedance Sea",
   icon: "Doubao.Color",
   description: { en: "Seedance video generation and owned asset management through the Token0A API", zh: "通过 Token0A API 生成 Seedance 视频并管理归属素材" },
-  version: "1.0.1",
+  version: "1.0.3",
   author: { name: "Tapcomfy" },
   baseUrl: "https://seedance.0a.com",
   fetchMode: "per_task",
@@ -50,7 +50,8 @@ export const meta = {
   routes: [
     { method: "POST", path: "/seedance-sea/v7/asset/create", type: "submit", decode: "createAsset", render: "assetCreated" },
     { method: "POST", path: "/seedance-sea/v7/asset/createMedia", type: "submit", decode: "createAsset", render: "assetCreated" },
-    { method: "GET", path: "/seedance-sea/v7/asset/get", type: "dynamic", decode: "getAsset", render: "assetStatus" },
+    // Native submit/dynamic routes require JSON; the driver still queries Token0A with GET.
+    { method: "POST", path: "/seedance-sea/v7/asset/get", type: "submit", decode: "getAsset", render: "assetStatus" },
     { method: "POST", path: "/seedance-sea/api/v3/contents/generations/tasks", type: "submit", decode: "createTask", render: "taskCreated" },
     { method: "GET", path: "/seedance-sea/api/v3/contents/generations/tasks/:task_id", type: "query", render: "taskStatus" },
   ],
@@ -169,7 +170,7 @@ export const native = {
     return { kind: "submit", model: ASSET_ROUTING_MODEL, action: action, requestBody: request };
   },
   getAsset: function (ctx) {
-    const id = text(ctx.query && ctx.query.id && ctx.query.id[0]);
+    const id = text(bodyValue(ctx).id);
     if (!/^asset-[A-Za-z0-9_-]+$/.test(id)) throw new Error("native asset id is required");
     return { kind: "submit", model: ASSET_ROUTING_MODEL, action: "get", requestBody: { id: id } };
   },
@@ -202,7 +203,8 @@ export function buildSubmitRequest(ctx) {
     const body = copy(ctx.requestBody);
     if (ctx.action === "get") {
       if (!/^asset-[A-Za-z0-9_-]+$/.test(text(body.id))) throw new Error("native asset id is required");
-      return { url: assetURL(ctx.baseUrl, "get") + "?id=" + encodeURIComponent(body.id), method: "GET", headers: headers(ctx.apiKey) };
+      // An explicit empty body yields http.NoBody in the submit transport.
+      return { url: assetURL(ctx.baseUrl, "get") + "?id=" + encodeURIComponent(body.id), method: "GET", headers: headers(ctx.apiKey), body: "" };
     }
     return { url: assetURL(ctx.baseUrl, ctx.action), method: "POST", headers: headers(ctx.apiKey), body: body, action: ctx.action };
   }

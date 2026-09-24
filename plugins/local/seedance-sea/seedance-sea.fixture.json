@@ -604,10 +604,9 @@
       "member": "getAsset",
       "args": [
         {
-          "query": {
-            "id": [
-              "asset-native"
-            ]
+          "body": {
+            "kind": "json",
+            "value": { "id": "asset-native" }
           }
         }
       ],
@@ -637,6 +636,7 @@
       "expected": {
         "url": "https://seedance.0a.com/api/token/v7/asset/get?id=asset-native",
         "method": "GET",
+        "body": "",
         "headers": {
           "Accept": "application/json",
           "Content-Type": "application/json",
