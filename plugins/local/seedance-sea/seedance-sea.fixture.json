@@ -599,53 +599,7 @@
       "member": "taskStatus"
     },
     {
-      "name": "query uses original native asset id",
-      "hook": "native",
-      "member": "getAsset",
-      "args": [
-        {
-          "body": {
-            "kind": "json",
-            "value": { "id": "asset-native" }
-          }
-        }
-      ],
-      "expected": {
-        "kind": "submit",
-        "model": "doubao-seedance-2-0-sea",
-        "action": "get",
-        "requestBody": {
-          "id": "asset-native"
-        }
-      }
-    },
-    {
-      "name": "native asset lookup goes to Token0A",
-      "hook": "buildSubmitRequest",
-      "args": [
-        {
-          "model": "doubao-seedance-2-0-sea",
-          "action": "get",
-          "baseUrl": "https://seedance.0a.com",
-          "apiKey": "fixture-key",
-          "requestBody": {
-            "id": "asset-native"
-          }
-        }
-      ],
-      "expected": {
-        "url": "https://seedance.0a.com/api/token/v7/asset/get?id=asset-native",
-        "method": "GET",
-        "body": "",
-        "headers": {
-          "Accept": "application/json",
-          "Content-Type": "application/json",
-          "Authorization": "Bearer fixture-key"
-        }
-      }
-    },
-    {
-      "name": "created asset returns native id, never task id",
+      "name": "registration returns distinct gateway task and native asset IDs",
       "hook": "native",
       "member": "assetCreated",
       "args": [
@@ -660,40 +614,8 @@
       ],
       "expected": {
         "id": "asset-native",
-        "Status": "Processing"
-      }
-    },
-    {
-      "name": "lookup preserves native status and failure details",
-      "hook": "parseSubmitResponse",
-      "args": [
-        {
-          "action": "get",
-          "publicTaskId": "task_lookup"
-        },
-        {
-          "body": {
-            "id": "asset-native",
-            "Status": "Failed",
-            "Error": {
-              "Message": "rejected"
-            }
-          }
-        }
-      ],
-      "expected": {
-        "taskId": "task_lookup",
-        "taskData": {
-          "id": "asset-native",
-          "Status": "Failed",
-          "Error": {
-            "Message": "rejected"
-          }
-        },
-        "immediate": {
-          "status": "SUCCESS",
-          "progress": "100%"
-        }
+        "Status": "Processing",
+        "task_id": "task_gateway"
       }
     },
     {
@@ -740,6 +662,116 @@
           "resolution": "720p"
         },
         "action": "image_to_video"
+      }
+    },
+    {
+      "name": "task snapshot preserves Active native reference",
+      "hook": "native",
+      "member": "assetStatus",
+      "args": [
+        {},
+        {
+          "task_id": "task_gateway",
+          "status": "SUCCESS",
+          "data": {
+            "Id": "asset-native",
+            "id": "task_gateway",
+            "status": "active"
+          }
+        }
+      ],
+      "expected": {
+        "id": "asset-native",
+        "Status": "Active",
+        "task_id": "task_gateway"
+      }
+    },
+    {
+      "name": "task failure overrides stale processing snapshot",
+      "hook": "native",
+      "member": "assetStatus",
+      "args": [
+        {},
+        {
+          "task_id": "task_gateway",
+          "status": "FAILURE",
+          "data": {
+            "Id": "asset-native",
+            "Status": "Processing"
+          },
+          "fail_reason": "query failed"
+        }
+      ],
+      "expected": {
+        "id": "asset-native",
+        "Status": "Failed",
+        "errorMessage": "query failed",
+        "task_id": "task_gateway"
+      }
+    },
+    {
+      "name": "never exposes gateway task as native asset ID",
+      "hook": "native",
+      "member": "assetStatus",
+      "args": [
+        {},
+        {
+          "task_id": "task_gateway",
+          "status": "SUCCESS",
+          "data": {
+            "id": "task_gateway",
+            "Status": "Active"
+          }
+        }
+      ],
+      "expected": {
+        "Status": "Active",
+        "task_id": "task_gateway"
+      }
+    },
+    {
+      "name": "registration defaults missing status to Processing",
+      "hook": "native",
+      "member": "assetStatus",
+      "args": [
+        {},
+        {
+          "task_id": "task_gateway",
+          "status": "SUBMITTED",
+          "data": {
+            "Id": "asset-native"
+          }
+        }
+      ],
+      "expected": {
+        "id": "asset-native",
+        "Status": "Processing",
+        "task_id": "task_gateway"
+      }
+    },
+    {
+      "name": "upstream rejection retains error fields",
+      "hook": "native",
+      "member": "assetStatus",
+      "args": [
+        {},
+        {
+          "task_id": "task_gateway",
+          "status": "FAILURE",
+          "data": {
+            "Id": "asset-native",
+            "Status": "Failed",
+            "errorCode": "Rejected",
+            "errorMessage": "rejected"
+          }
+        }
+      ],
+      "expected": {
+        "id": "asset-native",
+        "Status": "Failed",
+        "errorCode": "Rejected",
+        "errorMessage": "rejected",
+        "task_id": "task_gateway"
       }
     }
   ]

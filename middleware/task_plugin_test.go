@@ -98,29 +98,6 @@ export function parseTaskResult() { return {status: "SUCCESS"}; }
 	assert.Equal(t, http.StatusNoContent, recorder.Code)
 }
 
-func TestSeedanceSeaAssetLookupNativeRoute(t *testing.T) {
-	source, err := os.ReadFile("../plugins/local/seedance-sea/plugin.js")
-	require.NoError(t, err)
-	plugin := compileTaskRoutePlugin(t, string(source))
-	router := gin.New()
-	for index, route := range plugin.Meta.Routes {
-		if route.Path != "/seedance-sea/v7/asset/get" {
-			continue
-		}
-		router.Handle(route.Method, route.Path, pinTaskPluginRoute(plugin, index), PrepareTaskPluginRoute(), func(c *gin.Context) {
-			assert.Equal(t, "get", c.GetString("task_action"))
-			assert.Equal(t, "doubao-seedance-2-0-sea", c.GetString("resolved_task_model"))
-			assert.Equal(t, map[string]any{"id": "asset-native"}, c.MustGet("task_request"))
-			c.Status(http.StatusNoContent)
-		})
-	}
-	request := httptest.NewRequest(http.MethodPost, "/seedance-sea/v7/asset/get", strings.NewReader(`{"id":"asset-native"}`))
-	request.Header.Set("Content-Type", "application/json")
-	recorder := httptest.NewRecorder()
-	router.ServeHTTP(recorder, request)
-	assert.Equal(t, http.StatusNoContent, recorder.Code, recorder.Body.String())
-}
-
 func TestAPIMartSunoNativeRouteActions(t *testing.T) {
 	source, err := os.ReadFile("../plugins/local/apimart-suno/plugin.js")
 	require.NoError(t, err)
