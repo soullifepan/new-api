@@ -1,0 +1,852 @@
+{
+  "cases": [
+    {
+      "name": "maps the SEA Fast alias to Token0A and preserves explicit false",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "model": "doubao-seedance-2-0-fast-sea",
+          "baseUrl": "https://seedance.0a.com",
+          "apiKey": "fixture-key",
+          "requestBody": {
+            "metadata": {
+              "model": "doubao-seedance-2-0-fast-sea",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cat"
+                }
+              ],
+              "duration": 4,
+              "resolution": "1080p",
+              "watermark": false,
+              "generate_audio": false
+            }
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://seedance.0a.com/api/token/v3/contents/generations/tasks",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "model": "doubao-seedance-2-0-fast-260128",
+          "content": [
+            {
+              "type": "text",
+              "text": "cat"
+            }
+          ],
+          "duration": 4,
+          "resolution": "1080p",
+          "watermark": false,
+          "generate_audio": false
+        },
+        "action": "text_to_video"
+      }
+    },
+    {
+      "name": "rejects 1080p for Token0A Seedance 2.5",
+      "hook": "native",
+      "member": "createTask",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "doubao-seedance-2-5-sea",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cat"
+                }
+              ],
+              "duration": 4,
+              "resolution": "1080p",
+              "watermark": false,
+              "generate_audio": false
+            }
+          }
+        }
+      ],
+      "expectedError": "unsupported resolution"
+    },
+    {
+      "name": "defaults are explicit for pricing and upstream video",
+      "hook": "native",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "doubao-seedance-2-0-sea",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cat"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "doubao-seedance-2-0-sea",
+        "action": "text_to_video",
+        "requestBody": {
+          "model": "doubao-seedance-2-0-sea",
+          "metadata": {
+            "model": "doubao-seedance-2-0-sea",
+            "content": [
+              {
+                "type": "text",
+                "text": "cat"
+              }
+            ],
+            "duration": 5,
+            "resolution": "720p"
+          }
+        },
+        "originTaskIds": []
+      },
+      "member": "createTask"
+    },
+    {
+      "name": "reject duration 0",
+      "hook": "native",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "doubao-seedance-2-0-sea",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cat"
+                }
+              ],
+              "duration": 0
+            }
+          }
+        }
+      ],
+      "expectedError": "duration is outside",
+      "member": "createTask"
+    },
+    {
+      "name": "reject duration -1",
+      "hook": "native",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "doubao-seedance-2-0-sea",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cat"
+                }
+              ],
+              "duration": -1
+            }
+          }
+        }
+      ],
+      "expectedError": "duration is outside",
+      "member": "createTask"
+    },
+    {
+      "name": "reject duration 3",
+      "hook": "native",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "doubao-seedance-2-0-sea",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cat"
+                }
+              ],
+              "duration": 3
+            }
+          }
+        }
+      ],
+      "expectedError": "duration is outside",
+      "member": "createTask"
+    },
+    {
+      "name": "reject duration 16",
+      "hook": "native",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "doubao-seedance-2-0-sea",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cat"
+                }
+              ],
+              "duration": 16
+            }
+          }
+        }
+      ],
+      "expectedError": "duration is outside",
+      "member": "createTask"
+    },
+    {
+      "name": "reject duration 4.5",
+      "hook": "native",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "doubao-seedance-2-0-sea",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cat"
+                }
+              ],
+              "duration": 4.5
+            }
+          }
+        }
+      ],
+      "expectedError": "duration is outside",
+      "member": "createTask"
+    },
+    {
+      "name": "reject duration 1000000",
+      "hook": "native",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "doubao-seedance-2-0-sea",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cat"
+                }
+              ],
+              "duration": 1000000
+            }
+          }
+        }
+      ],
+      "expectedError": "duration is outside",
+      "member": "createTask"
+    },
+    {
+      "name": "reject unknown billing multipliers",
+      "hook": "native",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "doubao-seedance-2-0-sea",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cat"
+                }
+              ],
+              "frames": 999
+            }
+          }
+        }
+      ],
+      "expectedError": "unsupported video field",
+      "member": "createTask"
+    },
+    {
+      "name": "decode multi media registration",
+      "hook": "native",
+      "args": [
+        {
+          "path": "/seedance-sea/v7/asset/createMedia",
+          "body": {
+            "kind": "json",
+            "value": {
+              "url": "https://media.example/cat.png",
+              "name": "cat",
+              "assetType": "Image"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "doubao-seedance-2-0-sea",
+        "action": "createMedia",
+        "requestBody": {
+          "url": "https://media.example/cat.png",
+          "name": "cat",
+          "assetType": "Image"
+        }
+      },
+      "member": "createAsset"
+    },
+    {
+      "name": "createMedia uses Token0A casing and URL",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "model": "doubao-seedance-2-0-sea",
+          "baseUrl": "https://seedance.0a.com",
+          "apiKey": "fixture-key",
+          "action": "createMedia",
+          "requestBody": {
+            "url": "https://media.example/cat.png",
+            "name": "cat",
+            "assetType": "Image"
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://seedance.0a.com/api/token/v7/asset/createMedia",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "url": "https://media.example/cat.png",
+          "name": "cat",
+          "assetType": "Image"
+        },
+        "action": "createMedia"
+      }
+    },
+    {
+      "name": "created asset is polled to Active",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {
+          "action": "createMedia"
+        },
+        {
+          "body": {
+            "id": "asset-private"
+          }
+        }
+      ],
+      "expected": {
+        "taskId": "asset-private",
+        "taskData": {
+          "id": "asset-private"
+        }
+      }
+    },
+    {
+      "name": "asset polling uses GET with an encoded id",
+      "hook": "buildQueryRequest",
+      "args": [
+        {
+          "model": "doubao-seedance-2-0-sea",
+          "baseUrl": "https://seedance.0a.com",
+          "apiKey": "fixture-key",
+          "action": "createMedia",
+          "taskId": "asset-private"
+        }
+      ],
+      "expected": {
+        "url": "https://seedance.0a.com/api/token/v7/asset/get?id=asset-private",
+        "method": "GET",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        }
+      }
+    },
+    {
+      "name": "asset Active",
+      "hook": "parseTaskResult",
+      "args": [
+        {
+          "action": "createMedia"
+        },
+        {
+          "Status": "Active",
+          "errorMessage": "rejected"
+        }
+      ],
+      "expected": {
+        "status": "SUCCESS",
+        "progress": "100%"
+      }
+    },
+    {
+      "name": "asset Processing",
+      "hook": "parseTaskResult",
+      "args": [
+        {
+          "action": "createMedia"
+        },
+        {
+          "Status": "Processing",
+          "errorMessage": "rejected"
+        }
+      ],
+      "expected": {
+        "status": "IN_PROGRESS",
+        "progress": "50%"
+      }
+    },
+    {
+      "name": "asset Failed",
+      "hook": "parseTaskResult",
+      "args": [
+        {
+          "action": "createMedia"
+        },
+        {
+          "Status": "Failed",
+          "errorMessage": "rejected"
+        }
+      ],
+      "expected": {
+        "status": "FAILURE",
+        "progress": "100%",
+        "reason": "rejected"
+      }
+    },
+    {
+      "name": "asset Unknown",
+      "hook": "parseTaskResult",
+      "args": [
+        {
+          "action": "createMedia"
+        },
+        {
+          "Status": "Unknown",
+          "errorMessage": "rejected"
+        }
+      ],
+      "expected": {
+        "status": "UNKNOWN",
+        "reason": "unrecognized asset status"
+      }
+    },
+    {
+      "name": "query delegates ownership checks to the host",
+      "hook": "native",
+      "args": [
+        {
+          "query": {
+            "id": [
+              "task_owned"
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "kind": "query",
+        "taskIds": [
+          "task_owned"
+        ]
+      },
+      "member": "getAsset"
+    },
+    {
+      "name": "asset response only exposes gateway reference",
+      "hook": "native",
+      "args": [
+        {},
+        [
+          {
+            "task_id": "task_owned",
+            "status": "SUCCESS",
+            "data": {
+              "id": "asset-private",
+              "Status": "Active",
+              "assetUri": "asset://asset-private"
+            }
+          }
+        ]
+      ],
+      "expected": {
+        "id": "task_owned",
+        "Status": "Active",
+        "assetUri": "asset://task_owned"
+      },
+      "member": "assetStatus"
+    },
+    {
+      "name": "video declares asset ownership dependency",
+      "hook": "native",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "doubao-seedance-2-0-sea",
+              "content": [
+                {
+                  "type": "image_url",
+                  "image_url": {
+                    "url": "asset://task_owned"
+                  }
+                }
+              ],
+              "duration": 5,
+              "resolution": "720p"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "doubao-seedance-2-0-sea",
+        "action": "image_to_video",
+        "requestBody": {
+          "model": "doubao-seedance-2-0-sea",
+          "metadata": {
+            "model": "doubao-seedance-2-0-sea",
+            "content": [
+              {
+                "type": "image_url",
+                "image_url": {
+                  "url": "asset://task_owned"
+                }
+              }
+            ],
+            "duration": 5,
+            "resolution": "720p"
+          }
+        },
+        "originTaskIds": [
+          "task_owned"
+        ]
+      },
+      "member": "createTask"
+    },
+    {
+      "name": "video resolves owned Active asset id",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "model": "doubao-seedance-2-0-sea",
+          "baseUrl": "https://seedance.0a.com",
+          "apiKey": "fixture-key",
+          "action": "image_to_video",
+          "requestBody": {
+            "metadata": {
+              "model": "doubao-seedance-2-0-sea",
+              "content": [
+                {
+                  "type": "image_url",
+                  "image_url": {
+                    "url": "asset://task_owned"
+                  }
+                }
+              ],
+              "duration": 5,
+              "resolution": "720p"
+            }
+          },
+          "originTasks": [
+            {
+              "taskId": "task_owned",
+              "upstreamTaskId": "asset-private",
+              "action": "createMedia",
+              "status": "SUCCESS"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "url": "https://seedance.0a.com/api/token/v3/contents/generations/tasks",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "model": "doubao-seedance-2-0-260128",
+          "content": [
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "asset://asset-private"
+              }
+            }
+          ],
+          "duration": 5,
+          "resolution": "720p"
+        },
+        "action": "image_to_video"
+      }
+    },
+    {
+      "name": "reject unowned pending or non asset origin 23",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "model": "doubao-seedance-2-0-sea",
+          "baseUrl": "https://seedance.0a.com",
+          "apiKey": "fixture-key",
+          "requestBody": {
+            "metadata": {
+              "model": "doubao-seedance-2-0-sea",
+              "content": [
+                {
+                  "type": "image_url",
+                  "image_url": {
+                    "url": "asset://task_owned"
+                  }
+                }
+              ],
+              "duration": 5,
+              "resolution": "720p"
+            }
+          },
+          "originTasks": []
+        }
+      ],
+      "expectedError": "asset is not owned or not Active"
+    },
+    {
+      "name": "reject unowned pending or non asset origin 24",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "model": "doubao-seedance-2-0-sea",
+          "baseUrl": "https://seedance.0a.com",
+          "apiKey": "fixture-key",
+          "requestBody": {
+            "metadata": {
+              "model": "doubao-seedance-2-0-sea",
+              "content": [
+                {
+                  "type": "image_url",
+                  "image_url": {
+                    "url": "asset://task_owned"
+                  }
+                }
+              ],
+              "duration": 5,
+              "resolution": "720p"
+            }
+          },
+          "originTasks": [
+            {
+              "taskId": "task_owned",
+              "upstreamTaskId": "asset-private",
+              "action": "createMedia",
+              "status": "IN_PROGRESS"
+            }
+          ]
+        }
+      ],
+      "expectedError": "asset is not owned or not Active"
+    },
+    {
+      "name": "reject unowned pending or non asset origin 25",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "model": "doubao-seedance-2-0-sea",
+          "baseUrl": "https://seedance.0a.com",
+          "apiKey": "fixture-key",
+          "requestBody": {
+            "metadata": {
+              "model": "doubao-seedance-2-0-sea",
+              "content": [
+                {
+                  "type": "image_url",
+                  "image_url": {
+                    "url": "asset://task_owned"
+                  }
+                }
+              ],
+              "duration": 5,
+              "resolution": "720p"
+            }
+          },
+          "originTasks": [
+            {
+              "taskId": "task_owned",
+              "upstreamTaskId": "asset-private",
+              "action": "text_to_video",
+              "status": "SUCCESS"
+            }
+          ]
+        }
+      ],
+      "expectedError": "asset is not owned or not Active"
+    },
+    {
+      "name": "successful task uses documented total_tokens",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "status": "succeeded",
+          "usage": {
+            "total_tokens": 123,
+            "completion_tokens": 100
+          }
+        }
+      ],
+      "expected": {
+        "status": "SUCCESS",
+        "progress": "100%",
+        "totalTokens": 123
+      }
+    },
+    {
+      "name": "reject missing or invalid completion usage 30",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "status": "succeeded",
+          "usage": {}
+        }
+      ],
+      "expectedError": "missing or invalid usage.total_tokens"
+    },
+    {
+      "name": "reject missing or invalid completion usage 31",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "status": "succeeded",
+          "usage": {
+            "total_tokens": null
+          }
+        }
+      ],
+      "expectedError": "missing or invalid usage.total_tokens"
+    },
+    {
+      "name": "reject missing or invalid completion usage 32",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "status": "succeeded",
+          "usage": {
+            "total_tokens": -1
+          }
+        }
+      ],
+      "expectedError": "missing or invalid usage.total_tokens"
+    },
+    {
+      "name": "reject missing or invalid completion usage 33",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "status": "succeeded",
+          "usage": {
+            "total_tokens": "123"
+          }
+        }
+      ],
+      "expectedError": "missing or invalid usage.total_tokens"
+    },
+    {
+      "name": "reject missing or invalid completion usage 34",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "status": "succeeded",
+          "usage": {
+            "total_tokens": 2147483648
+          }
+        }
+      ],
+      "expectedError": "missing or invalid usage.total_tokens"
+    },
+    {
+      "name": "settle total tokens including explicit zero",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {},
+        {
+          "status": "SUCCESS"
+        },
+        {
+          "usage": {
+            "total_tokens": 0,
+            "completion_tokens": 100
+          }
+        }
+      ],
+      "expected": {
+        "tokens": 0
+      }
+    },
+    {
+      "name": "assets have no video consumption",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "action": "createMedia"
+        }
+      ],
+      "expected": {
+        "tokens": 0,
+        "resolution": "720p",
+        "video_input": "none"
+      }
+    },
+    {
+      "name": "video response keeps gateway task id",
+      "hook": "native",
+      "args": [
+        {},
+        {
+          "task_id": "task_video",
+          "data": {
+            "id": "cgt-wt-private",
+            "status": "succeeded",
+            "content": {
+              "video_url": "https://media.example/video.mp4"
+            },
+            "usage": {
+              "total_tokens": 123
+            }
+          }
+        }
+      ],
+      "expected": {
+        "id": "task_video",
+        "status": "succeeded",
+        "content": {
+          "video_url": "https://media.example/video.mp4"
+        },
+        "usage": {
+          "total_tokens": 123
+        }
+      },
+      "member": "taskStatus"
+    }
+  ]
+}
