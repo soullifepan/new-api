@@ -161,6 +161,11 @@ function PartnerList(props: {
   const columns: ColumnDef<Partner>[] = [
     { accessorKey: 'user_id', header: '用户 ID' },
     {
+      accessorKey: 'username',
+      header: '用户名',
+      cell: ({ row }) => row.original.username || '—',
+    },
+    {
       accessorKey: 'status',
       header: '状态',
       cell: ({ row }) =>
@@ -315,6 +320,7 @@ function PartnerList(props: {
             <dl className='space-y-3'>
               {[
                 ['用户 ID', String(detail.user_id)],
+                ['用户名', detail.username ?? '—'],
                 ['推广渠道', detail.channels],
                 ['账号链接', detail.links],
                 ['推广计划', detail.plan],
@@ -338,7 +344,9 @@ function PartnerList(props: {
                   partner={detail}
                   globalCommissionBPS={props.globalCommissionBPS}
                   globalDurationDays={props.globalDurationDays}
-                  onSaved={setDetail}
+                  onSaved={(updated) =>
+                    setDetail({ ...updated, username: detail.username })
+                  }
                 />
               )}
           </div>

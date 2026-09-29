@@ -658,3 +658,9 @@ go test ./model -run 'TestPartner(DatabaseMatrix|MoneyUsesConfiguredPrices)' -co
 - 三库 SQLite 3.50.4、MySQL 8.4.11、PostgreSQL 16.15，沿用上文 `TEST_MYSQL_DSN=... TEST_POSTGRES_DSN=... go test ./model -run 'TestPartner(DatabaseMatrix|MoneyUsesConfiguredPrices)' -count=1 -v` 命令，全部通过。覆盖新建表、上一发布结构已有专属比例的伙伴升级、两次迁移、NULL/0/正整数持久化、专属与全局独立、到期前一秒及到期瞬间、长期、恢复全局和历史佣金保留。
 - `go test ./model ./controller ./router -run 'Test(Partner|Stripe|Recharge|AlipayNative|WaffoPancake|TapComfy|Register|OAuth)' -count=1` 通过，含管理员权限、部分更新、无效参数不部分保存、概览本人和其他用户隔离。
 - Admin `bun run typecheck`、定向 oxlint、`bun run test src/features/partners/partners.test.tsx`（4 项）通过，扩展保存/失败保留/重试/长期/恢复全局交互。TapComfy 现有 ProfilePartner 从 overview.config.duration_days 显示期限，未修改客户端；未操作浏览器或进行视觉验收。
+
+#### 管理列表用户名（2026-09-29）
+
+合作伙伴管理列表增加用户名，与用户 ID 同时展示，资料弹窗同步显示。管理员列表接口在每个 Partner 项附加 `username`；按当前页用户 ID 一次读取 id/username，不暴露密码或令牌，不新增数据库列。更新返佣设置后保留弹窗用户名。
+
+验证：SQLite 3.50.4、MySQL 8.4.11、PostgreSQL 16.15 真实实例运行 `TEST_MYSQL_DSN='root@tcp(127.0.0.1:53369)/partner_test?charset=utf8mb4&parseTime=True&loc=Local' TEST_POSTGRES_DSN='host=127.0.0.1 port=55439 user=partner_test dbname=partner_test sslmode=disable' go test ./router -run '^TestPartnerAPIContractAndOwnerIsolation$' -count=1 -v` 全部通过，覆盖管理员用户名返回、权限、空页和敏感字段不外泄。Admin 类型检查、定向 oxlint、伙伴模块 4 项交互测试通过，新增列表用户名断言。未使用 computer；未做浏览器视觉验收。

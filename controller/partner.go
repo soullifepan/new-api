@@ -269,6 +269,33 @@ func partnerList(c *gin.Context, kind string, admin bool) {
 		partnerError(c, err)
 		return
 	}
+	if kind == "partners" {
+		partners := *items.(*[]model.Partner)
+		ids := make([]int, 0, len(partners))
+		for _, partner := range partners {
+			ids = append(ids, partner.UserID)
+		}
+		var users []model.User
+		if len(ids) > 0 {
+			if err := model.DB.Select("id", "username").Where("id IN ?", ids).Find(&users).Error; err != nil {
+				partnerError(c, err)
+				return
+			}
+		}
+		usernames := make(map[int]string, len(users))
+		for _, user := range users {
+			usernames[user.Id] = user.Username
+		}
+		type partnerListItem struct {
+			model.Partner
+			Username string `json:"username"`
+		}
+		rows := make([]partnerListItem, 0, len(partners))
+		for _, partner := range partners {
+			rows = append(rows, partnerListItem{Partner: partner, Username: usernames[partner.UserID]})
+		}
+		items = rows
+	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"items": items, "total": total, "page": page}})
 }
 func ListPartners(c *gin.Context)                { partnerList(c, "partners", true) }

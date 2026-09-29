@@ -18,6 +18,7 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 )
 
 func TestTapComfyRoutesRequireNewAPIAuthentication(t *testing.T) {
@@ -276,170 +277,201 @@ func TestTapComfyRouteRolesReachOnlyAuthorizedHandlers(t *testing.T) {
 }
 
 func TestPartnerAPIContractAndOwnerIsolation(t *testing.T) {
-	oldDB, oldLog, oldRedis := model.DB, model.LOG_DB, common.RedisEnabled
-	oldOptions := common.OptionMap
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	sqlDB, err := db.DB()
-	require.NoError(t, err)
-	sqlDB.SetMaxOpenConns(1)
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.AuditLog{}, &model.Option{}, &model.Partner{}, &model.PartnerCommission{}, &model.PartnerPayout{}))
-	model.DB, model.LOG_DB, common.RedisEnabled = db, db, false
-	common.OptionMap = map[string]string{"PartnerProgram": `{"enabled":true,"min_payout_cents":1}`}
-	t.Cleanup(func() {
-		model.DB, model.LOG_DB, common.RedisEnabled = oldDB, oldLog, oldRedis
-		common.OptionMap = oldOptions
-		_ = sqlDB.Close()
-	})
-	ownerToken, otherToken, adminToken := "partner-owner-pat", "partner-other-pat", "partner-admin-pat"
-	for _, u := range []model.User{{Id: 1, Username: "partner-owner", AccessToken: &ownerToken, Role: common.RoleCommonUser, AffCode: "owner"}, {Id: 2, Username: "partner-other", AccessToken: &otherToken, Role: common.RoleCommonUser, AffCode: "other"}, {Id: 3, Username: "partner-admin", AccessToken: &adminToken, Role: common.RoleAdminUser, AffCode: "admin"}, {Id: 4, Username: "partner-buyer", InviterId: 1, Role: common.RoleCommonUser, AffCode: "buyer"}} {
-		u.Group = "default"
-		u.Status = common.UserStatusEnabled
-		u.AuthVersion = 1
-		require.NoError(t, db.Create(&u).Error)
-	}
-	require.NoError(t, db.Create(&model.Partner{UserID: 1, Status: "approved", AvailableQuota: 100, EarnedQuota: 100}).Error)
-	require.NoError(t, db.Create(&model.PartnerCommission{PartnerID: 1, UserID: 4, TopUpID: 99, TopUpQuota: 1000, CommissionQuota: 100}).Error)
-	require.NoError(t, db.Create(&model.PartnerPayout{UserID: 1, RequestID: "private-account", Account: "private-payee", Status: "pending"}).Error)
-	engine := gin.New()
-	SetApiRouter(engine)
-	for _, tc := range []struct {
-		method, path, token string
-		status              int
-		contains            string
-	}{
-		{"GET", "/api/user/aff", ownerToken, 200, `"data":"owner"`},
-		{"GET", "/api/user/aff", otherToken, 409, "partner_state"},
-		{"GET", "/api/tapcomfy/v1/partner", ownerToken, 200, `"referral_code":"owner"`},
-		{"GET", "/api/tapcomfy/v1/partner/invitees", ownerToken, 200, `"topup_count":1`},
-		{"GET", "/api/tapcomfy/v1/partner/invitees?user_id=1", otherToken, 200, `"items":[]`},
-		{"GET", "/api/tapcomfy/v1/partner/commissions?user_id=1", otherToken, 200, `"items":[]`},
-		{"GET", "/api/tapcomfy/v1/partner/payouts?user_id=1", otherToken, 200, `"items":[]`},
-		{"GET", "/api/tapcomfy/v1/admin/partners/payouts", ownerToken, 403, ""},
-		{"PUT", "/api/tapcomfy/v1/admin/partners/payouts/1", ownerToken, 403, ""},
-		{"PUT", "/api/tapcomfy/v1/admin/partners/config", ownerToken, 403, ""},
-		{"GET", "/api/tapcomfy/v1/admin/partners/payouts", adminToken, 200, "private-payee"},
-		{"GET", "/api/tapcomfy/v1/admin/partners/payouts?size=101", adminToken, 400, "partner_invalid"},
-		{"GET", "/api/tapcomfy/v1/admin/partners/payouts?size=1&page=2", adminToken, 200, `"items":[]`},
-		{"GET", "/api/tapcomfy/v1/partner/payouts?page=-1", ownerToken, 400, "partner_invalid"},
-		{"POST", "/api/tapcomfy/v1/partner/payouts", ownerToken, 400, "partner_invalid"},
-		{"GET", "/api/tapcomfy/v1/partner", "", 401, ""},
-		{"POST", "/api/tapcomfy/v1/partner/application", "", 401, ""},
-	} {
-		t.Run(tc.method+tc.path+tc.token, func(t *testing.T) {
-			req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(`{}`))
-			req.Header.Set("Content-Type", "application/json")
-			if tc.token != "" {
-				req.Header.Set("Authorization", "Bearer "+tc.token)
-			}
-			rec := httptest.NewRecorder()
-			engine.ServeHTTP(rec, req)
-			require.Equal(t, tc.status, rec.Code, rec.Body.String())
-			if tc.contains != "" {
-				assert.Contains(t, rec.Body.String(), tc.contains)
-			}
-			if tc.token == otherToken {
-				assert.NotContains(t, rec.Body.String(), "private-payee")
-			}
-			if strings.Contains(tc.path, "invitees") {
-				assert.NotContains(t, rec.Body.String(), "consumed")
-			}
-		})
-	}
-
-	common.OptionMap["PartnerProgram"] = `{"enabled":true,"commission_bps":1000,"duration_days":365,"min_payout_cents":1}`
-	for _, tc := range []struct {
-		name, token, body        string
-		code, wantRate, wantDays int
-	}{
-		{"forbidden", ownerToken, `{"commission_bps":1250}`, 403, 1000, 365},
-		{"omitted", adminToken, `{}`, 400, 1000, 365},
-		{"negative", adminToken, `{"commission_bps":-1}`, 400, 1000, 365},
-		{"too high", adminToken, `{"commission_bps":10001}`, 400, 1000, 365},
-		{"fraction", adminToken, `{"commission_bps":12.5}`, 400, 1000, 365},
-		{"string", adminToken, `{"commission_bps":"1250"}`, 400, 1000, 365},
-		{"custom", adminToken, `{"commission_bps":1250}`, 200, 1250, 365},
-		{"zero", adminToken, `{"commission_bps":0}`, 200, 0, 365},
-		{"restore", adminToken, `{"commission_bps":null}`, 200, 1000, 365},
-		{"duration forbidden", ownerToken, `{"duration_days":30}`, 403, 1000, 365},
-		{"duration custom", adminToken, `{"duration_days":730}`, 200, 1000, 730},
-		{"rate preserves duration", adminToken, `{"commission_bps":1250}`, 200, 1250, 730},
-		{"duration negative", adminToken, `{"duration_days":-1}`, 400, 1250, 730},
-		{"duration too high", adminToken, `{"duration_days":36501}`, 400, 1250, 730},
-		{"duration fraction", adminToken, `{"duration_days":1.5}`, 400, 1250, 730},
-		{"duration string", adminToken, `{"duration_days":"30"}`, 400, 1250, 730},
-		{"unknown field", adminToken, `{"duration_days":30,"unknown":null}`, 400, 1250, 730},
-		{"atomic validation", adminToken, `{"commission_bps":100,"duration_days":-1}`, 400, 1250, 730},
-		{"duration unlimited", adminToken, `{"duration_days":0}`, 200, 1250, 0},
-		{"duration restore", adminToken, `{"duration_days":null}`, 200, 1250, 365},
-		{"both terms", adminToken, `{"commission_bps":1500,"duration_days":30}`, 200, 1500, 30},
-	} {
-		t.Run("commission_"+tc.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodPut, "/api/tapcomfy/v1/admin/partners/1/commission", strings.NewReader(tc.body))
-			req.Header.Set("Authorization", "Bearer "+tc.token)
-			req.Header.Set("Content-Type", "application/json")
-			rec := httptest.NewRecorder()
-			engine.ServeHTTP(rec, req)
-			require.Equal(t, tc.code, rec.Code, rec.Body.String())
-			for _, token := range []string{ownerToken, otherToken} {
-				req = httptest.NewRequest(http.MethodGet, "/api/tapcomfy/v1/partner", nil)
-				req.Header.Set("Authorization", "Bearer "+token)
-				rec = httptest.NewRecorder()
-				engine.ServeHTTP(rec, req)
-				require.Equal(t, 200, rec.Code, rec.Body.String())
-				var overview struct {
-					Data struct {
-						Config model.PartnerConfig `json:"config"`
-					} `json:"data"`
+	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
+		t.Run(dialect, func(t *testing.T) {
+			oldDB, oldLog, oldRedis := model.DB, model.LOG_DB, common.RedisEnabled
+			oldOptions := common.OptionMap
+			var driver gorm.Dialector
+			switch dialect {
+			case "sqlite":
+				driver = sqlite.Open(":memory:")
+			case "mysql":
+				if os.Getenv("TEST_MYSQL_DSN") == "" {
+					t.Skip("TEST_MYSQL_DSN not configured")
 				}
-				require.NoError(t, common.Unmarshal(rec.Body.Bytes(), &overview))
-				want := tc.wantRate
-				wantDays := tc.wantDays
-				if token == otherToken {
-					want = 1000
-					wantDays = 365
+				driver = mysql.Open(os.Getenv("TEST_MYSQL_DSN"))
+			case "postgres":
+				if os.Getenv("TEST_POSTGRES_DSN") == "" {
+					t.Skip("TEST_POSTGRES_DSN not configured")
 				}
-				assert.Equal(t, want, overview.Data.Config.CommissionBPS)
-				assert.Equal(t, wantDays, overview.Data.Config.DurationDays)
+				driver = postgres.Open(os.Getenv("TEST_POSTGRES_DSN"))
 			}
-			assert.Equal(t, 1000, model.GetPartnerConfig().CommissionBPS, "global rate is unchanged")
-			assert.Equal(t, 365, model.GetPartnerConfig().DurationDays, "global duration is unchanged")
-		})
-	}
-
-	for _, status := range []string{"pending", "needs_info", "rejected", "suspended", "approved"} {
-		t.Run("invitation_gate_"+status, func(t *testing.T) {
-			require.NoError(t, db.Model(&model.Partner{}).Where("user_id = ?", 1).Update("status", status).Error)
-			// Closing applications must not revoke an approved partner.
-			if status == "approved" {
-				common.OptionMap["PartnerProgram"] = `{"enabled":false,"min_payout_cents":1}`
+			db, err := gorm.Open(driver, &gorm.Config{NamingStrategy: schema.NamingStrategy{TablePrefix: "partner_api_test_"}})
+			require.NoError(t, err)
+			sqlDB, err := db.DB()
+			require.NoError(t, err)
+			sqlDB.SetMaxOpenConns(1)
+			tables := []any{&model.User{}, &model.UserSession{}, &model.AuditLog{}, &model.Option{}, &model.Partner{}, &model.PartnerCommission{}, &model.PartnerPayout{}}
+			require.NoError(t, db.Migrator().DropTable(tables...))
+			require.NoError(t, db.AutoMigrate(tables...))
+			model.DB, model.LOG_DB, common.RedisEnabled = db, db, false
+			common.OptionMap = map[string]string{"PartnerProgram": `{"enabled":true,"min_payout_cents":1}`}
+			t.Cleanup(func() {
+				require.NoError(t, db.Migrator().DropTable(tables...))
+				model.DB, model.LOG_DB, common.RedisEnabled = oldDB, oldLog, oldRedis
+				common.OptionMap = oldOptions
+				_ = sqlDB.Close()
+			})
+			ownerToken, otherToken, adminToken := "partner-owner-pat", "partner-other-pat", "partner-admin-pat"
+			for _, u := range []model.User{{Id: 1, Username: "partner-owner", AccessToken: &ownerToken, Role: common.RoleCommonUser, AffCode: "owner"}, {Id: 2, Username: "partner-other", AccessToken: &otherToken, Role: common.RoleCommonUser, AffCode: "other"}, {Id: 3, Username: "partner-admin", AccessToken: &adminToken, Role: common.RoleAdminUser, AffCode: "admin"}, {Id: 4, Username: "partner-buyer", InviterId: 1, Role: common.RoleCommonUser, AffCode: "buyer"}} {
+				u.Group = "default"
+				u.Status = common.UserStatusEnabled
+				u.AuthVersion = 1
+				require.NoError(t, db.Create(&u).Error)
 			}
-			for _, path := range []string{"/api/user/aff", "/api/tapcomfy/v1/partner", "/api/tapcomfy/v1/partner/payouts"} {
-				req := httptest.NewRequest(http.MethodGet, path, nil)
-				req.Header.Set("Authorization", "Bearer "+ownerToken)
-				rec := httptest.NewRecorder()
-				engine.ServeHTTP(rec, req)
-				switch path {
-				case "/api/user/aff":
-					if status == "approved" {
-						assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-						assert.Contains(t, rec.Body.String(), `"data":"owner"`)
-					} else {
-						assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
-						assert.Contains(t, rec.Body.String(), "partner_state")
+			require.NoError(t, db.Create(&model.Partner{UserID: 1, Status: "approved", AvailableQuota: 100, EarnedQuota: 100}).Error)
+			require.NoError(t, db.Create(&model.PartnerCommission{PartnerID: 1, UserID: 4, TopUpID: 99, TopUpQuota: 1000, CommissionQuota: 100}).Error)
+			require.NoError(t, db.Create(&model.PartnerPayout{UserID: 1, RequestID: "private-account", Account: "private-payee", Status: "pending"}).Error)
+			engine := gin.New()
+			SetApiRouter(engine)
+			for _, tc := range []struct {
+				method, path, token string
+				status              int
+				contains            string
+			}{
+				{"GET", "/api/tapcomfy/v1/admin/partners", ownerToken, 403, ""},
+				{"GET", "/api/tapcomfy/v1/admin/partners?status=approved", adminToken, 200, `"username":"partner-owner"`},
+				{"GET", "/api/tapcomfy/v1/admin/partners?size=1&page=2", adminToken, 200, `"items":[]`},
+				{"GET", "/api/user/aff", ownerToken, 200, `"data":"owner"`},
+				{"GET", "/api/user/aff", otherToken, 409, "partner_state"},
+				{"GET", "/api/tapcomfy/v1/partner", ownerToken, 200, `"referral_code":"owner"`},
+				{"GET", "/api/tapcomfy/v1/partner/invitees", ownerToken, 200, `"topup_count":1`},
+				{"GET", "/api/tapcomfy/v1/partner/invitees?user_id=1", otherToken, 200, `"items":[]`},
+				{"GET", "/api/tapcomfy/v1/partner/commissions?user_id=1", otherToken, 200, `"items":[]`},
+				{"GET", "/api/tapcomfy/v1/partner/payouts?user_id=1", otherToken, 200, `"items":[]`},
+				{"GET", "/api/tapcomfy/v1/admin/partners/payouts", ownerToken, 403, ""},
+				{"PUT", "/api/tapcomfy/v1/admin/partners/payouts/1", ownerToken, 403, ""},
+				{"PUT", "/api/tapcomfy/v1/admin/partners/config", ownerToken, 403, ""},
+				{"GET", "/api/tapcomfy/v1/admin/partners/payouts", adminToken, 200, "private-payee"},
+				{"GET", "/api/tapcomfy/v1/admin/partners/payouts?size=101", adminToken, 400, "partner_invalid"},
+				{"GET", "/api/tapcomfy/v1/admin/partners/payouts?size=1&page=2", adminToken, 200, `"items":[]`},
+				{"GET", "/api/tapcomfy/v1/partner/payouts?page=-1", ownerToken, 400, "partner_invalid"},
+				{"POST", "/api/tapcomfy/v1/partner/payouts", ownerToken, 400, "partner_invalid"},
+				{"GET", "/api/tapcomfy/v1/partner", "", 401, ""},
+				{"POST", "/api/tapcomfy/v1/partner/application", "", 401, ""},
+			} {
+				t.Run(tc.method+tc.path+tc.token, func(t *testing.T) {
+					req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(`{}`))
+					req.Header.Set("Content-Type", "application/json")
+					if tc.token != "" {
+						req.Header.Set("Authorization", "Bearer "+tc.token)
 					}
-				case "/api/tapcomfy/v1/partner":
-					assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-					if status == "approved" {
-						assert.Contains(t, rec.Body.String(), `"referral_code":"owner"`)
-					} else {
-						assert.Contains(t, rec.Body.String(), `"referral_code":""`)
+					rec := httptest.NewRecorder()
+					engine.ServeHTTP(rec, req)
+					require.Equal(t, tc.status, rec.Code, rec.Body.String())
+					if tc.contains != "" {
+						assert.Contains(t, rec.Body.String(), tc.contains)
 					}
-				default:
-					assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-					assert.Contains(t, rec.Body.String(), "private-payee", "historical payout records remain available")
-				}
+					if tc.path == "/api/tapcomfy/v1/admin/partners?status=approved" {
+						assert.NotContains(t, rec.Body.String(), "access_token")
+						assert.NotContains(t, rec.Body.String(), "password")
+						assert.NotContains(t, rec.Body.String(), "partner-buyer")
+					}
+					if tc.token == otherToken {
+						assert.NotContains(t, rec.Body.String(), "private-payee")
+					}
+					if strings.Contains(tc.path, "invitees") {
+						assert.NotContains(t, rec.Body.String(), "consumed")
+					}
+				})
 			}
+
+			common.OptionMap["PartnerProgram"] = `{"enabled":true,"commission_bps":1000,"duration_days":365,"min_payout_cents":1}`
+			for _, tc := range []struct {
+				name, token, body        string
+				code, wantRate, wantDays int
+			}{
+				{"forbidden", ownerToken, `{"commission_bps":1250}`, 403, 1000, 365},
+				{"omitted", adminToken, `{}`, 400, 1000, 365},
+				{"negative", adminToken, `{"commission_bps":-1}`, 400, 1000, 365},
+				{"too high", adminToken, `{"commission_bps":10001}`, 400, 1000, 365},
+				{"fraction", adminToken, `{"commission_bps":12.5}`, 400, 1000, 365},
+				{"string", adminToken, `{"commission_bps":"1250"}`, 400, 1000, 365},
+				{"custom", adminToken, `{"commission_bps":1250}`, 200, 1250, 365},
+				{"zero", adminToken, `{"commission_bps":0}`, 200, 0, 365},
+				{"restore", adminToken, `{"commission_bps":null}`, 200, 1000, 365},
+				{"duration forbidden", ownerToken, `{"duration_days":30}`, 403, 1000, 365},
+				{"duration custom", adminToken, `{"duration_days":730}`, 200, 1000, 730},
+				{"rate preserves duration", adminToken, `{"commission_bps":1250}`, 200, 1250, 730},
+				{"duration negative", adminToken, `{"duration_days":-1}`, 400, 1250, 730},
+				{"duration too high", adminToken, `{"duration_days":36501}`, 400, 1250, 730},
+				{"duration fraction", adminToken, `{"duration_days":1.5}`, 400, 1250, 730},
+				{"duration string", adminToken, `{"duration_days":"30"}`, 400, 1250, 730},
+				{"unknown field", adminToken, `{"duration_days":30,"unknown":null}`, 400, 1250, 730},
+				{"atomic validation", adminToken, `{"commission_bps":100,"duration_days":-1}`, 400, 1250, 730},
+				{"duration unlimited", adminToken, `{"duration_days":0}`, 200, 1250, 0},
+				{"duration restore", adminToken, `{"duration_days":null}`, 200, 1250, 365},
+				{"both terms", adminToken, `{"commission_bps":1500,"duration_days":30}`, 200, 1500, 30},
+			} {
+				t.Run("commission_"+tc.name, func(t *testing.T) {
+					req := httptest.NewRequest(http.MethodPut, "/api/tapcomfy/v1/admin/partners/1/commission", strings.NewReader(tc.body))
+					req.Header.Set("Authorization", "Bearer "+tc.token)
+					req.Header.Set("Content-Type", "application/json")
+					rec := httptest.NewRecorder()
+					engine.ServeHTTP(rec, req)
+					require.Equal(t, tc.code, rec.Code, rec.Body.String())
+					for _, token := range []string{ownerToken, otherToken} {
+						req = httptest.NewRequest(http.MethodGet, "/api/tapcomfy/v1/partner", nil)
+						req.Header.Set("Authorization", "Bearer "+token)
+						rec = httptest.NewRecorder()
+						engine.ServeHTTP(rec, req)
+						require.Equal(t, 200, rec.Code, rec.Body.String())
+						var overview struct {
+							Data struct {
+								Config model.PartnerConfig `json:"config"`
+							} `json:"data"`
+						}
+						require.NoError(t, common.Unmarshal(rec.Body.Bytes(), &overview))
+						want := tc.wantRate
+						wantDays := tc.wantDays
+						if token == otherToken {
+							want = 1000
+							wantDays = 365
+						}
+						assert.Equal(t, want, overview.Data.Config.CommissionBPS)
+						assert.Equal(t, wantDays, overview.Data.Config.DurationDays)
+					}
+					assert.Equal(t, 1000, model.GetPartnerConfig().CommissionBPS, "global rate is unchanged")
+					assert.Equal(t, 365, model.GetPartnerConfig().DurationDays, "global duration is unchanged")
+				})
+			}
+
+			for _, status := range []string{"pending", "needs_info", "rejected", "suspended", "approved"} {
+				t.Run("invitation_gate_"+status, func(t *testing.T) {
+					require.NoError(t, db.Model(&model.Partner{}).Where("user_id = ?", 1).Update("status", status).Error)
+					// Closing applications must not revoke an approved partner.
+					if status == "approved" {
+						common.OptionMap["PartnerProgram"] = `{"enabled":false,"min_payout_cents":1}`
+					}
+					for _, path := range []string{"/api/user/aff", "/api/tapcomfy/v1/partner", "/api/tapcomfy/v1/partner/payouts"} {
+						req := httptest.NewRequest(http.MethodGet, path, nil)
+						req.Header.Set("Authorization", "Bearer "+ownerToken)
+						rec := httptest.NewRecorder()
+						engine.ServeHTTP(rec, req)
+						switch path {
+						case "/api/user/aff":
+							if status == "approved" {
+								assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+								assert.Contains(t, rec.Body.String(), `"data":"owner"`)
+							} else {
+								assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+								assert.Contains(t, rec.Body.String(), "partner_state")
+							}
+						case "/api/tapcomfy/v1/partner":
+							assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+							if status == "approved" {
+								assert.Contains(t, rec.Body.String(), `"referral_code":"owner"`)
+							} else {
+								assert.Contains(t, rec.Body.String(), `"referral_code":""`)
+							}
+						default:
+							assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+							assert.Contains(t, rec.Body.String(), "private-payee", "historical payout records remain available")
+						}
+					}
+				})
+			}
+
 		})
 	}
 }

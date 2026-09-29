@@ -196,6 +196,7 @@ test('administrator enters percentages and yuan while the API receives exact bas
 test('partner rate supports custom percentages, failure retry, explicit zero and restoring the global rate', async () => {
   const partner: api.Partner = {
     user_id: 11,
+    username: 'partner-test-user',
     status: 'approved',
     commission_bps: null,
     duration_days: null,
@@ -227,6 +228,12 @@ test('partner rate supports custom percentages, failure retry, explicit zero and
     </QueryClientProvider>
   )
   await screen.findByText('全局 10%')
+  expect(
+    screen.getByRole('columnheader', { name: '用户名' })
+  ).toBeInTheDocument()
+  expect(
+    screen.getByRole('cell', { name: 'partner-test-user' })
+  ).toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: '查看资料' }))
   const inherit = await screen.findByRole('checkbox', {
     name: '沿用全局比例（10%）',

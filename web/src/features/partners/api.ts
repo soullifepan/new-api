@@ -30,6 +30,7 @@ export type PartnerConfig = {
   bank_single_limit_cents: number
 }
 export type Partner = {
+  username?: string
   duration_days: number | null
   commission_bps: number | null
   user_id: number
