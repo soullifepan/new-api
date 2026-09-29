@@ -45,7 +45,7 @@ func TestPartnerDatabaseMatrix(t *testing.T) {
 			sqlDB.SetMaxOpenConns(8)
 			oldDB, oldLog, oldType, oldRedis := DB, LOG_DB, common.MainDatabaseType(), common.RedisEnabled
 			oldOptions := common.OptionMap
-			oldRate, oldPrice := operation_setting.USDExchangeRate, operation_setting.Price
+			oldRate, oldPrice, oldNativePrice := operation_setting.USDExchangeRate, operation_setting.Price, setting.AlipayNativeUnitPrice
 			DB, LOG_DB = db, db
 			common.SetMainDatabaseType(common.DatabaseType(dialect))
 			initCol()
@@ -53,6 +53,7 @@ func TestPartnerDatabaseMatrix(t *testing.T) {
 			common.OptionMap = map[string]string{}
 			operation_setting.USDExchangeRate = 7
 			operation_setting.Price = 2
+			setting.AlipayNativeUnitPrice = 2
 			models := []any{&PartnerPayout{}, &PartnerCommission{}, &Partner{}, &TopUp{}, &User{}, &Option{}, &Log{}}
 			require.NoError(t, db.Migrator().DropTable(models...))
 			t.Cleanup(func() {
@@ -62,7 +63,7 @@ func TestPartnerDatabaseMatrix(t *testing.T) {
 				initCol()
 				common.RedisEnabled = oldRedis
 				common.OptionMap = oldOptions
-				operation_setting.USDExchangeRate, operation_setting.Price = oldRate, oldPrice
+				operation_setting.USDExchangeRate, operation_setting.Price, setting.AlipayNativeUnitPrice = oldRate, oldPrice, oldNativePrice
 				require.NoError(t, sqlDB.Close())
 			})
 			require.NoError(t, db.AutoMigrate(models...))
@@ -175,9 +176,11 @@ func TestPartnerDatabaseMatrix(t *testing.T) {
 				_, err = CreatePartnerPayout(1, transfer)
 				assert.ErrorIs(t, err, ErrPartnerInvalid)
 			}
-			// First-topup mode must not pay for a buyer who already paid before approval.
+			// Old first-only settings must not suppress subsequent eligible recharges.
 			config.FirstTopupOnly = true
 			require.NoError(t, UpdatePartnerConfig(config))
+			assert.False(t, GetPartnerConfig().FirstTopupOnly)
+			assert.Equal(t, "alipay_native", GetPartnerConfig().BalancePriceSource)
 			second := order
 			second.Id = 0
 			second.TradeNo = "paid-second"
@@ -186,16 +189,8 @@ func TestPartnerDatabaseMatrix(t *testing.T) {
 			require.NoError(t, err)
 			p, err = GetPartner(1)
 			require.NoError(t, err)
-			assert.Equal(t, int(common.QuotaPerUnit), p.EarnedQuota)
+			assert.Equal(t, int(common.QuotaPerUnit*2), p.EarnedQuota)
 			// A disabled program does not trap already-earned funds.
-			config.FirstTopupOnly = false
-			require.NoError(t, UpdatePartnerConfig(config))
-			third := order
-			third.Id = 0
-			third.TradeNo = "paid-third"
-			require.NoError(t, third.Insert())
-			_, err = RechargeEpay(third.TradeNo, "alipay", "")
-			require.NoError(t, err)
 			config.Enabled = false
 			require.NoError(t, UpdatePartnerConfig(config))
 			require.NoError(t, ReviewPartner(1, 99, "suspended", "暂时停止推广"))
@@ -265,12 +260,12 @@ func TestPartnerDatabaseMatrix(t *testing.T) {
 			require.NoError(t, db.Model(&PartnerPayout{}).Where("request_id = ?", "wallet-ceiling").Count(&count).Error)
 			assert.Zero(t, count)
 			// Existing rate and price changes are reflected without modifying historical entries.
-			operation_setting.Price = 4
+			setting.AlipayNativeUnitPrice = 4
 			newMoney, err := PartnerMoneyForGroup("default")
 			require.NoError(t, err)
 			assert.Equal(t, "4", newMoney.CreditPrice)
 			assert.NotEqual(t, money.Quote, newMoney.Quote)
-			operation_setting.Price = 2
+			setting.AlipayNativeUnitPrice = 2
 
 			// Expired referrals still contribute recharge facts but earn no new commission.
 			config.DurationDays = 1
@@ -290,27 +285,25 @@ func TestPartnerDatabaseMatrix(t *testing.T) {
 }
 
 func TestPartnerMoneyUsesConfiguredPrices(t *testing.T) {
-	oldPrice, oldRate := operation_setting.Price, operation_setting.USDExchangeRate
-	oldNative, oldWaffo, oldPancake, oldCurrency := setting.AlipayNativeUnitPrice, setting.WaffoUnitPrice, setting.WaffoPancakeUnitPrice, setting.WaffoCurrency
+	oldPrice, oldRate, oldNative := operation_setting.Price, operation_setting.USDExchangeRate, setting.AlipayNativeUnitPrice
 	oldRatio := common.TopupGroupRatio2JSONString()
 	t.Cleanup(func() {
-		operation_setting.Price, operation_setting.USDExchangeRate = oldPrice, oldRate
-		setting.AlipayNativeUnitPrice, setting.WaffoUnitPrice, setting.WaffoPancakeUnitPrice, setting.WaffoCurrency = oldNative, oldWaffo, oldPancake, oldCurrency
+		operation_setting.Price, operation_setting.USDExchangeRate, setting.AlipayNativeUnitPrice = oldPrice, oldRate, oldNative
 		require.NoError(t, common.UpdateTopupGroupRatioByJSONString(oldRatio))
 	})
 	operation_setting.Price, operation_setting.USDExchangeRate = 2, 7
-	setting.AlipayNativeUnitPrice, setting.WaffoUnitPrice, setting.WaffoPancakeUnitPrice = 0.475, 1.1, 1.1
+	setting.AlipayNativeUnitPrice = 0.475
 	require.NoError(t, common.UpdateTopupGroupRatioByJSONString(`{"partner-price-test":1.25}`))
-	for _, tc := range []struct{ source, currency, expected string }{
-		{"epay", "CNY", "2.5"}, {"alipay_native", "CNY", "0.59375"}, {"waffo", "USD", "9.625"}, {"waffo_pancake", "USD", "9.625"}, {"waffo", "CNY", "1.375"},
-	} {
-		setting.WaffoCurrency = tc.currency
-		money, err := partnerMoneyForConfig("partner-price-test", PartnerConfig{BalancePriceSource: tc.source})
-		require.NoError(t, err)
-		assert.Equal(t, tc.expected, money.CreditPrice, tc.source)
-		assert.Equal(t, "7", money.CashExchangeRate)
-	}
-	setting.WaffoCurrency = "JPY"
-	_, err := partnerMoneyForConfig("partner-price-test", PartnerConfig{BalancePriceSource: "waffo"})
+	money, err := PartnerMoneyForGroup("partner-price-test")
+	require.NoError(t, err)
+	assert.Equal(t, "0.59375", money.CreditPrice)
+	assert.Equal(t, "7", money.CashExchangeRate)
+	setting.AlipayNativeUnitPrice = 0.8
+	updated, err := PartnerMoneyForGroup("partner-price-test")
+	require.NoError(t, err)
+	assert.Equal(t, "1", updated.CreditPrice)
+	assert.NotEqual(t, money.Quote, updated.Quote, "changing the checkout price invalidates the old transfer quote")
+	setting.AlipayNativeUnitPrice = 0
+	_, err = PartnerMoneyForGroup("partner-price-test")
 	assert.ErrorIs(t, err, ErrPartnerQuote)
 }

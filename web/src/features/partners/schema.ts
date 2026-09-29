@@ -19,16 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 import { z } from 'zod'
 
 export const partnerConfigSchema = z.object({
-  balance_price_source: z.enum([
-    'epay',
-    'alipay_native',
-    'waffo',
-    'waffo_pancake',
-  ]),
+  balance_price_source: z.literal('alipay_native'),
   enabled: z.boolean(),
   commission_bps: z.number().int().min(0).max(10000),
   duration_days: z.number().int().min(0).max(36500),
-  first_topup_only: z.boolean(),
+  first_topup_only: z.literal(false),
   min_payout_cents: z.number().int().min(1).max(1e12),
   alipay_daily_limit_cents: z.number().int().min(0).max(1e12),
   bank_single_limit_cents: z.number().int().min(0).max(1e12),

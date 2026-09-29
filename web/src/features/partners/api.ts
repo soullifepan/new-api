@@ -20,11 +20,11 @@ import { api } from '@/lib/api'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
 export type PartnerConfig = {
-  balance_price_source: 'epay' | 'alipay_native' | 'waffo' | 'waffo_pancake'
+  balance_price_source: 'alipay_native'
   enabled: boolean
   commission_bps: number
   duration_days: number
-  first_topup_only: boolean
+  first_topup_only: false
   min_payout_cents: number
   alipay_daily_limit_cents: number
   bank_single_limit_cents: number

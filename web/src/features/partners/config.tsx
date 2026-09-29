@@ -32,13 +32,6 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 
 import { savePartnerConfig, type PartnerConfig } from './api'
 import { partnerConfigSchema } from './schema'
@@ -72,59 +65,25 @@ export function PartnerSettings(props: { config: PartnerConfig }) {
         <p className='text-muted-foreground text-sm'>
           汇率、展示单位及充值售价沿用系统现有设置。修改规则只影响之后的充值，不重算历史佣金。关闭推广后仍可结算历史收益。
         </p>
-        <div className='flex flex-wrap gap-6'>
-          {(['enabled', 'first_topup_only'] as const).map((name) => (
-            <FormField
-              key={name}
-              control={form.control}
-              name={name}
-              render={({ field }) => (
-                <FormItem className='flex items-center gap-2'>
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                  <FormLabel>
-                    {name === 'enabled'
-                      ? '开启合作伙伴计划'
-                      : '仅客户首次充值返佣'}
-                  </FormLabel>
-                </FormItem>
-              )}
-            />
-          ))}
-        </div>
         <FormField
           control={form.control}
-          name='balance_price_source'
+          name='enabled'
           render={({ field }) => (
-            <FormItem>
-              <FormLabel>转消费额度采用的现有充值售价</FormLabel>
-              <Select value={field.value} onValueChange={field.onChange}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {[
-                    ['epay', '易支付'],
-                    ['alipay_native', '支付宝当面付'],
-                    ['waffo', 'Waffo'],
-                    ['waffo_pancake', 'Waffo Pancake'],
-                  ].map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
+            <FormItem className='flex items-center gap-2'>
+              <FormControl>
+                <Checkbox
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </FormControl>
+              <FormLabel>开启合作伙伴计划</FormLabel>
             </FormItem>
           )}
         />
+        <p className='text-muted-foreground text-sm'>
+          佣金转余额按 TapComfy
+          当前充值价格兑换，包含用户分组倍率。后台调整充值价格后自动同步，无需在此单独设置。
+        </p>
         <div className='grid gap-4 sm:grid-cols-2'>
           {fields.map(([name, label]) => (
             <FormField
@@ -166,7 +125,7 @@ export function PartnerSettings(props: { config: PartnerConfig }) {
           ))}
         </div>
         <p className='text-muted-foreground text-sm'>
-          返佣期限从客户注册与伙伴首次获批中较晚的时间起算；首充以客户历史首次成功充值为准。无手续费，佣金即时可用。
+          返佣有效期内，客户每次充值均按设定比例返佣。期限从客户注册与伙伴首次获批中较晚的时间起算。无手续费，佣金即时可用。
         </p>
         <Button type='submit' disabled={save.isPending}>
           {save.isPending ? '保存中…' : '保存规则'}

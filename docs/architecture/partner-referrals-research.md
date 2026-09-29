@@ -39,7 +39,7 @@
 2. 展示规则为注册后一年内每次充值返 10%，不是仅首充返佣。
 3. H3 的资金按钮原文为“划转余额”，不是“提现”。用户把这一页称为“邀请记录 + 提现”，本文保留这个业务意图，但尚不能确认 APIMart 的外部现金付款能力。
 4. U1 的换算只用于解释 APIMart 样例；TapComfy 是否采用同一 Credits 比例尚未确定。
-5. TapComfy 的比例、返佣期限、首充或持续返佣需要可配置，不能照抄 10% 和一年并写死。
+5. TapComfy 的比例和返佣期限需要可配置，不能照抄 10% 和一年并写死。返佣固定覆盖有效期内每次充值，不提供仅首充模式。
 6. U3 已确认 TapComfy 同时支持现金提现和转入消费余额。W1–W3 是新增的提现参考，不改变 H3 只提供划转入口这一证据边界。
 
 ## 2. 未申请页面（H1）
@@ -307,7 +307,7 @@ W3 证明参考界面展示了佣金转消费额度的预览；没有提供实�
 | 先研究再讨论 | 当前阶段先形成详细文档，不急于实现 |
 | 按充值返佣 | 不采用逐次计算客户收费与上游成本差值的方式 |
 | 后续考虑订阅 | 用户提出未来可能有订阅；尚未确定首购/续费政策 |
-| 规则可配置 | 用户对期限、首充或持续返佣回答“可以自己设置” |
+| 规则可配置 | 比例、期限可设置；用户随后明确要求每次充值返佣，取消仅首充模式 |
 | 正常充值不提供主动退款 | 会话按这个业务前提推进，不以事后追佣作为正常流程 |
 | 两种收益出口 | 同时支持现金提现和转入消费余额；共用佣金余额，不重复支取 |
 | 首版提现方式 | 同时支持对私支付宝与对公账户，不将对公推迟到后续版本 |
@@ -413,7 +413,7 @@ new-api 提供当前合作伙伴名下客户的分页充值汇总，TapComfy 负
 | 候选配置 | 可选方向 | 需要明确的语义 |
 | --- | --- | --- |
 | 充值返佣比例 | 管理员设置 | 实付金额基数；精度与舍入 |
-| 充值次数范围 | 首次/每次 | 首次成功付款，还是成为有效受邀客户后的首次付款 |
+| 充值次数范围 | 每次 | 有效期内每次真实充值，不提供仅首充选项 |
 | 返佣期限 | 指定天数/长期 | 从注册、首付还是伙伴获批起算；到期边界 |
 | 订阅返佣 | 开关及独立比例 | 外部支付首购、续费、升降级差额；避免余额支付重复返佣 |
 | 规则层级 | 全局；可选伙伴覆盖 | 哪层生效、后台如何展示继承关系 |
@@ -427,7 +427,7 @@ new-api 提供当前合作伙伴名下客户的分页充值汇总，TapComfy 负
 
 后续需要一起讨论：
 
-1. 已确认既有邀请关系继续有效，仅获批后的充值纳入返佣、不追溯历史；仍需定义老客户的返佣期限起算点，以及首充模式如何适用于曾充值客户。
+1. 已确认既有邀请关系继续有效，仅获批后的充值纳入返佣、不追溯历史；仍需定义老客户的返佣期限起算点；不再提供首充模式。
 2. 用户先后打开多个伙伴链接时，归属如何确定；链接保存有效期与返佣有效期是两个概念。
 3. 老用户是否允许补绑定，绑定后能否更换邀请人。
 4. 编辑推广码后，旧链接是否继续有效；是否允许旧码分配给其他人。
@@ -524,7 +524,7 @@ U6 已确认客户端与后台分工。下面的模块组织是建议实现方�
 1. 两种收益出口、两种提现方式和站外人工打款均已确定；接下来只需明确佣金、现金和消费额度的币种关系与兑换规则，不再讨论首版自动付款接入。
 2. 申请审核与按需补充材料已确定；接下来细化开放的推广方式和最低必要字段。
 3. 确定可配置项及规则生效方式，而不是先争论固定的比例和期限。
-4. 老邀请客户的后续充值返佣、不追溯历史已确定；细化期限起点、首充口径、未来订阅和旧注册奖励衔接。
+4. 老邀请客户的后续充值返佣、不追溯历史已确定；细化期限起点、未来订阅和旧注册奖励衔接。
 5. 再确定客户端页面、管理端最小范围、接口和存储设计。
 
 ## 12. 研究阶段交付与验证范围（实现前记录）
@@ -552,7 +552,7 @@ U6 已确认客户端与后台分工。下面的模块组织是建议实现方�
 
 复用已有 `QuotaPerUnit`、`QuotaDisplayType`、`USDExchangeRate`、自定义展示符号/倍率，内部佣金使用整数 `*_quota` 记账（1 USD 现金对应 QuotaPerUnit，不是按客户获赠额度返佣）。实际付款 CNY 按付款时 USDExchangeRate 归一为美元现金；USD 原值归一。已记账历史不因更改设置重算。`Money` 在 Stripe 中是消费额度，禁止用其当实付；通过已验签支付事件保存实际金额币种。
 
-提现表单按 `cash_currency=CNY` 展示支付宝/国内对公实际人民币到账金额（支付方式本身的币种），`cash_exchange_rate` 复用已有 USDExchangeRate。佣金概览使用已有钱包展示设置。转消费额度按管理员选择的现有充值售价 `balance_price_source` 及用户充值分组倍率（无套餐折扣）换算：佣金美元现金 × USDExchangeRate ÷ (Price × 用户分组倍率) × QuotaPerUnit；记录当时价格，不能拿显示汇率替代售价。配置改变后要求刷新报价。来源可选易支付 Price、支付宝当面付 AlipayNativeUnitPrice、WaffoUnitPrice（按其配置 CNY/USD 换算）、WaffoPancakeUnitPrice（USD）。StripeUnitPrice 没有明确配置币种，Creem 是不同套餐商品，均不作为划转单价来源；其 CNY/USD 实付充值仍正常返佣。不另设第二套汇率/售价。TOKENS 只用于展示，不能误标为现金。
+提现表单按 `cash_currency=CNY` 展示支付宝/国内对公实际人民币到账金额，`cash_exchange_rate` 复用已有 USDExchangeRate。佣金概览使用已有钱包展示设置。转消费额度自动沿用 TapComfy 当前支付宝充值单价 AlipayNativeUnitPrice 和用户充值分组倍率（无套餐折扣），不再提供支付渠道选择：佣金美元现金 × USDExchangeRate ÷ (AlipayNativeUnitPrice × 用户分组倍率) × QuotaPerUnit。后台调价自动生效；申请记录保存当时价格，过时报价要求刷新。保留 `balance_price_source='alipay_native'`、`first_topup_only=false` 响应字段以兼容已有客户端，两项均不再可配置。CNY/USD 实付充值的返佣不受支付渠道限制。TOKENS 只用于展示，不能误标为现金。
 
 ### 共享接口
 
@@ -567,13 +567,13 @@ U6 已确认客户端与后台分工。下面的模块组织是建议实现方�
 推荐码复用既有 aff_code、客户端现有 aff 注册链接；首版不修改邀请码，不改注册链路。
 
 Partner: `{user_id,status:'pending'|'needs_info'|'approved'|'rejected'|'suspended',channels,links,plan,contact,evidence,notes,review_note,created_at,updated_at,approved_at,reviewed_by,available_quota,reserved_quota,earned_quota,withdrawn_quota,transferred_quota}`。
-Config: `{balance_price_source:'epay'|'alipay_native'|'waffo'|'waffo_pancake',enabled:boolean,commission_bps:number,duration_days:number,first_topup_only:boolean,min_payout_cents:number,alipay_daily_limit_cents:number,bank_single_limit_cents:number}`。bps 1000=10%，天数0长期，限额0不限，默认关闭，默认比例0等待管理员设置；限额单位为现金人民币分。
+Config: `{balance_price_source:'alipay_native',enabled:boolean,commission_bps:number,duration_days:number,first_topup_only:false,min_payout_cents:number,alipay_daily_limit_cents:number,bank_single_limit_cents:number}`。bps 1000=10%，天数0长期，限额0不限，默认关闭，默认比例0等待管理员设置；限额单位为现金人民币分。
 Money: `{quota_per_unit:number,currency:string,currency_symbol:string,exchange_rate:string,cash_currency:'CNY',cash_exchange_rate:string,credit_price:string,quote:string}`。exchange_rate用于概览展示（USD/CNY/CUSTOM/TOKENS语义同wallet）；credit_price为每1消费美元额度所需人民币佣金（含用户充值分组倍率），quote为服务端不透明报价字符串；客户端原样回传。输入人民币 amount 对应消费额度 = amount/credit_price，显示为额度而非真实美元现金。可提人民币最大值向下截断到分。
 Summary: `{invited_count,topup_count,topup_quota,earned_quota,available_quota,reserved_quota,withdrawn_quota,transferred_quota,alipay_remaining_cents:number|null}`，null不限。
 Commission: `{id,partner_id,user_id,topup_id,paid_amount:string,paid_currency:string,exchange_rate:string,topup_quota,commission_bps,commission_quota,reason:string,created_at}`，每订单唯一，允许0佣金用于完整充值统计。
 Payout: `{id,user_id,request_id,kind,amount:string,currency:'CNY',debit_quota,status:'pending'|'paid'|'rejected',recipient_name,account,bank_name,company_code,exchange_rate,credit_price,quota,review_note,reviewed_by,created_at,completed_at}`；quota仅划转，debit_quota为扣除佣金。
 
-规则：有效期从 max(客户注册,伙伴首次获批) 起算；首充为客户历史首次外部成功充值；获批前不补；配置修改影响后续付款；暂停停止新增佣金保留资金出口；首版无等待期无手续费，订阅以后接入。充值统计仅累计计划开启后、邀请人已有申请的可靠付款记录，不伪造历史实付；并明确展示统计范围。注册奖励不算现金佣金。
+规则：有效期从 max(客户注册,伙伴首次获批) 起算；有效期内每次外部真实充值均可返佣；获批前不补；配置修改影响后续付款；暂停停止新增佣金保留资金出口；首版无等待期无手续费，订阅以后接入。充值统计仅累计计划开启后、邀请人已有申请的可靠付款记录，不伪造历史实付；并明确展示统计范围。注册奖励不算现金佣金。
 
 ### Admin
 
@@ -598,7 +598,7 @@ Payout: `{id,user_id,request_id,kind,amount:string,currency:'CNY',debit_quota,st
 - 真实付款按验签事件记账；易支付使用验签表单 money、Stripe 使用 amount_total、Creem 使用 amount_paid、Waffo/Pancake 使用回调实际金额。原生支付宝沿用核验后的订单实付金额。测试支付不返佣。手工补单缺少实付事实时不根据消费额度猜测现金佣金。
 - 目前原有后台只提供人民币/美元汇率，故返佣支持 CNY/USD。其他币种付款仍正常充值，记录原实付及 `reason=unsupported_currency`，明确显示“该付款币种未配置返佣汇率，未计佣金”；不猜汇率、不将消费额度当实付。不自动补发历史未计佣金记录。
 - 停用计划或暂停伙伴均保留已有余额的提现/划转；全局停用期间不新增充值佣金记录。规则变更不重算旧账。兑换操作锁定提交时汇率、售价和报价，重试返回原申请。
-- 默认关闭、默认佣金比例为 0；管理员先设置比例/期限/提现限额和划转价格来源，再开启。资料补充/驳回/暂停必须填写原因。付款页展示收款资料与金额并二次确认，不接支付宝或银行转账 API。
+- 默认关闭、默认佣金比例为 0；管理员先设置比例/期限/提现限额，再开启。资料补充/驳回/暂停必须填写原因。付款页展示收款资料与金额并二次确认，不接支付宝或银行转账 API。
 - 查询只接受当前登录身份；Admin 路由复用现有管理员鉴权。既有管理端登录使用 Authorization Bearer，不新增 cookie 鉴权入口。接口设置禁止缓存。
 
 稳定错误码：`partner_invalid`（400）、`partner_state` / `partner_funds` / `partner_quote_changed` / `wallet_limit`（409）、`partner_not_found`（404）、`partner_unavailable`（500）。网络失败/5xx 等未知结果必须保留原参数和 request_id，核对记录后重试，不能重新生成申请。
@@ -615,7 +615,7 @@ TEST_POSTGRES_DSN='host=127.0.0.1 port=55439 user=partner_test dbname=partner_te
 go test ./model -run 'TestPartner(DatabaseMatrix|MoneyUsesConfiguredPrices)' -count=1 -v
 ```
 
-验证充值回调幂等、实际付款与赠送额度隔离、测试支付排除、未配置币种记录、首充资格、有效期到期、审核补材料、旧报价重试、提现占用/驳回/打款幂等、钱包上限回滚、暂停/停用资金出口和并发不可超额支取。使用支持范围内三个版本，不宣称已跑 MySQL 5.7 / PostgreSQL 9.6 的最低版本。
+验证充值回调幂等、实际付款与赠送额度隔离、测试支付排除、未配置币种记录、重复充值持续返佣、旧首充配置不限制返佣、有效期到期、审核补材料、旧报价重试、提现占用/驳回/打款幂等、钱包上限回滚、暂停/停用资金出口和并发不可超额支取。使用支持范围内三个版本，不宣称已跑 MySQL 5.7 / PostgreSQL 9.6 的最低版本。
 
 #### 自动检查及验收边界
 

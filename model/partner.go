@@ -81,44 +81,43 @@ type PartnerPayout struct {
 }
 
 type PartnerConfig struct {
-	BalancePriceSource    string `json:"balance_price_source"`
-	Enabled               bool   `json:"enabled"`
-	CommissionBPS         int    `json:"commission_bps"`
-	DurationDays          int    `json:"duration_days"`
-	FirstTopupOnly        bool   `json:"first_topup_only"`
-	MinPayoutCents        int64  `json:"min_payout_cents"`
-	AlipayDailyLimitCents int64  `json:"alipay_daily_limit_cents"`
-	BankSingleLimitCents  int64  `json:"bank_single_limit_cents"`
+	BalancePriceSource string `json:"balance_price_source"`
+	Enabled            bool   `json:"enabled"`
+	CommissionBPS      int    `json:"commission_bps"`
+	DurationDays       int    `json:"duration_days"`
+	// Kept false in API responses for older clients; every eligible recharge earns commission.
+	FirstTopupOnly        bool  `json:"first_topup_only"`
+	MinPayoutCents        int64 `json:"min_payout_cents"`
+	AlipayDailyLimitCents int64 `json:"alipay_daily_limit_cents"`
+	BankSingleLimitCents  int64 `json:"bank_single_limit_cents"`
 }
 
 func GetPartnerConfig() PartnerConfig {
 	common.OptionMapRWMutex.RLock()
 	raw := common.OptionMap["PartnerProgram"]
 	common.OptionMapRWMutex.RUnlock()
-	config := PartnerConfig{MinPayoutCents: 1, BalancePriceSource: "epay"}
+	config := PartnerConfig{MinPayoutCents: 1, BalancePriceSource: "alipay_native"}
 	if raw != "" {
 		if err := common.UnmarshalJsonStr(raw, &config); err != nil {
-			return PartnerConfig{MinPayoutCents: 1, BalancePriceSource: "epay"}
+			return PartnerConfig{MinPayoutCents: 1, BalancePriceSource: "alipay_native"}
 		}
 	}
-	if config.BalancePriceSource == "" {
-		config.BalancePriceSource = "epay"
-	}
+	config.FirstTopupOnly = false
+	config.BalancePriceSource = "alipay_native"
 	if err := validatePartnerConfig(config); err != nil {
-		return PartnerConfig{MinPayoutCents: 1, BalancePriceSource: "epay"}
+		return PartnerConfig{MinPayoutCents: 1, BalancePriceSource: "alipay_native"}
 	}
 	return config
 }
 
 func UpdatePartnerConfig(config PartnerConfig) error {
-	if config.BalancePriceSource == "" {
-		config.BalancePriceSource = "epay"
-	}
+	config.FirstTopupOnly = false
+	config.BalancePriceSource = "alipay_native"
 	if err := validatePartnerConfig(config); err != nil {
 		return err
 	}
 	if config.Enabled {
-		if _, err := partnerMoneyForConfig("default", config); err != nil {
+		if _, err := PartnerMoneyForGroup("default"); err != nil {
 			return err
 		}
 	}
@@ -130,11 +129,6 @@ func UpdatePartnerConfig(config PartnerConfig) error {
 }
 
 func validatePartnerConfig(config PartnerConfig) error {
-	switch config.BalancePriceSource {
-	case "epay", "alipay_native", "waffo", "waffo_pancake":
-	default:
-		return ErrPartnerInvalid
-	}
 	if config.CommissionBPS < 0 || config.CommissionBPS > 10000 || config.DurationDays < 0 || config.DurationDays > 36500 || config.MinPayoutCents < 1 || config.MinPayoutCents > 1e12 || config.AlipayDailyLimitCents < 0 || config.AlipayDailyLimitCents > 1e12 || config.BankSingleLimitCents < 0 || config.BankSingleLimitCents > 1e12 {
 		return ErrPartnerInvalid
 	}
@@ -153,30 +147,8 @@ type PartnerMoney struct {
 }
 
 func PartnerMoneyForGroup(group string) (PartnerMoney, error) {
-	return partnerMoneyForConfig(group, GetPartnerConfig())
-}
-
-func partnerMoneyForConfig(group string, config PartnerConfig) (PartnerMoney, error) {
-	price := operation_setting.Price
-	priceInUSD := false
-	switch config.BalancePriceSource {
-	case "epay", "":
-	case "alipay_native":
-		price = setting.AlipayNativeUnitPrice
-	case "waffo_pancake":
-		price = setting.WaffoPancakeUnitPrice
-		priceInUSD = true
-	case "waffo":
-		price = setting.WaffoUnitPrice
-		currency := strings.ToUpper(setting.WaffoCurrency)
-		if currency == "USD" {
-			priceInUSD = true
-		} else if currency != "CNY" {
-			return PartnerMoney{}, ErrPartnerQuote
-		}
-	default:
-		return PartnerMoney{}, ErrPartnerQuote
-	}
+	// Match the current TapComfy checkout unit price and group pricing.
+	price := setting.AlipayNativeUnitPrice
 	ratio := common.GetTopupGroupRatio(group)
 	if ratio == 0 {
 		ratio = 1
@@ -188,9 +160,6 @@ func partnerMoneyForConfig(group string, config PartnerConfig) (PartnerMoney, er
 		}
 	}
 	creditPrice := decimal.NewFromFloat(price).Mul(decimal.NewFromFloat(ratio))
-	if priceInUSD {
-		creditPrice = creditPrice.Mul(decimal.NewFromFloat(operation_setting.USDExchangeRate))
-	}
 	m := PartnerMoney{
 		QuotaPerUnit:     common.QuotaPerUnit,
 		Currency:         operation_setting.GetQuotaDisplayType(),
@@ -200,7 +169,7 @@ func partnerMoneyForConfig(group string, config PartnerConfig) (PartnerMoney, er
 		CashExchangeRate: decimal.NewFromFloat(operation_setting.USDExchangeRate).String(),
 		CreditPrice:      creditPrice.String(),
 	}
-	m.Quote = strings.Join([]string{decimal.NewFromFloat(m.QuotaPerUnit).String(), m.CashExchangeRate, m.CreditPrice, config.BalancePriceSource}, ":")
+	m.Quote = strings.Join([]string{decimal.NewFromFloat(m.QuotaPerUnit).String(), m.CashExchangeRate, m.CreditPrice, "alipay_native"}, ":")
 	if len(m.Quote) > 255 {
 		return PartnerMoney{}, ErrPartnerQuote
 	}

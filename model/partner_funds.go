@@ -70,12 +70,6 @@ func recordPartnerCommission(tx *gorm.DB, topup *TopUp) error {
 	}
 	start := max(customer.CreatedAt, partner.ApprovedAt)
 	eligible := partner.Status == "approved" && partner.ApprovedAt > 0 && topup.CompleteTime >= partner.ApprovedAt && (config.DurationDays == 0 || topup.CompleteTime < start+int64(config.DurationDays)*86400)
-	if eligible && config.FirstTopupOnly {
-		if err := tx.Model(&TopUp{}).Where("user_id = ? AND status = ? AND id <> ? AND amount > 0 AND payment_provider <> ?", customer.Id, common.TopUpStatusSuccess, topup.Id, PaymentProviderBalance).Where("(paid_sandbox = ? OR paid_sandbox IS NULL) AND payment_method <> ?", false, "alipay_native_sandbox").Count(&count).Error; err != nil {
-			return err
-		}
-		eligible = count == 0
-	}
 	commission := 0
 	if eligible {
 		commission, err = common.WalletQuotaFromDecimalStrict(decimal.NewFromInt(int64(topupQuota)).Mul(decimal.NewFromInt(int64(config.CommissionBPS))).Div(decimal.NewFromInt(10000)).Floor())

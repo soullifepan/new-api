@@ -66,7 +66,7 @@ beforeEach(() => {
   })
   vi.mocked(api.getPartnerConfig).mockResolvedValue({
     enabled: true,
-    balance_price_source: 'epay',
+    balance_price_source: 'alipay_native',
     commission_bps: 1000,
     duration_days: 365,
     first_topup_only: false,
@@ -159,6 +159,12 @@ test('administrator enters percentages and yuan while the API receives exact bas
   )
   await user.click(screen.getByRole('tab', { name: '返佣规则' }))
   const rate = await screen.findByLabelText('返佣比例（%）')
+  expect(screen.queryByLabelText('仅客户首次充值返佣')).not.toBeInTheDocument()
+  expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+  expect(
+    screen.getByText(/佣金转余额按 TapComfy 当前充值价格兑换/)
+  ).toBeInTheDocument()
+  expect(screen.getByText(/客户每次充值均按设定比例返佣/)).toBeInTheDocument()
   await user.clear(rate)
   await user.type(rate, '12.5')
   const limit = screen.getByLabelText('支付宝每日限额（人民币元，0 不限）')
