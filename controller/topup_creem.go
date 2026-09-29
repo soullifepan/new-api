@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/setting"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -356,7 +357,11 @@ func handleCheckoutCompleted(c *gin.Context, event *CreemWebhookEvent) {
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Creem 回调客户姓名为空 trade_no=%s creem_order_id=%s", referenceId, event.Object.Order.Id))
 	}
 
-	err := model.RechargeCreem(referenceId, customerEmail, customerName, c.ClientIP())
+	paid := decimal.NewFromInt(int64(event.Object.Order.AmountPaid))
+	if !zeroDecimalCurrencies[strings.ToUpper(event.Object.Order.Currency)] {
+		paid = paid.Div(decimal.NewFromInt(100))
+	}
+	err := model.RechargeCreem(referenceId, customerEmail, customerName, c.ClientIP(), model.PartnerPayment{Amount: paid.String(), Currency: event.Object.Order.Currency, Sandbox: setting.CreemTestMode || strings.EqualFold(event.Object.Mode, "test")})
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Creem 充值处理失败 trade_no=%s creem_order_id=%s client_ip=%s error=%q", referenceId, event.Object.Order.Id, c.ClientIP(), err.Error()))
 		c.AbortWithStatus(http.StatusInternalServerError)

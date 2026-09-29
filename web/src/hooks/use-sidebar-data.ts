@@ -157,6 +157,7 @@ export function useSidebarData(): SidebarData {
                 url: '/tapcomfy-models',
                 icon: Box,
               },
+              { title: '合作伙伴', url: '/partners', icon: Users },
             ],
           },
           {

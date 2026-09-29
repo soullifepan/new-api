@@ -1,6 +1,16 @@
 package controller
 
 import (
+	"bytes"
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
+	"github.com/stretchr/testify/assert"
+	"github.com/stripe/stripe-go/v81/webhook"
+	"gorm.io/gorm"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/QuantumNous/new-api/setting"
@@ -166,4 +176,62 @@ func TestEpayWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
 
 	operation_setting.PayMethods = nil
 	require.False(t, isEpayWebhookEnabled())
+}
+
+// A failed commission transaction must ask Stripe to retry; the successful
+// retry commits both balances and duplicate delivery cannot credit twice.
+func TestStripePartnerWebhookTransactionRetry(t *testing.T) {
+	confirmPaymentComplianceForTest(t)
+	oldDB, oldLog, oldRedis, oldType := model.DB, model.LOG_DB, common.RedisEnabled, common.MainDatabaseType()
+	oldOptions, oldRate := common.OptionMap, operation_setting.USDExchangeRate
+	oldSecret, oldAPI, oldPrice := setting.StripeWebhookSecret, setting.StripeApiSecret, setting.StripePriceId
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.TopUp{}, &model.Partner{}, &model.PartnerCommission{}, &model.Option{}, &model.SubscriptionOrder{}, &model.Log{}))
+	model.DB, model.LOG_DB, common.RedisEnabled = db, db, false
+	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
+	common.OptionMap = map[string]string{}
+	operation_setting.USDExchangeRate = 7
+	setting.StripeWebhookSecret, setting.StripeApiSecret, setting.StripePriceId = "test-partner-secret", "test", "test"
+	t.Cleanup(func() {
+		model.DB, model.LOG_DB, common.RedisEnabled = oldDB, oldLog, oldRedis
+		common.SetMainDatabaseType(oldType)
+		common.OptionMap, operation_setting.USDExchangeRate = oldOptions, oldRate
+		setting.StripeWebhookSecret, setting.StripeApiSecret, setting.StripePriceId = oldSecret, oldAPI, oldPrice
+		_ = sqlDB.Close()
+	})
+	require.NoError(t, db.Create(&model.User{Id: 1, Username: "partner", AffCode: "partner"}).Error)
+	require.NoError(t, db.Create(&model.User{Id: 2, Username: "buyer", AffCode: "buyer", InviterId: 1}).Error)
+	require.NoError(t, db.Create(&model.Partner{UserID: 1, Status: "approved", ApprovedAt: common.GetTimestamp() - 100}).Error)
+	require.NoError(t, model.UpdatePartnerConfig(model.PartnerConfig{Enabled: true, CommissionBPS: 1000, MinPayoutCents: 1}))
+	order := model.TopUp{UserId: 2, Amount: 10, Money: 10, TradeNo: "partner-stripe", PaymentProvider: model.PaymentProviderStripe, Status: common.TopUpStatusPending}
+	require.NoError(t, order.Insert())
+	payload := []byte(`{"id":"evt_partner","object":"event","type":"checkout.session.completed","livemode":true,"data":{"object":{"id":"cs_partner","object":"checkout.session","status":"complete","payment_status":"paid","client_reference_id":"partner-stripe","amount_total":1400,"currency":"cny"}}}`)
+	signed := webhook.GenerateTestSignedPayload(&webhook.UnsignedPayload{Payload: payload, Secret: setting.StripeWebhookSecret})
+	engine := gin.New()
+	engine.POST("/stripe", StripeWebhook)
+	operation_setting.USDExchangeRate = 0
+	for _, expected := range []int{http.StatusInternalServerError, http.StatusOK, http.StatusOK} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/stripe", bytes.NewReader(payload))
+		req.Header.Set("Stripe-Signature", signed.Header)
+		engine.ServeHTTP(rec, req)
+		require.Equal(t, expected, rec.Code, rec.Body.String())
+		var buyer model.User
+		require.NoError(t, db.First(&buyer, 2).Error)
+		if expected == http.StatusInternalServerError {
+			assert.Zero(t, buyer.Quota)
+		} else {
+			assert.Equal(t, int(common.QuotaPerUnit*10), buyer.Quota)
+		}
+		operation_setting.USDExchangeRate = 7
+	}
+	var entries []model.PartnerCommission
+	require.NoError(t, db.Find(&entries).Error)
+	require.Len(t, entries, 1)
+	assert.Equal(t, "14", entries[0].PaidAmount)
+	assert.Equal(t, int(common.QuotaPerUnit/5), entries[0].CommissionQuota)
 }

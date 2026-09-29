@@ -274,3 +274,74 @@ func TestTapComfyRouteRolesReachOnlyAuthorizedHandlers(t *testing.T) {
 	engine.ServeHTTP(adminUpload, request)
 	assert.Equal(t, http.StatusBadRequest, adminUpload.Code, "administrator reached upload handler")
 }
+
+func TestPartnerAPIContractAndOwnerIsolation(t *testing.T) {
+	oldDB, oldLog, oldRedis := model.DB, model.LOG_DB, common.RedisEnabled
+	oldOptions := common.OptionMap
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.AuditLog{}, &model.Option{}, &model.Partner{}, &model.PartnerCommission{}, &model.PartnerPayout{}))
+	model.DB, model.LOG_DB, common.RedisEnabled = db, db, false
+	common.OptionMap = map[string]string{}
+	t.Cleanup(func() {
+		model.DB, model.LOG_DB, common.RedisEnabled = oldDB, oldLog, oldRedis
+		common.OptionMap = oldOptions
+		_ = sqlDB.Close()
+	})
+	ownerToken, otherToken, adminToken := "partner-owner-pat", "partner-other-pat", "partner-admin-pat"
+	for _, u := range []model.User{{Id: 1, Username: "partner-owner", AccessToken: &ownerToken, Role: common.RoleCommonUser, AffCode: "owner"}, {Id: 2, Username: "partner-other", AccessToken: &otherToken, Role: common.RoleCommonUser, AffCode: "other"}, {Id: 3, Username: "partner-admin", AccessToken: &adminToken, Role: common.RoleAdminUser, AffCode: "admin"}, {Id: 4, Username: "partner-buyer", InviterId: 1, Role: common.RoleCommonUser, AffCode: "buyer"}} {
+		u.Group = "default"
+		u.Status = common.UserStatusEnabled
+		u.AuthVersion = 1
+		require.NoError(t, db.Create(&u).Error)
+	}
+	require.NoError(t, db.Create(&model.Partner{UserID: 1, Status: "approved", AvailableQuota: 100, EarnedQuota: 100}).Error)
+	require.NoError(t, db.Create(&model.PartnerCommission{PartnerID: 1, UserID: 4, TopUpID: 99, TopUpQuota: 1000, CommissionQuota: 100}).Error)
+	require.NoError(t, db.Create(&model.PartnerPayout{UserID: 1, RequestID: "private-account", Account: "private-payee", Status: "pending"}).Error)
+	engine := gin.New()
+	SetApiRouter(engine)
+	for _, tc := range []struct {
+		method, path, token string
+		status              int
+		contains            string
+	}{
+		{"GET", "/api/tapcomfy/v1/partner", ownerToken, 200, `"referral_code":"owner"`},
+		{"GET", "/api/tapcomfy/v1/partner/invitees", ownerToken, 200, `"topup_count":1`},
+		{"GET", "/api/tapcomfy/v1/partner/invitees?user_id=1", otherToken, 200, `"items":[]`},
+		{"GET", "/api/tapcomfy/v1/partner/commissions?user_id=1", otherToken, 200, `"items":[]`},
+		{"GET", "/api/tapcomfy/v1/partner/payouts?user_id=1", otherToken, 200, `"items":[]`},
+		{"GET", "/api/tapcomfy/v1/admin/partners/payouts", ownerToken, 403, ""},
+		{"PUT", "/api/tapcomfy/v1/admin/partners/payouts/1", ownerToken, 403, ""},
+		{"PUT", "/api/tapcomfy/v1/admin/partners/config", ownerToken, 403, ""},
+		{"GET", "/api/tapcomfy/v1/admin/partners/payouts", adminToken, 200, "private-payee"},
+		{"GET", "/api/tapcomfy/v1/admin/partners/payouts?size=101", adminToken, 400, "partner_invalid"},
+		{"GET", "/api/tapcomfy/v1/admin/partners/payouts?size=1&page=2", adminToken, 200, `"items":[]`},
+		{"GET", "/api/tapcomfy/v1/partner/payouts?page=-1", ownerToken, 400, "partner_invalid"},
+		{"POST", "/api/tapcomfy/v1/partner/payouts", ownerToken, 400, "partner_invalid"},
+		{"GET", "/api/tapcomfy/v1/partner", "", 401, ""},
+		{"POST", "/api/tapcomfy/v1/partner/application", "", 401, ""},
+	} {
+		t.Run(tc.method+tc.path+tc.token, func(t *testing.T) {
+			req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(`{}`))
+			req.Header.Set("Content-Type", "application/json")
+			if tc.token != "" {
+				req.Header.Set("Authorization", "Bearer "+tc.token)
+			}
+			rec := httptest.NewRecorder()
+			engine.ServeHTTP(rec, req)
+			require.Equal(t, tc.status, rec.Code, rec.Body.String())
+			if tc.contains != "" {
+				assert.Contains(t, rec.Body.String(), tc.contains)
+			}
+			if tc.token == otherToken {
+				assert.NotContains(t, rec.Body.String(), "private-payee")
+			}
+			if strings.Contains(tc.path, "invitees") {
+				assert.NotContains(t, rec.Body.String(), "consumed")
+			}
+		})
+	}
+}

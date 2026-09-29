@@ -174,6 +174,8 @@ func CreateAlipayNativeTopUp(topUp *TopUp, expected AlipayNativeConfig) error {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
+		topUp.PaidAmount = decimal.NewFromFloat(topUp.Money).StringFixed(2)
+		topUp.PaidCurrency = "CNY"
 		return tx.Create(topUp).Error
 	})
 }
@@ -253,6 +255,9 @@ func RechargeAlipayNative(tradeNo string, sandbox bool, callerIP string) (alread
 		}
 		topUp.CompleteTime, topUp.Status = common.GetTimestamp(), common.TopUpStatusSuccess
 		if err := tx.Save(topUp).Error; err != nil {
+			return err
+		}
+		if err := recordPartnerCommission(tx, topUp); err != nil {
 			return err
 		}
 		return creditTopUpQuota(tx, topUp.UserId, quotaToAdd, nil)

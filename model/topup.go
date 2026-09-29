@@ -13,6 +13,9 @@ import (
 )
 
 type TopUp struct {
+	PaidSandbox     bool    `json:"paid_sandbox"`
+	PaidAmount      string  `json:"paid_amount" gorm:"type:varchar(40)"`
+	PaidCurrency    string  `json:"paid_currency" gorm:"type:varchar(8)"`
 	Id              int     `json:"id"`
 	UserId          int     `json:"user_id" gorm:"index"`
 	Amount          int64   `json:"amount"`
@@ -52,6 +55,10 @@ var (
 )
 
 func (topUp *TopUp) Insert() error {
+	if topUp.PaymentProvider == PaymentProviderEpay {
+		topUp.PaidAmount = decimal.NewFromFloat(topUp.Money).StringFixed(2)
+		topUp.PaidCurrency = "CNY"
+	}
 	var err error
 	err = DB.Create(topUp).Error
 	return err
@@ -173,7 +180,7 @@ func UpdatePendingTopUpStatus(tradeNo string, expectedPaymentProvider string, ta
 // 在同一个事务内完成，因此同一订单的并发/重复回调（包括多实例部署下）最多充值一次。
 // alreadyDone=true 表示订单此前已完成，本次为幂等重复回调。
 // 进程内的 LockOrder 只是优化，正确性由本函数的数据库行锁保证。
-func RechargeEpay(tradeNo string, actualPaymentMethod string, callerIp string) (alreadyDone bool, err error) {
+func RechargeEpay(tradeNo string, actualPaymentMethod string, callerIp string, payment ...PartnerPayment) (alreadyDone bool, err error) {
 	if tradeNo == "" {
 		return false, errors.New("未提供支付单号")
 	}
@@ -209,9 +216,17 @@ func RechargeEpay(tradeNo string, actualPaymentMethod string, callerIp string) (
 		if quotaErr != nil || quotaToAdd <= 0 {
 			return ErrInvalidTopUpQuota
 		}
+		if len(payment) > 0 {
+			if err := topUp.ApplyPartnerPayment(payment[0]); err != nil {
+				return err
+			}
+		}
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
 		if err := tx.Save(topUp).Error; err != nil {
+			return err
+		}
+		if err := recordPartnerCommission(tx, topUp); err != nil {
 			return err
 		}
 		return creditTopUpQuota(tx, topUp.UserId, quotaToAdd, nil)
@@ -232,11 +247,12 @@ func RechargeEpay(tradeNo string, actualPaymentMethod string, callerIp string) (
 	return false, nil
 }
 
-func Recharge(referenceId string, customerId string, callerIp string) (err error) {
+func Recharge(referenceId string, customerId string, callerIp string, payment ...PartnerPayment) (err error) {
 	if referenceId == "" {
 		return errors.New("未提供支付单号")
 	}
 
+	alreadyDone := false
 	var quota int
 	topUp := &TopUp{}
 
@@ -255,10 +271,19 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 			return ErrPaymentMethodMismatch
 		}
 
+		if topUp.Status == common.TopUpStatusSuccess {
+			alreadyDone = true
+			return nil
+		}
 		if topUp.Status != common.TopUpStatusPending {
 			return errors.New("充值订单状态错误")
 		}
 
+		if len(payment) > 0 {
+			if err := topUp.ApplyPartnerPayment(payment[0]); err != nil {
+				return err
+			}
+		}
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
 		err = tx.Save(topUp).Error
@@ -272,6 +297,9 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 		if err != nil || quota <= 0 {
 			return ErrInvalidTopUpQuota
 		}
+		if err := recordPartnerCommission(tx, topUp); err != nil {
+			return err
+		}
 		return creditTopUpQuota(tx, topUp.UserId, quota, map[string]any{
 			"stripe_customer": customerId,
 		})
@@ -280,6 +308,9 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 	if err != nil {
 		common.SysError("topup failed: " + err.Error())
 		return errors.New("充值失败，请稍后重试")
+	}
+	if alreadyDone {
+		return nil
 	}
 	syncCreditUserQuotaCache(topUp.UserId, quota, "stripe topup")
 
@@ -501,6 +532,9 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 			return err
 		}
 
+		if err := recordPartnerCommission(tx, topUp); err != nil {
+			return err
+		}
 		// 增加用户额度（立即写库，保持一致性）
 		if err := creditTopUpQuota(tx, topUp.UserId, quotaToAdd, nil); err != nil {
 			return err
@@ -521,7 +555,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 	RecordTopupLog(userId, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney), callerIp, paymentMethod, "admin")
 	return nil
 }
-func RechargeCreem(referenceId string, customerEmail string, customerName string, callerIp string) (err error) {
+func RechargeCreem(referenceId string, customerEmail string, customerName string, callerIp string, payment ...PartnerPayment) (err error) {
 	if referenceId == "" {
 		return errors.New("未提供支付单号")
 	}
@@ -548,6 +582,11 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 			return errors.New("充值订单状态错误")
 		}
 
+		if len(payment) > 0 {
+			if err := topUp.ApplyPartnerPayment(payment[0]); err != nil {
+				return err
+			}
+		}
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
 		err = tx.Save(topUp).Error
@@ -579,6 +618,9 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 			}
 		}
 
+		if err := recordPartnerCommission(tx, topUp); err != nil {
+			return err
+		}
 		return creditTopUpQuota(tx, topUp.UserId, quota, updateFields)
 	})
 
@@ -593,7 +635,7 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 	return nil
 }
 
-func RechargeWaffo(tradeNo string, callerIp string) (err error) {
+func RechargeWaffo(tradeNo string, callerIp string, payment ...PartnerPayment) (err error) {
 	if tradeNo == "" {
 		return errors.New("未提供支付单号")
 	}
@@ -631,12 +673,20 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 			return ErrInvalidTopUpQuota
 		}
 
+		if len(payment) > 0 {
+			if err := topUp.ApplyPartnerPayment(payment[0]); err != nil {
+				return err
+			}
+		}
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
 		if err := tx.Save(topUp).Error; err != nil {
 			return err
 		}
 
+		if err := recordPartnerCommission(tx, topUp); err != nil {
+			return err
+		}
 		return creditTopUpQuota(tx, topUp.UserId, quotaToAdd, nil)
 	})
 
@@ -653,7 +703,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 	return nil
 }
 
-func RechargeWaffoPancake(tradeNo string) (err error) {
+func RechargeWaffoPancake(tradeNo string, payment ...PartnerPayment) (err error) {
 	if tradeNo == "" {
 		return errors.New("未提供支付单号")
 	}
@@ -691,12 +741,20 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 			return ErrInvalidTopUpQuota
 		}
 
+		if len(payment) > 0 {
+			if err := topUp.ApplyPartnerPayment(payment[0]); err != nil {
+				return err
+			}
+		}
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
 		if err := tx.Save(topUp).Error; err != nil {
 			return err
 		}
 
+		if err := recordPartnerCommission(tx, topUp); err != nil {
+			return err
+		}
 		return creditTopUpQuota(tx, topUp.UserId, quotaToAdd, nil)
 	})
 
