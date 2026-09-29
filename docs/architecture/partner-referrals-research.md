@@ -637,3 +637,13 @@ go test ./model -run 'TestPartner(DatabaseMatrix|MoneyUsesConfiguredPrices)' -co
 - 本次三库矩阵沿用上述版本和命令，增加未申请/各审核状态、禁用用户旧码、关闭申请后获批代码仍有效、关闭时新申请拒绝、重复充值继续计佣金和原邀请关系保留的断言。路由测试增加旧发码端点、overview 各状态及关闭申请后照常返回获批邀请码；历史提现记录仍可查看。
 
 本次追加验证：`go test ./model ./controller ./router -run 'Test(Partner|Stripe|Recharge|AlipayNative|WaffoPancake|TapComfy|Register|OAuth)' -count=1` 通过；Admin 3项测试、类型检查、定向 lint 通过。协调者重新运行 TapComfy 类型检查及 `node --experimental-strip-types --test src/lib/partnerAccess.test.ts src/lib/newapiPartner.test.ts src/lib/newapiWallet.test.ts`，31项通过；worker 报告 Rust 6项通过。仍未进行应用视觉操作或真实支付联调。
+
+#### 单个伙伴专属返佣比例（2026-09-29）
+
+- 管理端“申请与伙伴”新增返佣比例列；“查看资料”内可设置专属比例或恢复全局比例。复用现有 Dialog、Form、Checkbox、Input、Button。
+- `partners.commission_bps` 新增可空整数字段：NULL 沿用全局；0 明确为 0%；1–10000 对应 0.01%–100%。老伙伴迁移后默认 NULL，不改变已有规则或账本。
+- 管理员接口 `PUT /api/tapcomfy/v1/admin/partners/:id/commission`，id 为伙伴 user_id，body 必须包含 `commission_bps`，整数设置专属比例，null 恢复全局；遗漏、越界、字符串、小数及额外字段拒绝。复用 AdminAuth，记录操作审计。
+- 支付成功事务锁定伙伴，优先采用专属比例，并在佣金记录保存当次实际比例。修改全局比例不覆盖专属比例，历史佣金不重算，重复付款通知不重复记账。
+- 客户端概览的 `config.commission_bps` 返回当前伙伴的实际生效比例；管理端规则接口仍返回全局比例。TapComfy 已从概览读取并展示此字段，无需另加计算或硬编码。
+- 三库验证：SQLite 3.50.4、MySQL 8.4.11、PostgreSQL 16.15，沿用上文矩阵命令，全部通过；覆盖空库、已有伙伴旧表升级、两次迁移、NULL/0/专属值保留、恢复全局、全局变化隔离、历史账目不变和回调幂等。升级夹具移除新列后迁移，重开连接模拟应用重启并清空驱动语句缓存。未使用新的数据库专有语法。
+- `go test ./model ./controller ./router -run 'Test(Partner|Stripe|Recharge|AlipayNative|WaffoPancake|TapComfy|Register|OAuth)' -count=1` 通过；接口测试覆盖普通用户无权修改、参数校验、伙伴本人概览显示专属比例、其他用户与全局比例不受影响。Admin 合作伙伴 4 项交互测试通过，含专属比例保存、失败保留重试、0% 和恢复全局。未进行浏览器视觉操作。

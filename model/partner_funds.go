@@ -69,15 +69,16 @@ func recordPartnerCommission(tx *gorm.DB, topup *TopUp) error {
 		return ErrPartnerInvalid
 	}
 	start := max(customer.CreatedAt, partner.ApprovedAt)
+	commissionBPS := EffectivePartnerCommissionBPS(&partner, config)
 	eligible := partner.Status == "approved" && partner.ApprovedAt > 0 && topup.CompleteTime >= partner.ApprovedAt && (config.DurationDays == 0 || topup.CompleteTime < start+int64(config.DurationDays)*86400)
 	commission := 0
 	if eligible {
-		commission, err = common.WalletQuotaFromDecimalStrict(decimal.NewFromInt(int64(topupQuota)).Mul(decimal.NewFromInt(int64(config.CommissionBPS))).Div(decimal.NewFromInt(10000)).Floor())
+		commission, err = common.WalletQuotaFromDecimalStrict(decimal.NewFromInt(int64(topupQuota)).Mul(decimal.NewFromInt(int64(commissionBPS))).Div(decimal.NewFromInt(10000)).Floor())
 		if err != nil {
 			return err
 		}
 	}
-	entry := PartnerCommission{PartnerID: partner.UserID, UserID: customer.Id, TopUpID: topup.Id, PaidAmount: paid.String(), PaidCurrency: topup.PaidCurrency, ExchangeRate: rate.String(), TopUpQuota: topupQuota, CommissionBPS: config.CommissionBPS, CommissionQuota: commission, CreatedAt: topup.CompleteTime}
+	entry := PartnerCommission{PartnerID: partner.UserID, UserID: customer.Id, TopUpID: topup.Id, PaidAmount: paid.String(), PaidCurrency: topup.PaidCurrency, ExchangeRate: rate.String(), TopUpQuota: topupQuota, CommissionBPS: commissionBPS, CommissionQuota: commission, CreatedAt: topup.CompleteTime}
 	if err := tx.Create(&entry).Error; err != nil {
 		return err
 	}

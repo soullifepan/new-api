@@ -134,6 +134,23 @@ func TestPartnerDatabaseMatrix(t *testing.T) {
 			var existingInvitee User
 			require.NoError(t, db.First(&existingInvitee, 2).Error)
 			assert.Equal(t, 1, existingInvitee.InviterId, "existing relationships survive eligibility changes")
+			// Upgrade the previously deployed partner schema with an existing approved row.
+			require.NoError(t, db.Migrator().DropColumn(&Partner{}, "CommissionBPS"))
+			for range 2 {
+				require.NoError(t, db.AutoMigrate(models...))
+			}
+			// Simulate application restart after schema upgrade, including driver statement caches.
+			require.NoError(t, sqlDB.Close())
+			db, err = gorm.Open(driver, &gorm.Config{NamingStrategy: schema.NamingStrategy{TablePrefix: "partner_test_"}})
+			require.NoError(t, err)
+			sqlDB, err = db.DB()
+			require.NoError(t, err)
+			sqlDB.SetMaxOpenConns(8)
+			DB, LOG_DB = db, db
+			migrated, err := GetPartner(1)
+			require.NoError(t, err)
+			assert.Nil(t, migrated.CommissionBPS, "existing partners inherit the global rate")
+			assert.Equal(t, "approved", migrated.Status)
 			// Use the real successful top-up function: gifted quota is unrelated to cash.
 			order := TopUp{UserId: 2, Amount: 100, Money: 70, TradeNo: "paid-one", PaymentProvider: PaymentProviderEpay, Status: common.TopUpStatusPending}
 			require.NoError(t, order.Insert())
@@ -314,6 +331,57 @@ func TestPartnerDatabaseMatrix(t *testing.T) {
 			require.NoError(t, db.Where("top_up_id = ?", expired.Id).First(&expiredEntry).Error)
 			assert.Zero(t, expiredEntry.CommissionQuota)
 			assert.Equal(t, int(common.QuotaPerUnit*10), expiredEntry.TopUpQuota)
+			// Overrides affect future entries only, including exact zero and restoration.
+			config.DurationDays = 0
+			customRate, zeroRate, maxRate := 1250, 0, 10000
+			for _, tc := range []struct {
+				name            string
+				rate            *int
+				global, wantBPS int
+				wantUSD         float64
+			}{
+				{"inherit", nil, 1000, 1000, 1},
+				{"custom", &customRate, 1000, 1250, 1.25},
+				{"global-changed", &customRate, 2500, 1250, 1.25},
+				{"zero", &zeroRate, 2500, 0, 0},
+				{"maximum", &maxRate, 2500, 10000, 10},
+				{"restored", nil, 2500, 2500, 2.5},
+			} {
+				config.CommissionBPS = tc.global
+				require.NoError(t, UpdatePartnerConfig(config))
+				_, err := UpdatePartnerCommission(1, tc.rate)
+				require.NoError(t, err)
+				// Startup migration must preserve null, zero and custom values.
+				for range 2 {
+					require.NoError(t, db.AutoMigrate(models...))
+				}
+				current, err := GetPartner(1)
+				require.NoError(t, err)
+				assert.Equal(t, tc.rate, current.CommissionBPS)
+				assert.Equal(t, tc.wantBPS, EffectivePartnerCommissionBPS(current, GetPartnerConfig()))
+				topup := TopUp{UserId: 2, Amount: 10, Money: 10, TradeNo: "rate-" + tc.name, PaymentProvider: PaymentProviderStripe, Status: common.TopUpStatusPending}
+				require.NoError(t, topup.Insert())
+				require.NoError(t, Recharge(topup.TradeNo, "", "", PartnerPayment{Amount: "10", Currency: "USD"}))
+				require.NoError(t, Recharge(topup.TradeNo, "", "", PartnerPayment{Amount: "10", Currency: "USD"}))
+				var entry PartnerCommission
+				require.NoError(t, db.Where("top_up_id = ?", topup.Id).First(&entry).Error)
+				assert.Equal(t, tc.wantBPS, entry.CommissionBPS)
+				assert.Equal(t, int(common.QuotaPerUnit*tc.wantUSD), entry.CommissionQuota)
+				var entryCount int64
+				require.NoError(t, db.Model(&PartnerCommission{}).Where("top_up_id = ?", topup.Id).Count(&entryCount).Error)
+				assert.Equal(t, int64(1), entryCount)
+			}
+			var original PartnerCommission
+			require.NoError(t, db.Where("top_up_id = ?", order.Id).First(&original).Error)
+			assert.Equal(t, 1000, original.CommissionBPS)
+			assert.Equal(t, int(common.QuotaPerUnit), original.CommissionQuota)
+			for _, invalid := range []int{-1, 10001} {
+				_, err := UpdatePartnerCommission(1, &invalid)
+				assert.ErrorIs(t, err, ErrPartnerInvalid)
+			}
+			_, err = UpdatePartnerCommission(999, &customRate)
+			assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
+
 		})
 	}
 }

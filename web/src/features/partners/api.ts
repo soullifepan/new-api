@@ -30,6 +30,7 @@ export type PartnerConfig = {
   bank_single_limit_cents: number
 }
 export type Partner = {
+  commission_bps: number | null
   user_id: number
   status: string
   channels: string
@@ -136,4 +137,18 @@ export async function reviewPayout(
   return requireServerSuccess(
     (await api.put(`${base}/payouts/${id}`, { status, review_note })).data
   )
+}
+
+export async function updatePartnerCommission(
+  id: number,
+  commission_bps: number | null
+) {
+  return requireServerSuccess(
+    (
+      await api.put<{ success: boolean; data: Partner }>(
+        `${base}/${id}/commission`,
+        { commission_bps }
+      )
+    ).data
+  ).data
 }

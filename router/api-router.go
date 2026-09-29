@@ -43,6 +43,7 @@ func SetApiRouter(router *gin.Engine) {
 			partnerAdmin.GET("/payouts", controller.ListAdminPartnerPayouts)
 			partnerAdmin.PUT("/payouts/:id", controller.ReviewPartnerPayout)
 			partnerAdmin.PUT("/:id", controller.ReviewPartner)
+			partnerAdmin.PUT("/:id/commission", controller.UpdatePartnerCommission)
 
 			tapComfyRoute.GET("/storage/sts", middleware.UserAuth(), controller.GetTapComfyStorageSTS)
 			tapComfyRoute.GET("/wallet", middleware.UserAuth(), middleware.DisableCache(), controller.GetWalletTransferSummary)

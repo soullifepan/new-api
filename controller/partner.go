@@ -2,6 +2,7 @@ package controller
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -71,6 +72,7 @@ func GetPartnerOverview(c *gin.Context) {
 		funds = &model.Partner{}
 	}
 	config := model.GetPartnerConfig()
+	config.CommissionBPS = model.EffectivePartnerCommissionBPS(partner, config)
 	var remaining *int64
 	if config.AlipayDailyLimitCents > 0 {
 		used, err := model.PartnerAlipayUsedCents(model.DB, userID)
@@ -142,6 +144,36 @@ func ReviewPartner(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": p})
+}
+
+func UpdatePartnerCommission(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		partnerError(c, model.ErrPartnerInvalid)
+		return
+	}
+	// An explicit null restores the global rate; omission is not an update.
+	var input map[string]*int
+	if err := c.ShouldBindJSON(&input); err != nil {
+		partnerError(c, model.ErrPartnerInvalid)
+		return
+	}
+	bps, present := input["commission_bps"]
+	if !present || len(input) != 1 {
+		partnerError(c, model.ErrPartnerInvalid)
+		return
+	}
+	partner, err := model.UpdatePartnerCommission(id, bps)
+	if err != nil {
+		partnerError(c, err)
+		return
+	}
+	rate := "global"
+	if bps != nil {
+		rate = strconv.Itoa(*bps) + " bps"
+	}
+	model.RecordAuditLog(c, model.AuditLog{UserId: c.GetInt("id"), ActorRole: c.GetInt("role"), Category: model.AuditCategoryOperation, Action: "partner_commission_update", Success: true, Content: fmt.Sprintf("Partner %d commission rate: %s", id, rate)})
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": partner})
 }
 
 func CreatePartnerPayout(c *gin.Context) {

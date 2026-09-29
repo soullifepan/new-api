@@ -347,6 +347,50 @@ func TestPartnerAPIContractAndOwnerIsolation(t *testing.T) {
 		})
 	}
 
+	common.OptionMap["PartnerProgram"] = `{"enabled":true,"commission_bps":1000,"min_payout_cents":1}`
+	for _, tc := range []struct {
+		name, token, body string
+		code, wantRate    int
+	}{
+		{"forbidden", ownerToken, `{"commission_bps":1250}`, 403, 1000},
+		{"omitted", adminToken, `{}`, 400, 1000},
+		{"negative", adminToken, `{"commission_bps":-1}`, 400, 1000},
+		{"too high", adminToken, `{"commission_bps":10001}`, 400, 1000},
+		{"fraction", adminToken, `{"commission_bps":12.5}`, 400, 1000},
+		{"string", adminToken, `{"commission_bps":"1250"}`, 400, 1000},
+		{"custom", adminToken, `{"commission_bps":1250}`, 200, 1250},
+		{"zero", adminToken, `{"commission_bps":0}`, 200, 0},
+		{"restore", adminToken, `{"commission_bps":null}`, 200, 1000},
+	} {
+		t.Run("commission_"+tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPut, "/api/tapcomfy/v1/admin/partners/1/commission", strings.NewReader(tc.body))
+			req.Header.Set("Authorization", "Bearer "+tc.token)
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			engine.ServeHTTP(rec, req)
+			require.Equal(t, tc.code, rec.Code, rec.Body.String())
+			for _, token := range []string{ownerToken, otherToken} {
+				req = httptest.NewRequest(http.MethodGet, "/api/tapcomfy/v1/partner", nil)
+				req.Header.Set("Authorization", "Bearer "+token)
+				rec = httptest.NewRecorder()
+				engine.ServeHTTP(rec, req)
+				require.Equal(t, 200, rec.Code, rec.Body.String())
+				var overview struct {
+					Data struct {
+						Config model.PartnerConfig `json:"config"`
+					} `json:"data"`
+				}
+				require.NoError(t, common.Unmarshal(rec.Body.Bytes(), &overview))
+				want := tc.wantRate
+				if token == otherToken {
+					want = 1000
+				}
+				assert.Equal(t, want, overview.Data.Config.CommissionBPS)
+			}
+			assert.Equal(t, 1000, model.GetPartnerConfig().CommissionBPS, "global rate is unchanged")
+		})
+	}
+
 	for _, status := range []string{"pending", "needs_info", "rejected", "suspended", "approved"} {
 		t.Run("invitation_gate_"+status, func(t *testing.T) {
 			require.NoError(t, db.Model(&model.Partner{}).Where("user_id = ?", 1).Update("status", status).Error)

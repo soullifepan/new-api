@@ -36,6 +36,7 @@ vi.mock('./api', () => ({
   listPayouts: vi.fn(),
   listCommissions: vi.fn(),
   reviewPartner: vi.fn(),
+  updatePartnerCommission: vi.fn(),
   reviewPayout: vi.fn(),
   savePartnerConfig: vi.fn(),
 }))
@@ -189,5 +190,79 @@ test('administrator enters percentages and yuan while the API receives exact bas
       }),
       expect.anything()
     )
+  )
+})
+
+test('partner rate supports custom percentages, failure retry, explicit zero and restoring the global rate', async () => {
+  const partner: api.Partner = {
+    user_id: 11,
+    status: 'approved',
+    commission_bps: null,
+    channels: '视频号',
+    links: '',
+    plan: '',
+    contact: '',
+    evidence: '',
+    notes: '',
+    review_note: '',
+    available_quota: 0,
+    earned_quota: 0,
+    reserved_quota: 0,
+    approved_at: 1700000000,
+    updated_at: 1700000000,
+  }
+  vi.mocked(api.listPartners).mockResolvedValue({
+    items: [partner],
+    total: 1,
+    page: 1,
+  })
+  vi.mocked(api.updatePartnerCommission).mockImplementation(
+    async (_, rate) => ({ ...partner, commission_bps: rate })
+  )
+  const user = userEvent.setup()
+  render(
+    <QueryClientProvider client={client}>
+      <PartnersAdmin />
+    </QueryClientProvider>
+  )
+  await screen.findByText('全局 10%')
+  await user.click(screen.getByRole('button', { name: '查看资料' }))
+  const inherit = await screen.findByRole('checkbox', {
+    name: '沿用全局比例（10%）',
+  })
+  expect(inherit).toBeChecked()
+  await user.click(inherit)
+  const rate = screen.getByLabelText('返佣比例（%）')
+  await user.clear(rate)
+  await user.type(rate, '12.5')
+  vi.mocked(api.updatePartnerCommission).mockRejectedValueOnce(
+    new Error('network unavailable')
+  )
+  await user.click(screen.getByRole('button', { name: '保存返佣比例' }))
+  expect(await screen.findByText('保存失败，请重试。')).toBeInTheDocument()
+  expect(rate).toHaveValue(12.5)
+  await user.click(screen.getByRole('button', { name: '保存返佣比例' }))
+  await waitFor(() =>
+    expect(api.updatePartnerCommission).toHaveBeenLastCalledWith(11, 1250)
+  )
+  await waitFor(() =>
+    expect(screen.queryByText('保存失败，请重试。')).not.toBeInTheDocument()
+  )
+  const savedRate = screen.getByLabelText('返佣比例（%）')
+  await user.clear(savedRate)
+  await user.type(savedRate, '0')
+  await user.click(screen.getByRole('button', { name: '保存返佣比例' }))
+  await waitFor(() =>
+    expect(api.updatePartnerCommission).toHaveBeenLastCalledWith(11, 0)
+  )
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: '保存返佣比例' })).toBeEnabled()
+  )
+  await user.click(
+    screen.getByRole('checkbox', { name: '沿用全局比例（10%）' })
+  )
+  await user.click(screen.getByRole('button', { name: '保存返佣比例' }))
+  await waitFor(() =>
+    expect(api.updatePartnerCommission).toHaveBeenLastCalledWith(11, null)
   )
 })

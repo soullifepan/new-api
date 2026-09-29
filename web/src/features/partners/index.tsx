@@ -45,6 +45,7 @@ import {
   type Payout,
   type Commission,
 } from './api'
+import { PartnerCommissionRate } from './commission-rate'
 import { PartnerSettings } from './config'
 
 const partnerStatus: Record<string, string> = {
@@ -103,7 +104,7 @@ export function PartnersAdmin() {
             )}
           </TabsContent>
           <TabsContent value='partners'>
-            <PartnerList />
+            <PartnerList globalCommissionBPS={config.data?.commission_bps} />
           </TabsContent>
           <TabsContent value='payouts'>
             <PayoutList />
@@ -117,7 +118,7 @@ export function PartnersAdmin() {
   )
 }
 
-function PartnerList() {
+function PartnerList(props: { globalCommissionBPS?: number }) {
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 })
   const [filter, setFilter] = useState('pending')
   const [detail, setDetail] = useState<Partner | null>(null)
@@ -160,6 +161,14 @@ function PartnerList() {
         partnerStatus[row.original.status] ?? row.original.status,
     },
     { accessorKey: 'channels', header: '推广渠道' },
+    {
+      accessorKey: 'commission_bps',
+      header: '返佣比例',
+      cell: ({ row }) =>
+        row.original.commission_bps == null
+          ? `全局 ${props.globalCommissionBPS === undefined ? '—' : `${formatNumber(props.globalCommissionBPS / 100, 'zh-CN')}%`}`
+          : `${formatNumber(row.original.commission_bps / 100, 'zh-CN')}%（专属）`,
+    },
     {
       accessorKey: 'earned_quota',
       header: '累计佣金',
@@ -279,25 +288,35 @@ function PartnerList() {
         }
       >
         {detail && (
-          <dl className='space-y-3'>
-            {[
-              ['用户 ID', String(detail.user_id)],
-              ['推广渠道', detail.channels],
-              ['账号链接', detail.links],
-              ['推广计划', detail.plan],
-              ['联系方式', detail.contact],
-              ['证明链接', detail.evidence],
-              ['补充说明', detail.notes],
-              ['审核意见', detail.review_note],
-            ].map(([label, value]) => (
-              <div key={label}>
-                <dt className='text-muted-foreground text-sm'>{label}</dt>
-                <dd className='break-all whitespace-pre-wrap'>
-                  {value || '—'}
-                </dd>
-              </div>
-            ))}
-          </dl>
+          <div className='space-y-5'>
+            <dl className='space-y-3'>
+              {[
+                ['用户 ID', String(detail.user_id)],
+                ['推广渠道', detail.channels],
+                ['账号链接', detail.links],
+                ['推广计划', detail.plan],
+                ['联系方式', detail.contact],
+                ['证明链接', detail.evidence],
+                ['补充说明', detail.notes],
+                ['审核意见', detail.review_note],
+              ].map(([label, value]) => (
+                <div key={label}>
+                  <dt className='text-muted-foreground text-sm'>{label}</dt>
+                  <dd className='break-all whitespace-pre-wrap'>
+                    {value || '—'}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            {props.globalCommissionBPS !== undefined && (
+              <PartnerCommissionRate
+                key={`${detail.user_id}:${detail.commission_bps}`}
+                partner={detail}
+                globalCommissionBPS={props.globalCommissionBPS}
+                onSaved={setDetail}
+              />
+            )}
+          </div>
         )}
       </Dialog>
       <ConfirmDialog
@@ -564,7 +583,8 @@ function CommissionList() {
     {
       accessorKey: 'commission_bps',
       header: '规则比例',
-      cell: ({ row }) => `${row.original.commission_bps / 100}%`,
+      cell: ({ row }) =>
+        `${formatNumber(row.original.commission_bps / 100, 'zh-CN')}%`,
     },
     {
       accessorKey: 'commission_quota',

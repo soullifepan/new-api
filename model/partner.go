@@ -23,6 +23,7 @@ var ErrPartnerQuote = errors.New("后台金额设置已变化，请刷新报价�
 // consumption wallet and legacy registration rewards.
 type Partner struct {
 	UserID           int    `json:"user_id" gorm:"primaryKey;autoIncrement:false"`
+	CommissionBPS    *int   `json:"commission_bps"` // nil inherits the global rate; zero explicitly disables commission.
 	Status           string `json:"status" gorm:"type:varchar(20);index"`
 	Channels         string `json:"channels" gorm:"type:text"`
 	Links            string `json:"links" gorm:"type:text"`
@@ -193,6 +194,31 @@ func CanPartnerInvite(userID int) (bool, error) {
 		return false, err
 	}
 	return partner != nil && partner.Status == "approved", nil
+}
+
+func EffectivePartnerCommissionBPS(partner *Partner, config PartnerConfig) int {
+	if partner != nil && partner.CommissionBPS != nil {
+		return *partner.CommissionBPS
+	}
+	return config.CommissionBPS
+}
+
+func UpdatePartnerCommission(userID int, bps *int) (*Partner, error) {
+	if userID <= 0 || (bps != nil && (*bps < 0 || *bps > 10000)) {
+		return nil, ErrPartnerInvalid
+	}
+	var partner Partner
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := lockForUpdate(tx).First(&partner, "user_id = ?", userID).Error; err != nil {
+			return err
+		}
+		partner.CommissionBPS = bps
+		partner.UpdatedAt = common.GetTimestamp()
+		return tx.Model(&Partner{}).Where("user_id = ?", userID).Updates(map[string]any{
+			"commission_bps": bps, "updated_at": partner.UpdatedAt,
+		}).Error
+	})
+	return &partner, err
 }
 
 type PartnerApplicationInput struct {
