@@ -22,7 +22,6 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   Form,
   FormControl,
@@ -63,23 +62,8 @@ export function PartnerSettings(props: { config: PartnerConfig }) {
         className='max-w-3xl space-y-5'
       >
         <p className='text-muted-foreground text-sm'>
-          汇率、展示单位及充值售价沿用系统现有设置。修改规则只影响之后的充值，不重算历史佣金。关闭申请仅停止接收新申请，已获批伙伴的邀请、返佣、提现与划转不受影响。
+          汇率、展示单位及充值售价沿用系统现有设置。修改规则只影响之后的充值，不重算历史佣金。合作伙伴由管理员在线下沟通后开通，不接受在线申请。
         </p>
-        <FormField
-          control={form.control}
-          name='enabled'
-          render={({ field }) => (
-            <FormItem className='flex items-center gap-2'>
-              <FormControl>
-                <Checkbox
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                />
-              </FormControl>
-              <FormLabel>开放合作伙伴申请</FormLabel>
-            </FormItem>
-          )}
-        />
         <p className='text-muted-foreground text-sm'>
           佣金转余额按 TapComfy
           当前充值价格兑换，包含用户分组倍率。后台调整充值价格后自动同步，无需在此单独设置。

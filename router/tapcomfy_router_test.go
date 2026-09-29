@@ -319,7 +319,8 @@ func TestPartnerAPIContractAndOwnerIsolation(t *testing.T) {
 				u.AuthVersion = 1
 				require.NoError(t, db.Create(&u).Error)
 			}
-			require.NoError(t, db.Create(&model.Partner{UserID: 1, Status: "approved", AvailableQuota: 100, EarnedQuota: 100}).Error)
+			require.NoError(t, db.Create(&model.Partner{UserID: 1, Status: "approved", ApprovedAt: 1700000000, AvailableQuota: 100, EarnedQuota: 100}).Error)
+			require.NoError(t, db.Create(&model.Partner{UserID: 4, Status: "pending"}).Error)
 			require.NoError(t, db.Create(&model.PartnerCommission{PartnerID: 1, UserID: 4, TopUpID: 99, TopUpQuota: 1000, CommissionQuota: 100}).Error)
 			require.NoError(t, db.Create(&model.PartnerPayout{UserID: 1, RequestID: "private-account", Account: "private-payee", Status: "pending"}).Error)
 			engine := gin.New()
@@ -334,11 +335,18 @@ func TestPartnerAPIContractAndOwnerIsolation(t *testing.T) {
 				{"GET", "/api/tapcomfy/v1/admin/partners?size=1&page=2", adminToken, 200, `"items":[]`},
 				{"GET", "/api/user/aff", ownerToken, 200, `"data":"owner"`},
 				{"GET", "/api/user/aff", otherToken, 409, "partner_state"},
+				{"GET", "/api/tapcomfy/v1/partner/access", otherToken, 200, `"can_access":false`},
+				{"GET", "/api/tapcomfy/v1/partner/access", ownerToken, 200, `"can_access":true`},
+				{"GET", "/api/tapcomfy/v1/partner/access", "", 401, ""},
+				{"GET", "/api/tapcomfy/v1/partner", otherToken, 403, "partner_required"},
+				{"POST", "/api/tapcomfy/v1/partner/application", otherToken, 403, "partner_invite_only"},
+				{"POST", "/api/tapcomfy/v1/partner/payouts", otherToken, 403, "partner_required"},
+				{"POST", "/api/tapcomfy/v1/admin/partners", ownerToken, 403, ""},
 				{"GET", "/api/tapcomfy/v1/partner", ownerToken, 200, `"referral_code":"owner"`},
 				{"GET", "/api/tapcomfy/v1/partner/invitees", ownerToken, 200, `"topup_count":1`},
-				{"GET", "/api/tapcomfy/v1/partner/invitees?user_id=1", otherToken, 200, `"items":[]`},
-				{"GET", "/api/tapcomfy/v1/partner/commissions?user_id=1", otherToken, 200, `"items":[]`},
-				{"GET", "/api/tapcomfy/v1/partner/payouts?user_id=1", otherToken, 200, `"items":[]`},
+				{"GET", "/api/tapcomfy/v1/partner/invitees?user_id=1", otherToken, 403, "partner_required"},
+				{"GET", "/api/tapcomfy/v1/partner/commissions?user_id=1", otherToken, 403, "partner_required"},
+				{"GET", "/api/tapcomfy/v1/partner/payouts?user_id=1", otherToken, 403, "partner_required"},
 				{"GET", "/api/tapcomfy/v1/admin/partners/payouts", ownerToken, 403, ""},
 				{"PUT", "/api/tapcomfy/v1/admin/partners/payouts/1", ownerToken, 403, ""},
 				{"PUT", "/api/tapcomfy/v1/admin/partners/config", ownerToken, 403, ""},
@@ -375,6 +383,26 @@ func TestPartnerAPIContractAndOwnerIsolation(t *testing.T) {
 					}
 				})
 			}
+
+			for _, tc := range []struct {
+				body string
+				code int
+			}{
+				{`{"user_id":0}`, 400}, {`{"user_id":999}`, 404},
+				{`{"user_id":2,"note":"线下合作"}`, 200}, {`{"user_id":2,"note":"重试"}`, 200},
+			} {
+				req := httptest.NewRequest(http.MethodPost, "/api/tapcomfy/v1/admin/partners", strings.NewReader(tc.body))
+				req.Header.Set("Authorization", "Bearer "+adminToken)
+				req.Header.Set("Content-Type", "application/json")
+				rec := httptest.NewRecorder()
+				engine.ServeHTTP(rec, req)
+				require.Equal(t, tc.code, rec.Code, rec.Body.String())
+			}
+			opened, err := model.GetPartner(2)
+			require.NoError(t, err)
+			assert.Equal(t, "approved", opened.Status)
+			assert.Equal(t, "线下合作", opened.ReviewNote)
+			assert.Positive(t, opened.ApprovedAt)
 
 			common.OptionMap["PartnerProgram"] = `{"enabled":true,"commission_bps":1000,"duration_days":365,"min_payout_cents":1}`
 			for _, tc := range []struct {
@@ -436,6 +464,20 @@ func TestPartnerAPIContractAndOwnerIsolation(t *testing.T) {
 				})
 			}
 
+			require.NoError(t, db.Model(&model.Partner{}).Where("user_id = ?", 1).Update("approved_at", 0).Error)
+			for _, path := range []string{"/api/tapcomfy/v1/partner/access", "/api/tapcomfy/v1/partner"} {
+				req := httptest.NewRequest(http.MethodGet, path, nil)
+				req.Header.Set("Authorization", "Bearer "+ownerToken)
+				rec := httptest.NewRecorder()
+				engine.ServeHTTP(rec, req)
+				if strings.HasSuffix(path, "/access") {
+					assert.Equal(t, 200, rec.Code)
+					assert.Contains(t, rec.Body.String(), `"can_access":false`)
+				} else {
+					assert.Equal(t, 403, rec.Code)
+				}
+			}
+			require.NoError(t, db.Model(&model.Partner{}).Where("user_id = ?", 1).Update("approved_at", 1700000000).Error)
 			for _, status := range []string{"pending", "needs_info", "rejected", "suspended", "approved"} {
 				t.Run("invitation_gate_"+status, func(t *testing.T) {
 					require.NoError(t, db.Model(&model.Partner{}).Where("user_id = ?", 1).Update("status", status).Error)
@@ -443,12 +485,21 @@ func TestPartnerAPIContractAndOwnerIsolation(t *testing.T) {
 					if status == "approved" {
 						common.OptionMap["PartnerProgram"] = `{"enabled":false,"min_payout_cents":1}`
 					}
-					for _, path := range []string{"/api/user/aff", "/api/tapcomfy/v1/partner", "/api/tapcomfy/v1/partner/payouts"} {
+					for _, path := range []string{"/api/user/aff", "/api/tapcomfy/v1/partner", "/api/tapcomfy/v1/partner/payouts", "/api/tapcomfy/v1/partner/access"} {
 						req := httptest.NewRequest(http.MethodGet, path, nil)
 						req.Header.Set("Authorization", "Bearer "+ownerToken)
 						rec := httptest.NewRecorder()
 						engine.ServeHTTP(rec, req)
 						switch path {
+						case "/api/tapcomfy/v1/partner/access":
+							assert.Equal(t, 200, rec.Code)
+							var access struct {
+								Data struct {
+									CanAccess bool `json:"can_access"`
+								} `json:"data"`
+							}
+							require.NoError(t, common.Unmarshal(rec.Body.Bytes(), &access))
+							assert.Equal(t, status == "approved" || status == "suspended", access.Data.CanAccess)
 						case "/api/user/aff":
 							if status == "approved" {
 								assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -458,15 +509,24 @@ func TestPartnerAPIContractAndOwnerIsolation(t *testing.T) {
 								assert.Contains(t, rec.Body.String(), "partner_state")
 							}
 						case "/api/tapcomfy/v1/partner":
-							assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+							if status != "approved" && status != "suspended" {
+								assert.Equal(t, 403, rec.Code)
+								assert.Contains(t, rec.Body.String(), "partner_required")
+								continue
+							}
+							assert.Equal(t, 200, rec.Code, rec.Body.String())
 							if status == "approved" {
 								assert.Contains(t, rec.Body.String(), `"referral_code":"owner"`)
 							} else {
 								assert.Contains(t, rec.Body.String(), `"referral_code":""`)
 							}
 						default:
-							assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-							assert.Contains(t, rec.Body.String(), "private-payee", "historical payout records remain available")
+							if status != "approved" && status != "suspended" {
+								assert.Equal(t, 403, rec.Code)
+								continue
+							}
+							assert.Equal(t, 200, rec.Code, rec.Body.String())
+							assert.Contains(t, rec.Body.String(), "private-payee", "former partners can access historical funds")
 						}
 					}
 				})

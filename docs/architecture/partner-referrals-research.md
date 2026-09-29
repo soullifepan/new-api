@@ -1,7 +1,7 @@
 # APIMart 合作伙伴活动页研究与 TapComfy 设计讨论材料
 
 日期：2026-09-29
-状态：研究稿，供讨论；不是已批准的实现规格
+状态：研究资料与后续实现记录；当前线下开通规则见末尾“线下邀请制”，覆盖此前公开申请方案
 工作分支：`codex/feature/partner-referrals`
 代码核对基线：`a5a0e8b3c`
 
@@ -664,3 +664,23 @@ go test ./model -run 'TestPartner(DatabaseMatrix|MoneyUsesConfiguredPrices)' -co
 合作伙伴管理列表增加用户名，与用户 ID 同时展示，资料弹窗同步显示。管理员列表接口在每个 Partner 项附加 `username`；按当前页用户 ID 一次读取 id/username，不暴露密码或令牌，不新增数据库列。更新返佣设置后保留弹窗用户名。
 
 验证：SQLite 3.50.4、MySQL 8.4.11、PostgreSQL 16.15 真实实例运行 `TEST_MYSQL_DSN='root@tcp(127.0.0.1:53369)/partner_test?charset=utf8mb4&parseTime=True&loc=Local' TEST_POSTGRES_DSN='host=127.0.0.1 port=55439 user=partner_test dbname=partner_test sslmode=disable' go test ./router -run '^TestPartnerAPIContractAndOwnerIsolation$' -count=1 -v` 全部通过，覆盖管理员用户名返回、权限、空页和敏感字段不外泄。Admin 类型检查、定向 oxlint、伙伴模块 4 项交互测试通过，新增列表用户名断言。未使用 computer；未做浏览器视觉验收。
+
+
+#### 线下邀请制与两种合作状态（2026-09-30）
+
+本节覆盖前文关于公开申请、审核状态和开放申请开关的旧方案。
+
+- 用户经微信等线下渠道沟通后，由管理员在“伙伴管理 → 开通合作伙伴”搜索并选择已有账号开通；普通用户看不到合作伙伴入口，不展示招募、申请或联系推广文案。
+- 管理列表仅有“合作中”“已终止”“全部”。沿用数据库与接口值 `approved` / `suspended`，无需迁移状态或新增数据库字段。旧 pending/needs_info/rejected 记录保留，但不作为伙伴显示；管理员通过开通入口可为这类账号建立资格。
+- 管理员 `POST /api/tapcomfy/v1/admin/partners`，body `{user_id:number,note:string}`。账号必须存在且启用；重复开通不重置首次开通时间、专属规则或资金。已终止伙伴必须使用“恢复合作”，不能通过重复添加绕过终止状态。说明会展示给伙伴，表单明确标注。
+- 状态修改 `PUT /admin/partners/:id` 只允许合作中与已终止互转，终止原因必填；首次开通时间保留。终止沿用此前单人暂停行为：停止新邀请和新增佣金，历史佣金、资金记录、提现/划转继续可用。没有改变全局规则或其他伙伴。
+- 新增 `GET /api/tapcomfy/v1/partner/access`，返回 `{success:true,data:{can_access:boolean,status:string}}`，只查询当前登录账号资格。仅首次开通时间大于 0 且状态为 approved/suspended 时返回 true；此接口不依赖充值价格配置。
+- 所有伙伴概览、邀请客户、充值佣金、提现记录及提现提交接口均增加服务器资格校验，未开通返回 403 `partner_required`。旧 `POST /partner/application` 固定 403 `partner_invite_only`，旧配置 `enabled` 固定返回/保存 false，无法重新开放申请。
+- TapComfy 通过已有 Rust 登录代理读取资格，桌面/移动菜单、直接访问 partner/invitation 链接统一校验。默认、加载、失败、普通用户和旧申请状态隐藏入口；旧链接回概览。个人页加载、窗口恢复焦点、可见性恢复和伙伴页面刷新会重查；退出或切换账号不复用旧资格，不接纳旧请求返回。已终止的原伙伴可继续查看和结算已有资金。
+- UI 复用项目 Dialog、Form、Combobox、ConfirmDialog、DataTablePage 及现有用户搜索 API，没有新增通用组件或第三方依赖。后台中文；客户端同步中英文。
+
+验证：SQLite **3.50.4**、MySQL **8.4.11**、PostgreSQL **16.15** 真实实例执行上述两组 DSN 加 `go test ./model ./router -run 'TestPartner(DatabaseMatrix|MoneyUsesConfiguredPrices|APIContractAndOwnerIsolation)' -count=1 -v`，覆盖开通权限与幂等、旧记录转开通、禁用/不存在账号、普通身份不能访问资金接口、各合作状态、缺少首次开通时间、旧申请接口拒绝、列表排除未开通申请，以及既有结算与升级回归。
+
+认证授权仍复用现有 UserAuth/AdminAuth；按上文 OWASP Authentication、Session Management 和 Authorization 指南核对服务端逐请求授权、默认拒绝和当前身份隔离，不变更登录会话协议。`go test ./model ./controller ./router -run 'Test(Partner|Stripe|Recharge|AlipayNative|WaffoPancake|TapComfy|Register|OAuth)' -count=1` 通过。Admin 类型检查、定向 lint 与伙伴模块 **5 项**交互测试通过，包括选定账号后开通、失败保留重试、两状态筛选及原资金/规则交互。
+
+协调者复核 TapComfy 资格门控、身份切换和 Rust 端点对接，并运行 `pnpm exec tsc --noEmit`、`node --experimental-strip-types --test src/lib/partnerAccess.test.ts src/lib/newapiPartner.test.ts src/lib/newapiCurrency.test.ts src/lib/newapiWallet.test.ts`（**36 项**）及 `cargo test --offline --manifest-path src-tauri/Cargo.toml --lib auth::newapi_partner`（**8 项**）。未使用 computer、未启动/重启客户端，未进行真实资金付款和视觉验收。

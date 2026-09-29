@@ -154,3 +154,9 @@ export async function updatePartnerCommission(
     ).data
   ).data
 }
+
+export async function grantPartner(input: { user_id: number; note: string }) {
+  return requireServerSuccess(
+    (await api.post<{ success: boolean; data: Partner }>(base, input)).data
+  ).data
+}

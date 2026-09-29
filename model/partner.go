@@ -3,7 +3,6 @@ package model
 import (
 	"errors"
 	"math"
-	"net/url"
 	"strings"
 	"unicode/utf8"
 
@@ -84,7 +83,7 @@ type PartnerPayout struct {
 
 type PartnerConfig struct {
 	BalancePriceSource string `json:"balance_price_source"`
-	Enabled            bool   `json:"enabled"` // Accept new applications; existing partners remain active.
+	Enabled            bool   `json:"enabled"` // Always false: public applications are retired; retained for older clients.
 	CommissionBPS      int    `json:"commission_bps"`
 	DurationDays       int    `json:"duration_days"`
 	// Kept false in API responses for older clients; every eligible recharge earns commission.
@@ -104,6 +103,7 @@ func GetPartnerConfig() PartnerConfig {
 			return PartnerConfig{MinPayoutCents: 1, BalancePriceSource: "alipay_native"}
 		}
 	}
+	config.Enabled = false
 	config.FirstTopupOnly = false
 	config.BalancePriceSource = "alipay_native"
 	if err := validatePartnerConfig(config); err != nil {
@@ -113,15 +113,11 @@ func GetPartnerConfig() PartnerConfig {
 }
 
 func UpdatePartnerConfig(config PartnerConfig) error {
+	config.Enabled = false
 	config.FirstTopupOnly = false
 	config.BalancePriceSource = "alipay_native"
 	if err := validatePartnerConfig(config); err != nil {
 		return err
-	}
-	if config.Enabled {
-		if _, err := PartnerMoneyForGroup("default"); err != nil {
-			return err
-		}
 	}
 	data, err := common.Marshal(config)
 	if err != nil {
@@ -250,63 +246,52 @@ func UpdatePartnerCommission(userID int, input map[string]*int) (*Partner, error
 	return &partner, err
 }
 
-type PartnerApplicationInput struct {
-	Channels string `json:"channels"`
-	Links    string `json:"links"`
-	Plan     string `json:"plan"`
-	Contact  string `json:"contact"`
-	Evidence string `json:"evidence"`
-	Notes    string `json:"notes"`
+// CanAccessPartnerDashboard includes suspended former partners so earned funds remain accessible.
+func CanAccessPartnerDashboard(partner *Partner) bool {
+	return partner != nil && partner.ApprovedAt > 0 && (partner.Status == "approved" || partner.Status == "suspended")
 }
 
-func SubmitPartnerApplication(userID int, input PartnerApplicationInput) (*Partner, error) {
-	input.Channels = strings.TrimSpace(input.Channels)
-	input.Plan = strings.TrimSpace(input.Plan)
-	input.Contact = strings.TrimSpace(input.Contact)
-	if userID <= 0 || !GetPartnerConfig().Enabled || input.Channels == "" || input.Plan == "" || input.Contact == "" {
+// GrantPartner opens membership after offline agreement. Repeated grants do not reset terms or funds.
+func GrantPartner(userID, actor int, note string) (*Partner, error) {
+	note = strings.TrimSpace(note)
+	if userID <= 0 || actor <= 0 || !utf8.ValidString(note) || len(note) > 4000 {
 		return nil, ErrPartnerInvalid
 	}
-	for _, value := range []string{input.Channels, input.Links, input.Plan, input.Contact, input.Evidence, input.Notes} {
-		if !utf8.ValidString(value) || len(value) > 4000 {
-			return nil, ErrPartnerInvalid
-		}
-	}
-	for _, text := range []string{input.Links, input.Evidence} {
-		for _, line := range strings.Fields(text) {
-			u, err := url.Parse(line)
-			if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || u.User != nil {
-				return nil, ErrPartnerInvalid
-			}
-		}
-	}
-	p := Partner{UserID: userID, Status: "pending", Channels: input.Channels, Links: input.Links, Plan: input.Plan, Contact: input.Contact, Evidence: input.Evidence, Notes: input.Notes, CreatedAt: common.GetTimestamp(), UpdatedAt: common.GetTimestamp()}
+	var partner Partner
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		var old Partner
-		err := lockForUpdate(tx).First(&old, "user_id = ?", userID).Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return tx.Create(&p).Error
-		}
-		if err != nil {
+		var user User
+		if err := lockForUpdate(tx).Select("id", "status").First(&user, userID).Error; err != nil {
 			return err
 		}
-		if old.Status != "needs_info" && old.Status != "rejected" {
+		if user.Status != common.UserStatusEnabled {
 			return ErrPartnerState
 		}
-		p.CreatedAt = old.CreatedAt
-		result := tx.Model(&Partner{}).Where("user_id = ? AND status IN ?", userID, []string{"needs_info", "rejected"}).Select("status", "channels", "links", "plan", "contact", "evidence", "notes", "review_note", "updated_at").Updates(&p)
-		if result.Error != nil {
-			return result.Error
+		err := lockForUpdate(tx).First(&partner, "user_id = ?", userID).Error
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
 		}
-		if result.RowsAffected != 1 {
+		now := common.GetTimestamp()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			partner = Partner{UserID: userID, Status: "approved", ApprovedAt: now, CreatedAt: now, UpdatedAt: now, ReviewedBy: actor, ReviewNote: note}
+			return tx.Create(&partner).Error
+		}
+		if partner.Status == "approved" {
+			return nil
+		}
+		if partner.Status != "pending" && partner.Status != "needs_info" && partner.Status != "rejected" {
 			return ErrPartnerState
 		}
-		return nil
+		partner.Status, partner.ReviewNote, partner.ReviewedBy, partner.UpdatedAt = "approved", note, actor, now
+		if partner.ApprovedAt == 0 {
+			partner.ApprovedAt = now
+		}
+		return tx.Model(&Partner{}).Where("user_id = ?", userID).Select("status", "review_note", "reviewed_by", "updated_at", "approved_at").Updates(&partner).Error
 	})
-	return &p, err
+	return &partner, err
 }
 
 func ReviewPartner(userID, actor int, status, note string) error {
-	if len(note) > 4000 || ((status == "needs_info" || status == "rejected" || status == "suspended") && strings.TrimSpace(note) == "") {
+	if !utf8.ValidString(note) || len(note) > 4000 || (status == "suspended" && strings.TrimSpace(note) == "") {
 		return ErrPartnerInvalid
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
@@ -314,7 +299,7 @@ func ReviewPartner(userID, actor int, status, note string) error {
 		if err := lockForUpdate(tx).First(&p, "user_id = ?", userID).Error; err != nil {
 			return err
 		}
-		allowed := (p.Status == "pending" && (status == "approved" || status == "needs_info" || status == "rejected")) || (p.Status == "approved" && status == "suspended") || (p.Status == "suspended" && status == "approved")
+		allowed := p.ApprovedAt > 0 && ((p.Status == "approved" && status == "suspended") || (p.Status == "suspended" && status == "approved"))
 		if !allowed {
 			return ErrPartnerState
 		}
@@ -323,9 +308,6 @@ func ReviewPartner(userID, actor int, status, note string) error {
 		p.ReviewNote = note
 		p.ReviewedBy = actor
 		p.UpdatedAt = common.GetTimestamp()
-		if status == "approved" && p.ApprovedAt == 0 {
-			p.ApprovedAt = p.UpdatedAt
-		}
 		result := tx.Model(&Partner{}).Where("user_id = ? AND status = ?", userID, previous).Select("status", "review_note", "reviewed_by", "updated_at", "approved_at").Updates(&p)
 		if result.Error != nil {
 			return result.Error

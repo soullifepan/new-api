@@ -27,11 +27,14 @@ import {
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
+import { searchUsers } from '@/features/users/api'
+
 import * as api from './api'
 import { PartnersAdmin } from './index'
 
 vi.mock('./api', () => ({
   getPartnerConfig: vi.fn(),
+  grantPartner: vi.fn(),
   listPartners: vi.fn(),
   listPayouts: vi.fn(),
   listCommissions: vi.fn(),
@@ -39,6 +42,10 @@ vi.mock('./api', () => ({
   updatePartnerCommission: vi.fn(),
   reviewPayout: vi.fn(),
   savePartnerConfig: vi.fn(),
+}))
+vi.mock('@/features/users/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/features/users/api')>()),
+  searchUsers: vi.fn(),
 }))
 let client: QueryClient
 const payout: api.Payout = {
@@ -66,7 +73,7 @@ beforeEach(() => {
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
   vi.mocked(api.getPartnerConfig).mockResolvedValue({
-    enabled: true,
+    enabled: false,
     balance_price_source: 'alipay_native',
     commission_bps: 1000,
     duration_days: 365,
@@ -160,15 +167,10 @@ test('administrator enters percentages and yuan while the API receives exact bas
   )
   await user.click(screen.getByRole('tab', { name: '返佣规则' }))
   const rate = await screen.findByLabelText('返佣比例（%）')
-  const applications = screen.getByRole('checkbox', {
-    name: '开放合作伙伴申请',
-  })
-  expect(applications).toBeChecked()
-  await user.click(applications)
-  expect(applications).not.toBeChecked()
   expect(
-    screen.getByText(/已获批伙伴的邀请、返佣、提现与划转不受影响/)
-  ).toBeInTheDocument()
+    screen.queryByRole('checkbox', { name: '开放合作伙伴申请' })
+  ).not.toBeInTheDocument()
+  expect(screen.getByText(/不接受在线申请/)).toBeInTheDocument()
   expect(screen.queryByLabelText('仅客户首次充值返佣')).not.toBeInTheDocument()
   expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
   expect(
@@ -329,5 +331,78 @@ test('partner rate supports custom percentages, failure retry, explicit zero and
       commission_bps: null,
       duration_days: null,
     })
+  )
+})
+
+test('offline membership offers only active and ended filters and grants an explicitly selected account', async () => {
+  vi.mocked(searchUsers).mockResolvedValue({
+    success: true,
+    data: {
+      items: [
+        {
+          id: 22,
+          username: 'offline-partner',
+          display_name: '',
+          status: 1,
+          role: 1,
+          group: 'default',
+          quota: 0,
+          used_quota: 0,
+          request_count: 0,
+        },
+      ],
+      total: 1,
+      page: 1,
+      page_size: 20,
+    },
+  })
+  const user = userEvent.setup()
+  render(
+    <QueryClientProvider client={client}>
+      <PartnersAdmin />
+    </QueryClientProvider>
+  )
+  expect(screen.getByRole('tab', { name: '伙伴管理' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '合作中' })).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  )
+  expect(screen.getByRole('button', { name: '已终止' })).toBeInTheDocument()
+  for (const name of ['待处理', '待补充', '已通过', '已驳回', '已暂停']) {
+    expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
+  }
+  await user.click(screen.getByRole('button', { name: '开通合作伙伴' }))
+  const dialog = screen.getByRole('dialog')
+  const confirm = within(dialog).getByRole('button', { name: '确认开通' })
+  expect(confirm).toBeDisabled()
+  await user.type(within(dialog).getByLabelText('搜索用户'), 'offline-partner')
+  await user.click(within(dialog).getByRole('button', { name: '搜索' }))
+  await waitFor(() =>
+    expect(searchUsers).toHaveBeenCalledWith({
+      keyword: 'offline-partner',
+      page_size: 20,
+    })
+  )
+  await user.click(within(dialog).getByRole('combobox'))
+  await user.click(
+    await screen.findByRole('option', { name: 'offline-partner（ID：22）' })
+  )
+  await user.type(
+    within(dialog).getByLabelText('给伙伴的说明（选填，对伙伴可见）'),
+    '微信确认合作'
+  )
+  vi.mocked(api.grantPartner).mockRejectedValueOnce(new Error('request failed'))
+  await user.click(confirm)
+  expect(await screen.findByRole('alert')).toHaveTextContent('开通失败')
+  expect(within(dialog).getByRole('combobox')).toHaveValue(
+    'offline-partner（ID：22）'
+  )
+  await user.click(confirm)
+  await waitFor(() =>
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  )
+  expect(api.grantPartner).toHaveBeenLastCalledWith(
+    { user_id: 22, note: '微信确认合作' },
+    expect.anything()
   )
 })

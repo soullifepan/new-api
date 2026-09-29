@@ -91,18 +91,54 @@ func GetPartnerOverview(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"application": partner, "config": config, "money": money, "referral_code": code, "summary": gin.H{"invited_count": invited, "topup_count": totals.TopupCount, "topup_quota": totals.TopupQuota, "earned_quota": funds.EarnedQuota, "available_quota": funds.AvailableQuota, "reserved_quota": funds.ReservedQuota, "withdrawn_quota": funds.WithdrawnQuota, "transferred_quota": funds.TransferredQuota, "alipay_remaining_cents": remaining}}})
 }
 
-func SubmitPartnerApplication(c *gin.Context) {
-	var input model.PartnerApplicationInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		partnerError(c, model.ErrPartnerInvalid)
-		return
-	}
-	p, err := model.SubmitPartnerApplication(c.GetInt("id"), input)
+// GetPartnerAccess is the lightweight, authenticated navigation capability check.
+func GetPartnerAccess(c *gin.Context) {
+	partner, err := model.GetPartner(c.GetInt("id"))
 	if err != nil {
 		partnerError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": p})
+	status := ""
+	if partner != nil {
+		status = partner.Status
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"can_access": model.CanAccessPartnerDashboard(partner), "status": status}})
+}
+
+func RequirePartnerAccess(c *gin.Context) {
+	partner, err := model.GetPartner(c.GetInt("id"))
+	if err != nil {
+		partnerError(c, err)
+		c.Abort()
+		return
+	}
+	if !model.CanAccessPartnerDashboard(partner) {
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"success": false, "code": "partner_required", "message": "此账号尚未开通合作伙伴权限"})
+		return
+	}
+	c.Next()
+}
+
+func SubmitPartnerApplication(c *gin.Context) {
+	c.JSON(http.StatusForbidden, gin.H{"success": false, "code": "partner_invite_only", "message": "合作伙伴由管理员开通，不接受在线申请"})
+}
+
+func GrantPartner(c *gin.Context) {
+	var input struct {
+		UserID int    `json:"user_id"`
+		Note   string `json:"note"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		partnerError(c, model.ErrPartnerInvalid)
+		return
+	}
+	partner, err := model.GrantPartner(input.UserID, c.GetInt("id"), input.Note)
+	if err != nil {
+		partnerError(c, err)
+		return
+	}
+	model.RecordAuditLog(c, model.AuditLog{UserId: c.GetInt("id"), ActorRole: c.GetInt("role"), Category: model.AuditCategoryOperation, Action: "partner_grant", Success: true, Content: fmt.Sprintf("Granted partner membership to user %d", input.UserID)})
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": partner})
 }
 
 func GetPartnerConfig(c *gin.Context) {
@@ -118,7 +154,7 @@ func UpdatePartnerConfig(c *gin.Context) {
 		partnerError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": config})
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": model.GetPartnerConfig()})
 }
 
 func ReviewPartner(c *gin.Context) {
@@ -225,7 +261,7 @@ func partnerList(c *gin.Context, kind string, admin bool) {
 	switch kind {
 	case "partners":
 		items = &[]model.Partner{}
-		query = model.DB.Model(&model.Partner{})
+		query = model.DB.Model(&model.Partner{}).Where("status IN ? AND approved_at > 0", []string{"approved", "suspended"})
 	case "commissions":
 		items = &[]model.PartnerCommission{}
 		query = model.DB.Model(&model.PartnerCommission{})

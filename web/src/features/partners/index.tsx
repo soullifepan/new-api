@@ -47,13 +47,13 @@ import {
 } from './api'
 import { PartnerCommissionSettings } from './commission-settings'
 import { PartnerSettings } from './config'
+import { GrantPartnerDialog } from './grant-partner-dialog'
 
 const partnerStatus: Record<string, string> = {
   pending: '待处理',
-  needs_info: '待补充',
-  approved: '已通过',
+  approved: '合作中',
   rejected: '已驳回',
-  suspended: '已暂停',
+  suspended: '已终止',
   paid: '已结算',
 }
 const kindLabels: Record<string, string> = {
@@ -78,7 +78,7 @@ export function PartnersAdmin() {
         <Tabs defaultValue='partners' className='gap-5'>
           <TabsList aria-label='合作伙伴管理'>
             {[
-              ['partners', '申请与伙伴'],
+              ['partners', '伙伴管理'],
               ['payouts', '提现与划转'],
               ['commissions', '充值佣金'],
               ['config', '返佣规则'],
@@ -126,8 +126,9 @@ function PartnerList(props: {
   globalDurationDays?: number
 }) {
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 })
-  const [filter, setFilter] = useState('pending')
+  const [filter, setFilter] = useState('approved')
   const [detail, setDetail] = useState<Partner | null>(null)
+  const [grantOpen, setGrantOpen] = useState(false)
   const [review, setReview] = useState<Review | null>(null)
   const [note, setNote] = useState('')
   const client = useQueryClient()
@@ -144,11 +145,11 @@ function PartnerList(props: {
   })
   const mutation = useMutation({
     mutationFn: () => {
-      if (!review) throw new Error('未选择审核记录')
+      if (!review) throw new Error('未选择合作伙伴')
       return reviewPartner(review.id, review.status, note)
     },
     onSuccess: () => {
-      toast.success('审核结果已保存')
+      toast.success('合作状态已更新')
       setReview(null)
       setDetail(null)
       client.invalidateQueries({ queryKey: ['partners'] })
@@ -171,7 +172,11 @@ function PartnerList(props: {
       cell: ({ row }) =>
         partnerStatus[row.original.status] ?? row.original.status,
     },
-    { accessorKey: 'channels', header: '推广渠道' },
+    {
+      accessorKey: 'channels',
+      header: '推广渠道',
+      cell: ({ row }) => row.original.channels || '—',
+    },
     {
       accessorKey: 'commission_bps',
       header: '返佣比例',
@@ -237,16 +242,20 @@ function PartnerList(props: {
   })
   return (
     <>
+      <div className='flex justify-end'>
+        <Button onClick={() => setGrantOpen(true)}>开通合作伙伴</Button>
+      </div>
+      <GrantPartnerDialog
+        open={grantOpen}
+        onOpenChange={setGrantOpen}
+        onGranted={() => {
+          setFilter('approved')
+          setPagination({ pageIndex: 0, pageSize: pagination.pageSize })
+        }}
+      />
       <FilterButtons
         value={filter}
-        options={[
-          'pending',
-          'needs_info',
-          'approved',
-          'rejected',
-          'suspended',
-          '',
-        ]}
+        options={['approved', 'suspended', '']}
         onChange={(v) => {
           setFilter(v)
           setPagination({ ...pagination, pageIndex: 0 })
@@ -273,35 +282,12 @@ function PartnerList(props: {
         footer={
           detail && (
             <div className='flex flex-wrap gap-2'>
-              {detail.status === 'pending' && (
-                <>
-                  <Button
-                    onClick={() => startReview(detail, 'approved', '通过申请')}
-                  >
-                    通过申请
-                  </Button>
-                  <Button
-                    variant='outline'
-                    onClick={() =>
-                      startReview(detail, 'needs_info', '要求补充资料')
-                    }
-                  >
-                    要求补充资料
-                  </Button>
-                  <Button
-                    variant='destructive'
-                    onClick={() => startReview(detail, 'rejected', '驳回申请')}
-                  >
-                    驳回申请
-                  </Button>
-                </>
-              )}
               {detail.status === 'approved' && (
                 <Button
                   variant='destructive'
-                  onClick={() => startReview(detail, 'suspended', '暂停合作')}
+                  onClick={() => startReview(detail, 'suspended', '终止合作')}
                 >
-                  暂停合作
+                  终止合作
                 </Button>
               )}
               {detail.status === 'suspended' && (
@@ -327,7 +313,7 @@ function PartnerList(props: {
                 ['联系方式', detail.contact],
                 ['证明链接', detail.evidence],
                 ['补充说明', detail.notes],
-                ['审核意见', detail.review_note],
+                ['合作备注', detail.review_note],
               ].map(([label, value]) => (
                 <div key={label}>
                   <dt className='text-muted-foreground text-sm'>{label}</dt>
@@ -358,7 +344,11 @@ function PartnerList(props: {
           if (!v && !mutation.isPending) setReview(null)
         }}
         title={review?.title ?? ''}
-        desc={`用户 ID：${review?.id ?? ''}`}
+        desc={
+          review?.status === 'suspended'
+            ? `用户 ID：${review.id}。终止后停止新邀请和新增佣金，已有佣金仍可结算。`
+            : `用户 ID：${review?.id ?? ''}`
+        }
         confirmText='确认'
         cancelBtnText='取消'
         isLoading={mutation.isPending}
@@ -366,7 +356,7 @@ function PartnerList(props: {
         handleConfirm={() => mutation.mutate()}
       >
         <Label htmlFor='partner-review-note'>
-          审核意见{review?.status !== 'approved' ? '（必填）' : ''}
+          操作备注{review?.status !== 'approved' ? '（必填）' : ''}
         </Label>
         <Textarea
           id='partner-review-note'
@@ -642,7 +632,7 @@ function CommissionList() {
   return (
     <>
       <p className='text-muted-foreground text-sm'>
-        仅统计计划启用后、有可靠实付金额且邀请人已有申请记录的充值。0
+        记录合作伙伴所邀请客户的实际充值及对应佣金。0
         佣金表示该笔充值不符合返佣条件；注册奖励、消费和订阅不参与。
       </p>
       {query.isError ? (
