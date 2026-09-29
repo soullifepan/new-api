@@ -389,7 +389,7 @@ func TestPartnerAPIContractAndOwnerIsolation(t *testing.T) {
 				code int
 			}{
 				{`{"user_id":0}`, 400}, {`{"user_id":999}`, 404},
-				{`{"user_id":2,"note":"线下合作"}`, 200}, {`{"user_id":2,"note":"重试"}`, 200},
+				{`{"user_id":2,"notes":"线下合作","channels":"视频号"}`, 200}, {`{"user_id":2,"notes":"重试"}`, 200},
 			} {
 				req := httptest.NewRequest(http.MethodPost, "/api/tapcomfy/v1/admin/partners", strings.NewReader(tc.body))
 				req.Header.Set("Authorization", "Bearer "+adminToken)
@@ -401,7 +401,8 @@ func TestPartnerAPIContractAndOwnerIsolation(t *testing.T) {
 			opened, err := model.GetPartner(2)
 			require.NoError(t, err)
 			assert.Equal(t, "approved", opened.Status)
-			assert.Equal(t, "线下合作", opened.ReviewNote)
+			assert.Equal(t, "线下合作", opened.Notes)
+			assert.Equal(t, "视频号", opened.Channels)
 			assert.Positive(t, opened.ApprovedAt)
 
 			common.OptionMap["PartnerProgram"] = `{"enabled":true,"commission_bps":1000,"duration_days":365,"min_payout_cents":1}`

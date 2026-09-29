@@ -363,7 +363,14 @@ test('offline membership offers only active and ended filters and grants an expl
     </QueryClientProvider>
   )
   expect(screen.getByRole('tab', { name: '伙伴管理' })).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: '合作中' })).toHaveAttribute(
+  const toolbar = screen.getByRole('group', { name: '伙伴列表操作' })
+  expect(
+    within(toolbar)
+      .getAllByRole('button')
+      .map((button) => button.textContent)
+  ).toEqual(['全部', '合作中', '已终止', '添加合作伙伴'])
+  expect(toolbar).toHaveClass('flex', 'items-center', 'justify-between')
+  expect(screen.getByRole('button', { name: '全部' })).toHaveAttribute(
     'aria-pressed',
     'true'
   )
@@ -371,38 +378,103 @@ test('offline membership offers only active and ended filters and grants an expl
   for (const name of ['待处理', '待补充', '已通过', '已驳回', '已暂停']) {
     expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
   }
-  await user.click(screen.getByRole('button', { name: '开通合作伙伴' }))
+  await user.click(screen.getByRole('button', { name: '添加合作伙伴' }))
   const dialog = screen.getByRole('dialog')
-  const confirm = within(dialog).getByRole('button', { name: '确认开通' })
+  const confirm = within(dialog).getByRole('button', { name: '确定' })
   expect(confirm).toBeDisabled()
   await user.type(within(dialog).getByLabelText('搜索用户'), 'offline-partner')
-  await user.click(within(dialog).getByRole('button', { name: '搜索' }))
+  expect(
+    within(dialog).queryByRole('button', { name: '搜索' })
+  ).not.toBeInTheDocument()
+  expect(within(dialog).queryByRole('combobox')).not.toBeInTheDocument()
+  expect(
+    within(dialog).queryByRole('textbox', { name: /说明/ })
+  ).not.toBeInTheDocument()
   await waitFor(() =>
     expect(searchUsers).toHaveBeenCalledWith({
       keyword: 'offline-partner',
       page_size: 20,
     })
   )
-  await user.click(within(dialog).getByRole('combobox'))
   await user.click(
-    await screen.findByRole('option', { name: 'offline-partner（ID：22）' })
+    await screen.findByRole('radio', { name: 'offline-partner（ID：22）' })
   )
-  await user.type(
-    within(dialog).getByLabelText('给伙伴的说明（选填，对伙伴可见）'),
-    '微信确认合作'
+  await user.click(
+    within(dialog).getByRole('button', { name: '补充资料（选填）' })
   )
+  await user.type(within(dialog).getByLabelText('推广渠道'), '视频号')
+  await user.type(within(dialog).getByLabelText('备注'), '微信联系')
   vi.mocked(api.grantPartner).mockRejectedValueOnce(new Error('request failed'))
   await user.click(confirm)
-  expect(await screen.findByRole('alert')).toHaveTextContent('开通失败')
-  expect(within(dialog).getByRole('combobox')).toHaveValue(
-    'offline-partner（ID：22）'
-  )
+  expect(await screen.findByRole('alert')).toHaveTextContent('添加失败')
+  expect(
+    within(dialog).getByRole('radio', { name: 'offline-partner（ID：22）' })
+  ).toBeChecked()
   await user.click(confirm)
   await waitFor(() =>
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   )
   expect(api.grantPartner).toHaveBeenLastCalledWith(
-    { user_id: 22, note: '微信确认合作' },
+    { user_id: 22, channels: '视频号', notes: '微信联系' },
     expect.anything()
   )
+})
+
+test('changing the search clears the selected user and cannot submit stale or disabled results', async () => {
+  const candidate = {
+    id: 22,
+    username: 'offline-partner',
+    display_name: '',
+    status: 1,
+    role: 1,
+    group: 'default',
+    quota: 0,
+    used_quota: 0,
+    request_count: 0,
+  }
+  vi.mocked(searchUsers).mockImplementation(async ({ keyword }) => ({
+    success: true,
+    data: {
+      items:
+        keyword === 'zero'
+          ? [
+              candidate,
+              { ...candidate, id: 23, username: 'disabled-user', status: 2 },
+            ]
+          : [],
+      total: keyword === 'zero' ? 2 : 0,
+      page: 1,
+      page_size: 20,
+    },
+  }))
+  const user = userEvent.setup()
+  render(
+    <QueryClientProvider client={client}>
+      <PartnersAdmin />
+    </QueryClientProvider>
+  )
+  await user.click(screen.getByRole('button', { name: '添加合作伙伴' }))
+  const dialog = screen.getByRole('dialog')
+  const input = within(dialog).getByLabelText('搜索用户')
+  const confirm = within(dialog).getByRole('button', { name: '确定' })
+  await user.type(input, 'zero')
+  const radio = await screen.findByRole('radio', {
+    name: 'offline-partner（ID：22）',
+  })
+  expect(screen.getByRole('radio', { name: /disabled-user/ })).toHaveAttribute(
+    'aria-disabled',
+    'true'
+  )
+  await user.click(radio)
+  expect(confirm).toBeEnabled()
+  await user.clear(input)
+  expect(confirm).toBeDisabled()
+  expect(within(dialog).queryByRole('radio')).not.toBeInTheDocument()
+  await user.type(input, 'missing')
+  expect(await within(dialog).findByText('未找到匹配用户')).toBeInTheDocument()
+  expect(confirm).toBeDisabled()
+  await user.click(within(dialog).getByRole('button', { name: '取消' }))
+  await user.click(screen.getByRole('button', { name: '添加合作伙伴' }))
+  expect(screen.getByLabelText('搜索用户')).toHaveValue('')
+  expect(screen.getByRole('button', { name: '确定' })).toBeDisabled()
 })

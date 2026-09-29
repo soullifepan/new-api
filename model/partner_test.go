@@ -94,14 +94,15 @@ func TestPartnerDatabaseMatrix(t *testing.T) {
 			assert.Error(t, db.Create(&duplicate).Error, "existing trade uniqueness survives upgrade")
 			config := PartnerConfig{Enabled: true, CommissionBPS: 1000, MinPayoutCents: 1, AlipayDailyLimitCents: 10000, BankSingleLimitCents: 50000}
 			require.NoError(t, UpdatePartnerConfig(config))
-			app, err := GrantPartner(1, 99, "线下确认合作")
+			app, err := GrantPartner(PartnerGrantInput{UserID: 1, Channels: "视频号", Notes: "线下确认合作"}, 99)
 			require.NoError(t, err)
 			assert.Equal(t, "approved", app.Status)
 			assert.Positive(t, app.ApprovedAt)
-			repeated, err := GrantPartner(1, 99, "重复请求")
+			repeated, err := GrantPartner(PartnerGrantInput{UserID: 1, Notes: "重复请求"}, 99)
 			require.NoError(t, err)
 			assert.Equal(t, app.ApprovedAt, repeated.ApprovedAt)
-			assert.Equal(t, "线下确认合作", repeated.ReviewNote)
+			assert.Equal(t, "线下确认合作", repeated.Notes)
+			assert.Equal(t, "视频号", repeated.Channels)
 			assert.False(t, GetPartnerConfig().Enabled, "old settings cannot reopen public applications")
 
 			// Both password and OAuth signup use this lookup; old codes must not
@@ -141,7 +142,7 @@ func TestPartnerDatabaseMatrix(t *testing.T) {
 				rate, days := 1500, 30
 				require.NoError(t, db.Create(&User{Id: id, Username: fmt.Sprintf("legacy-%d", id), AffCode: fmt.Sprintf("legacy%d", id), Status: common.UserStatusEnabled}).Error)
 				require.NoError(t, db.Create(&Partner{UserID: id, Status: status, CreatedAt: 123, CommissionBPS: &rate, DurationDays: &days, AvailableQuota: 10}).Error)
-				granted, err := GrantPartner(id, 99, "线下确认")
+				granted, err := GrantPartner(PartnerGrantInput{UserID: id, Notes: "线下确认"}, 99)
 				require.NoError(t, err)
 				assert.Equal(t, "approved", granted.Status)
 				assert.Equal(t, int64(123), granted.CreatedAt)
@@ -149,13 +150,13 @@ func TestPartnerDatabaseMatrix(t *testing.T) {
 				assert.Equal(t, &rate, granted.CommissionBPS)
 				assert.Equal(t, &days, granted.DurationDays)
 			}
-			_, err = GrantPartner(999, 99, "")
+			_, err = GrantPartner(PartnerGrantInput{UserID: 999, Notes: ""}, 99)
 			assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
 			require.NoError(t, ReviewPartner(3, 99, "suspended", "暂停"))
-			_, err = GrantPartner(3, 99, "")
+			_, err = GrantPartner(PartnerGrantInput{UserID: 3, Notes: ""}, 99)
 			assert.ErrorIs(t, err, ErrPartnerState, "grant cannot bypass explicit suspension")
 			require.NoError(t, db.Model(&User{}).Where("id = ?", 3).Update("status", common.UserStatusDisabled).Error)
-			_, err = GrantPartner(3, 99, "")
+			_, err = GrantPartner(PartnerGrantInput{UserID: 3, Notes: ""}, 99)
 			assert.ErrorIs(t, err, ErrPartnerState)
 
 			// Upgrade the previously deployed partner schema with an existing approved row.

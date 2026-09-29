@@ -126,7 +126,7 @@ function PartnerList(props: {
   globalDurationDays?: number
 }) {
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 })
-  const [filter, setFilter] = useState('approved')
+  const [filter, setFilter] = useState('')
   const [detail, setDetail] = useState<Partner | null>(null)
   const [grantOpen, setGrantOpen] = useState(false)
   const [review, setReview] = useState<Review | null>(null)
@@ -242,25 +242,33 @@ function PartnerList(props: {
   })
   return (
     <>
-      <div className='flex justify-end'>
-        <Button onClick={() => setGrantOpen(true)}>开通合作伙伴</Button>
+      <div
+        role='group'
+        aria-label='伙伴列表操作'
+        className='flex flex-wrap items-center justify-between gap-3'
+      >
+        <FilterButtons
+          value={filter}
+          options={['', 'approved', 'suspended']}
+          onChange={(v) => {
+            setFilter(v)
+            setPagination({ ...pagination, pageIndex: 0 })
+          }}
+        />
+        <Button size='sm' onClick={() => setGrantOpen(true)}>
+          添加合作伙伴
+        </Button>
       </div>
-      <GrantPartnerDialog
-        open={grantOpen}
-        onOpenChange={setGrantOpen}
-        onGranted={() => {
-          setFilter('approved')
-          setPagination({ pageIndex: 0, pageSize: pagination.pageSize })
-        }}
-      />
-      <FilterButtons
-        value={filter}
-        options={['approved', 'suspended', '']}
-        onChange={(v) => {
-          setFilter(v)
-          setPagination({ ...pagination, pageIndex: 0 })
-        }}
-      />
+      {grantOpen && (
+        <GrantPartnerDialog
+          open={grantOpen}
+          onOpenChange={setGrantOpen}
+          onGranted={() => {
+            setFilter('')
+            setPagination({ pageIndex: 0, pageSize: pagination.pageSize })
+          }}
+        />
+      )}
       {query.isError ? (
         <ErrorState title='伙伴列表加载失败' onRetry={() => query.refetch()} />
       ) : (

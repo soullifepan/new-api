@@ -251,28 +251,35 @@ func CanAccessPartnerDashboard(partner *Partner) bool {
 	return partner != nil && partner.ApprovedAt > 0 && (partner.Status == "approved" || partner.Status == "suspended")
 }
 
+type PartnerGrantInput struct {
+	UserID   int    `json:"user_id"`
+	Channels string `json:"channels"`
+	Notes    string `json:"notes"`
+}
+
 // GrantPartner opens membership after offline agreement. Repeated grants do not reset terms or funds.
-func GrantPartner(userID, actor int, note string) (*Partner, error) {
-	note = strings.TrimSpace(note)
-	if userID <= 0 || actor <= 0 || !utf8.ValidString(note) || len(note) > 4000 {
+func GrantPartner(input PartnerGrantInput, actor int) (*Partner, error) {
+	input.Channels = strings.TrimSpace(input.Channels)
+	input.Notes = strings.TrimSpace(input.Notes)
+	if input.UserID <= 0 || actor <= 0 || !utf8.ValidString(input.Channels) || !utf8.ValidString(input.Notes) || len(input.Channels) > 4000 || len(input.Notes) > 4000 {
 		return nil, ErrPartnerInvalid
 	}
 	var partner Partner
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var user User
-		if err := lockForUpdate(tx).Select("id", "status").First(&user, userID).Error; err != nil {
+		if err := lockForUpdate(tx).Select("id", "status").First(&user, input.UserID).Error; err != nil {
 			return err
 		}
 		if user.Status != common.UserStatusEnabled {
 			return ErrPartnerState
 		}
-		err := lockForUpdate(tx).First(&partner, "user_id = ?", userID).Error
+		err := lockForUpdate(tx).First(&partner, "user_id = ?", input.UserID).Error
 		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
 		now := common.GetTimestamp()
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			partner = Partner{UserID: userID, Status: "approved", ApprovedAt: now, CreatedAt: now, UpdatedAt: now, ReviewedBy: actor, ReviewNote: note}
+			partner = Partner{UserID: input.UserID, Status: "approved", ApprovedAt: now, CreatedAt: now, UpdatedAt: now, ReviewedBy: actor, Channels: input.Channels, Notes: input.Notes}
 			return tx.Create(&partner).Error
 		}
 		if partner.Status == "approved" {
@@ -281,11 +288,17 @@ func GrantPartner(userID, actor int, note string) (*Partner, error) {
 		if partner.Status != "pending" && partner.Status != "needs_info" && partner.Status != "rejected" {
 			return ErrPartnerState
 		}
-		partner.Status, partner.ReviewNote, partner.ReviewedBy, partner.UpdatedAt = "approved", note, actor, now
+		partner.Status, partner.ReviewNote, partner.ReviewedBy, partner.UpdatedAt = "approved", "", actor, now
+		if input.Channels != "" {
+			partner.Channels = input.Channels
+		}
+		if input.Notes != "" {
+			partner.Notes = input.Notes
+		}
 		if partner.ApprovedAt == 0 {
 			partner.ApprovedAt = now
 		}
-		return tx.Model(&Partner{}).Where("user_id = ?", userID).Select("status", "review_note", "reviewed_by", "updated_at", "approved_at").Updates(&partner).Error
+		return tx.Model(&Partner{}).Where("user_id = ?", input.UserID).Select("status", "review_note", "reviewed_by", "updated_at", "approved_at", "channels", "notes").Updates(&partner).Error
 	})
 	return &partner, err
 }

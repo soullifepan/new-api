@@ -684,3 +684,12 @@ go test ./model -run 'TestPartner(DatabaseMatrix|MoneyUsesConfiguredPrices)' -co
 认证授权仍复用现有 UserAuth/AdminAuth；按上文 OWASP Authentication、Session Management 和 Authorization 指南核对服务端逐请求授权、默认拒绝和当前身份隔离，不变更登录会话协议。`go test ./model ./controller ./router -run 'Test(Partner|Stripe|Recharge|AlipayNative|WaffoPancake|TapComfy|Register|OAuth)' -count=1` 通过。Admin 类型检查、定向 lint 与伙伴模块 **5 项**交互测试通过，包括选定账号后开通、失败保留重试、两状态筛选及原资金/规则交互。
 
 协调者复核 TapComfy 资格门控、身份切换和 Rust 端点对接，并运行 `pnpm exec tsc --noEmit`、`node --experimental-strip-types --test src/lib/partnerAccess.test.ts src/lib/newapiPartner.test.ts src/lib/newapiCurrency.test.ts src/lib/newapiWallet.test.ts`（**36 项**）及 `cargo test --offline --manifest-path src-tauri/Cargo.toml --lib auth::newapi_partner`（**8 项**）。未使用 computer、未启动/重启客户端，未进行真实资金付款和视觉验收。
+
+
+#### 添加伙伴交互修正（2026-09-30）
+
+列表筛选按“全部 / 合作中 / 已终止”排列，默认全部；右侧“添加合作伙伴”与筛选放在同一 flex 行并使用同尺寸按钮，窄屏允许换行。弹窗复用共享 Dialog、RadioGroup、Collapsible 和 useDebounce：输入用户名或 ID 后自动搜索，下方直接显示候选单选列表，选中后点“确定”。取消后重开清空选择，修改搜索立即撤销旧选择；禁用用户不可选，搜索中的旧结果不可提交，失败保留输入供重试。移除重复下拉选择和给伙伴的说明。
+
+推广渠道和备注保留为折叠的选填“补充资料”。管理员添加 API body 更新为 `{user_id:number,channels?:string,notes?:string}`，复用已有 channels/notes 列，无新数据库列；重复添加不覆盖已有合作资料。原合作说明 note 不再由添加表单提交。列表继续展示推广渠道，资料内可查看备注。
+
+验证：Admin `bun run typecheck`、伙伴文件定向 oxlint、`bun run test src/features/partners/partners.test.tsx`（6 项）通过，覆盖筛选顺序、工具行对齐约束、直接单选、选填资料、失败重试、搜索改变撤销选择、禁用账号、空结果和取消重开。SQLite 3.50.4 / MySQL 8.4.11 / PostgreSQL 16.15 真实矩阵使用前节相同 DSN 与 `go test ./model ./router -run 'TestPartner(DatabaseMatrix|MoneyUsesConfiguredPrices|APIContractAndOwnerIsolation)' -count=1 -v` 通过，新增渠道与备注持久化、重复请求保留的断言。没有操作浏览器，未做像素级视觉验收。

@@ -24,28 +24,34 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 
 import { Dialog } from '@/components/dialog'
-import { ErrorState } from '@/components/error-state'
 import { Button } from '@/components/ui/button'
-import { Combobox } from '@/components/ui/combobox'
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from '@/components/ui/collapsible'
 import {
   Form,
   FormControl,
   FormField,
   FormItem,
-  FormLabel,
   FormMessage,
+  FormLabel,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
 import { searchUsers } from '@/features/users/api'
+import { useDebounce } from '@/hooks/use-debounce'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { grantPartner } from './api'
 
 const schema = z.object({
   user_id: z.number().int().positive('请选择用户'),
-  note: z.string().max(4000, '备注过长'),
+  channels: z.string().max(1000, '推广渠道过长'),
+  notes: z.string().max(1000, '备注过长'),
 })
 type GrantForm = z.infer<typeof schema>
 
@@ -56,10 +62,10 @@ export function GrantPartnerDialog(props: {
 }) {
   const client = useQueryClient()
   const [keyword, setKeyword] = useState('')
-  const [search, setSearch] = useState('')
+  const search = useDebounce(keyword.trim(), 250)
   const form = useForm<GrantForm>({
     resolver: zodResolver(schema),
-    defaultValues: { user_id: 0, note: '' },
+    defaultValues: { user_id: 0, channels: '', notes: '' },
   })
   const users = useQuery({
     queryKey: ['partners', 'user-search', search],
@@ -69,108 +75,171 @@ export function GrantPartnerDialog(props: {
         await searchUsers({ keyword: search, page_size: 20 })
       ).data?.items ?? [],
   })
+  const searching = keyword.trim() !== search || users.isFetching
+  const candidates =
+    keyword.trim() && !searching && !users.isError ? (users.data ?? []) : []
   const grant = useMutation({
     mutationFn: grantPartner,
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ['partners'] })
-      toast.success('合作伙伴已开通')
+      toast.success('合作伙伴已添加')
       props.onGranted()
       props.onOpenChange(false)
-      form.reset()
-      setKeyword('')
-      setSearch('')
     },
   })
+  const selectedId = form.watch('user_id')
+  const canSubmit = candidates.some(
+    (user) => user.id === selectedId && user.status === 1
+  )
   return (
     <Dialog
       open={props.open}
       onOpenChange={(open) => {
         if (!grant.isPending) props.onOpenChange(open)
       }}
-      title='开通合作伙伴'
-      description='线下沟通确认后，为已有账号开通合作伙伴权限。开通后可在资料中单独设置返佣比例和天数。'
+      title='添加合作伙伴'
+      contentClassName='sm:max-w-md'
     >
-      <div className='mb-4 space-y-2'>
-        <Label htmlFor='partner-user-search'>搜索用户</Label>
-        <div className='flex gap-2'>
-          <Input
-            id='partner-user-search'
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            placeholder='输入用户名或用户 ID'
-            disabled={grant.isPending}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                form.setValue('user_id', 0)
-                setSearch(keyword.trim())
-              }
-            }}
-          />
-          <Button
-            variant='outline'
-            disabled={!keyword.trim() || grant.isPending || users.isFetching}
-            onClick={() => {
-              form.setValue('user_id', 0)
-              setSearch(keyword.trim())
-              if (keyword.trim() === search) users.refetch()
-            }}
-          >
-            搜索
-          </Button>
-        </div>
-        {users.isFetching && (
-          <p className='text-muted-foreground text-sm'>搜索中…</p>
-        )}
-        {users.isError && (
-          <ErrorState title='用户搜索失败' onRetry={() => users.refetch()} />
-        )}
-      </div>
       <Form {...form}>
         <form
           className='space-y-4'
-          onSubmit={form.handleSubmit((values) => grant.mutate(values))}
+          onSubmit={form.handleSubmit((values) => {
+            if (canSubmit) grant.mutate(values)
+          })}
         >
-          <FormField
-            control={form.control}
-            name='user_id'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>选择用户</FormLabel>
-                <FormControl>
-                  <Combobox
-                    options={(users.data ?? []).map((user) => ({
-                      value: String(user.id),
-                      label: `${user.username}（ID：${user.id}）`,
-                      disabled: user.status !== 1,
-                    }))}
-                    value={field.value > 0 ? String(field.value) : ''}
-                    onValueChange={(value) => field.onChange(Number(value))}
-                    disabled={grant.isPending || users.isFetching}
-                    placeholder='从搜索结果中选择用户'
-                    emptyText='暂无可选用户'
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
+          <div className='space-y-2'>
+            <Label htmlFor='partner-user-search'>搜索用户</Label>
+            <Input
+              id='partner-user-search'
+              value={keyword}
+              placeholder='输入用户名或用户 ID'
+              disabled={grant.isPending}
+              onChange={(e) => {
+                setKeyword(e.target.value)
+                form.setValue('user_id', 0)
+                grant.reset()
+              }}
+            />
+          </div>
+          <div
+            className='max-h-64 min-h-28 overflow-y-auto rounded-lg border p-2'
+            aria-busy={searching}
+          >
+            {!keyword.trim() && (
+              <p className='text-muted-foreground p-3 text-sm'>
+                输入用户名或用户 ID，选择要添加的用户。
+              </p>
             )}
-          />
-          <FormField
-            control={form.control}
-            name='note'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>给伙伴的说明（选填，对伙伴可见）</FormLabel>
-                <FormControl>
-                  <Textarea {...field} disabled={grant.isPending} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
+            {keyword.trim() && searching && (
+              <p role='status' className='text-muted-foreground p-3 text-sm'>
+                搜索中…
+              </p>
             )}
-          />
+            {keyword.trim() && !searching && users.isError && (
+              <div role='alert' className='space-y-2 p-3 text-sm'>
+                <p>搜索失败，请重试。</p>
+                <Button
+                  type='button'
+                  size='sm'
+                  variant='outline'
+                  onClick={() => users.refetch()}
+                >
+                  重试
+                </Button>
+              </div>
+            )}
+            {keyword.trim() &&
+              !searching &&
+              !users.isError &&
+              candidates.length === 0 && (
+                <p role='status' className='text-muted-foreground p-3 text-sm'>
+                  未找到匹配用户
+                </p>
+              )}
+            <FormField
+              control={form.control}
+              name='user_id'
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <RadioGroup
+                      aria-label='候选用户'
+                      value={field.value > 0 ? String(field.value) : ''}
+                      onValueChange={(value) => field.onChange(Number(value))}
+                      disabled={grant.isPending}
+                    >
+                      {candidates.map((user) => (
+                        <Label
+                          key={user.id}
+                          htmlFor={`partner-candidate-${user.id}`}
+                          className='has-data-[checked]:bg-accent flex cursor-pointer items-center gap-3 rounded-md p-3 has-data-[disabled]:cursor-not-allowed has-data-[disabled]:opacity-50'
+                        >
+                          <RadioGroupItem
+                            id={`partner-candidate-${user.id}`}
+                            value={String(user.id)}
+                            disabled={user.status !== 1}
+                          />
+                          <span className='min-w-0 break-all'>
+                            {user.username}（ID：{user.id}）
+                            {user.status !== 1 && '（已禁用）'}
+                          </span>
+                        </Label>
+                      ))}
+                    </RadioGroup>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+          <Collapsible>
+            <CollapsibleTrigger
+              render={<Button type='button' variant='ghost' size='sm' />}
+              disabled={grant.isPending}
+            >
+              补充资料（选填）
+            </CollapsibleTrigger>
+            <CollapsibleContent className='space-y-3 pt-3'>
+              <FormField
+                control={form.control}
+                name='channels'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>推广渠道</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        placeholder='例如：视频号、社群、客户推荐'
+                        maxLength={1000}
+                        disabled={grant.isPending}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='notes'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>备注</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        maxLength={1000}
+                        disabled={grant.isPending}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </CollapsibleContent>
+          </Collapsible>
           {grant.isError && (
             <p role='alert' className='text-destructive text-sm'>
-              开通失败，请检查账号状态后重试。
+              添加失败，请重试。
             </p>
           )}
           <div className='flex justify-end gap-2'>
@@ -182,11 +251,8 @@ export function GrantPartnerDialog(props: {
             >
               取消
             </Button>
-            <Button
-              type='submit'
-              disabled={grant.isPending || form.watch('user_id') <= 0}
-            >
-              {grant.isPending ? '开通中…' : '确认开通'}
+            <Button type='submit' disabled={grant.isPending || !canSubmit}>
+              {grant.isPending ? '添加中…' : '确定'}
             </Button>
           </div>
         </form>

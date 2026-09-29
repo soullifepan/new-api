@@ -124,15 +124,12 @@ func SubmitPartnerApplication(c *gin.Context) {
 }
 
 func GrantPartner(c *gin.Context) {
-	var input struct {
-		UserID int    `json:"user_id"`
-		Note   string `json:"note"`
-	}
+	var input model.PartnerGrantInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		partnerError(c, model.ErrPartnerInvalid)
 		return
 	}
-	partner, err := model.GrantPartner(input.UserID, c.GetInt("id"), input.Note)
+	partner, err := model.GrantPartner(input, c.GetInt("id"))
 	if err != nil {
 		partnerError(c, err)
 		return
