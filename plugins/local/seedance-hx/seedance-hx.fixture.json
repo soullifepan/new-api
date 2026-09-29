@@ -46,7 +46,8 @@
           "generate_audio": false,
           "metadata": {
             "watermark": false
-          }
+          },
+          "ratio": "adaptive"
         }
       }
     },
@@ -96,7 +97,8 @@
           "generate_audio": false,
           "metadata": {
             "watermark": false
-          }
+          },
+          "ratio": "adaptive"
         }
       }
     },
@@ -146,7 +148,8 @@
           "generate_audio": false,
           "metadata": {
             "watermark": false
-          }
+          },
+          "ratio": "adaptive"
         }
       }
     },
@@ -196,7 +199,8 @@
           "generate_audio": false,
           "metadata": {
             "watermark": false
-          }
+          },
+          "ratio": "adaptive"
         }
       }
     },
@@ -224,7 +228,7 @@
       "expectedError": "duration is outside"
     },
     {
-      "name": "reject duration -1",
+      "name": "2.0 accepts explicit automatic duration",
       "hook": "native",
       "args": [
         {
@@ -244,7 +248,26 @@
         }
       ],
       "member": "createTask",
-      "expectedError": "duration is outside"
+      "expected": {
+        "kind": "submit",
+        "model": "doubao-seedance-2-0-hx",
+        "action": "text_to_video",
+        "requestBody": {
+          "model": "doubao-seedance-2-0-hx",
+          "metadata": {
+            "model": "doubao-seedance-2-0-hx",
+            "content": [
+              {
+                "type": "text",
+                "text": "cat"
+              }
+            ],
+            "resolution": "720p",
+            "ratio": "adaptive"
+          },
+          "automaticDuration": true
+        }
+      }
     },
     {
       "name": "reject duration 3",
@@ -385,7 +408,7 @@
       "expectedError": "unsupported video field"
     },
     {
-      "name": "reject {'content': [{'type': 'image_url', 'image_url': {'url': 'asset://asset-native'}}]}",
+      "name": "2.0 accepts an image without text",
       "hook": "native",
       "args": [
         {
@@ -406,7 +429,28 @@
         }
       ],
       "member": "createTask",
-      "expectedError": "non-empty text"
+      "expected": {
+        "kind": "submit",
+        "model": "doubao-seedance-2-0-fast-hx",
+        "action": "image_to_video",
+        "requestBody": {
+          "model": "doubao-seedance-2-0-fast-hx",
+          "metadata": {
+            "model": "doubao-seedance-2-0-fast-hx",
+            "content": [
+              {
+                "type": "image_url",
+                "image_url": {
+                  "url": "asset://asset-native"
+                }
+              }
+            ],
+            "duration": 5,
+            "resolution": "720p",
+            "ratio": "adaptive"
+          }
+        }
+      }
     },
     {
       "name": "reject malformed native asset URI",
@@ -1581,7 +1625,8 @@
           "generate_audio": false,
           "metadata": {
             "watermark": false
-          }
+          },
+          "ratio": "adaptive"
         }
       }
     },
@@ -1626,6 +1671,18 @@
         }
       ],
       "expectedError": "native asset id is empty or invalid"
-    }
+    },
+    {"name":"2.5 native edit preserves MOV and explicit false flags","hook":"native","member":"createTask","args":[{"body":{"kind":"json","value":{"model":"doubao-seedance-2-5-hx","content":[{"type":"video_url","role":"reference_video","video_url":{"url":"asset://sa_source"}},{"type":"image_url","role":"reference_image","image_url":{"url":"https://media.example/style.png"}}],"omni_reference_task_type":"edit","duration":-1,"ratio":"adaptive","resolution":"720p","output_format":"mov","return_last_frame":true,"watermark":false,"generate_audio":false}}}],"expected":{"kind":"submit","model":"doubao-seedance-2-5-hx","action":"image_to_video","requestBody":{"model":"doubao-seedance-2-5-hx","metadata":{"model":"doubao-seedance-2-5-hx","content":[{"type":"video_url","role":"reference_video","video_url":{"url":"asset://sa_source"}},{"type":"image_url","role":"reference_image","image_url":{"url":"https://media.example/style.png"}}],"omni_reference_task_type":"edit","ratio":"adaptive","resolution":"720p","output_format":"mov","return_last_frame":true,"watermark":false,"generate_audio":false},"automaticDuration":true}}},
+    {"name":"2.5 edit uses independent upstream contract","hook":"buildSubmitRequest","args":[{"model":"doubao-seedance-2-5-hx","upstreamModel":"doubao-seedance-2.5","baseUrl":"https://api.huanxing.ai","apiKey":"fixture-key","requestBody":{"metadata":{"model":"doubao-seedance-2-5-hx","content":[{"type":"video_url","role":"reference_video","video_url":{"url":"asset://sa_source"}},{"type":"image_url","role":"reference_image","image_url":{"url":"https://media.example/style.png"}}],"omni_reference_task_type":"edit","duration":-1,"ratio":"adaptive","resolution":"720p","output_format":"mov","return_last_frame":true,"watermark":false,"generate_audio":false}}}],"expected":{"url":"https://api.huanxing.ai/api/v3/contents/generations/tasks","method":"POST","headers":{"Accept":"application/json","Content-Type":"application/json","Authorization":"Bearer fixture-key"},"body":{"model":"doubao-seedance-2.5","content":[{"type":"video_url","role":"reference_video","video_url":{"url":"asset://sa_source"}},{"type":"image_url","role":"reference_image","image_url":{"url":"https://media.example/style.png"}}],"omni_reference_task_type":"edit","duration":-1,"ratio":"adaptive","resolution":"720p","output_format":"mov","return_last_frame":true,"generate_audio":false,"metadata":{"watermark":false}},"action":"image_to_video"}},
+    {"name":"automatic edit reserves bounded 30s token estimate","hook":"extractUsage","args":[{"model":"doubao-seedance-2-5-hx","upstreamModel":"doubao-seedance-2.5","baseUrl":"https://api.huanxing.ai","apiKey":"fixture-key","requestBody":{"metadata":{"model":"doubao-seedance-2-5-hx","content":[{"type":"video_url","role":"reference_video","video_url":{"url":"asset://sa_source"}},{"type":"image_url","role":"reference_image","image_url":{"url":"https://media.example/style.png"}}],"omni_reference_task_type":"edit","duration":-1,"ratio":"adaptive","resolution":"720p","output_format":"mov","return_last_frame":true,"watermark":false,"generate_audio":false}}}],"expected":{"tokens":652084,"resolution":"720p","video_input":"video"}},
+    {"name":"2.5 extend with duration 12","hook":"native","member":"createTask","args":[{"body":{"kind":"json","value":{"model":"doubao-seedance-2-5-hx","content":[{"type":"video_url","role":"reference_video","video_url":{"url":"asset://sa_source"}},{"type":"image_url","role":"reference_image","image_url":{"url":"https://media.example/style.png"}}],"omni_reference_task_type":"extend","duration":12,"ratio":"adaptive","resolution":"720p","output_format":"mov","return_last_frame":true,"watermark":false,"generate_audio":false}}}],"expected":{"kind":"submit","model":"doubao-seedance-2-5-hx","action":"image_to_video","requestBody":{"model":"doubao-seedance-2-5-hx","metadata":{"model":"doubao-seedance-2-5-hx","content":[{"type":"video_url","role":"reference_video","video_url":{"url":"asset://sa_source"}},{"type":"image_url","role":"reference_image","image_url":{"url":"https://media.example/style.png"}}],"omni_reference_task_type":"extend","duration":12,"ratio":"adaptive","resolution":"720p","output_format":"mov","return_last_frame":true,"watermark":false,"generate_audio":false}}}},
+    {"name":"2.5 extend with duration -1","hook":"native","member":"createTask","args":[{"body":{"kind":"json","value":{"model":"doubao-seedance-2-5-hx","content":[{"type":"video_url","role":"reference_video","video_url":{"url":"asset://sa_source"}},{"type":"image_url","role":"reference_image","image_url":{"url":"https://media.example/style.png"}}],"omni_reference_task_type":"extend","duration":-1,"ratio":"adaptive","resolution":"720p","output_format":"mov","return_last_frame":true,"watermark":false,"generate_audio":false}}}],"expected":{"kind":"submit","model":"doubao-seedance-2-5-hx","action":"image_to_video","requestBody":{"model":"doubao-seedance-2-5-hx","metadata":{"model":"doubao-seedance-2-5-hx","content":[{"type":"video_url","role":"reference_video","video_url":{"url":"asset://sa_source"}},{"type":"image_url","role":"reference_image","image_url":{"url":"https://media.example/style.png"}}],"omni_reference_task_type":"extend","ratio":"adaptive","resolution":"720p","output_format":"mov","return_last_frame":true,"watermark":false,"generate_audio":false},"automaticDuration":true}}},
+    {"name":"2.5 reference with duration 30","hook":"native","member":"createTask","args":[{"body":{"kind":"json","value":{"model":"doubao-seedance-2-5-hx","content":[{"type":"video_url","role":"reference_video","video_url":{"url":"asset://sa_source"}},{"type":"image_url","role":"reference_image","image_url":{"url":"https://media.example/style.png"}}],"omni_reference_task_type":"reference","duration":30,"ratio":"adaptive","resolution":"720p","output_format":"mov","return_last_frame":true,"watermark":false,"generate_audio":false}}}],"expected":{"kind":"submit","model":"doubao-seedance-2-5-hx","action":"image_to_video","requestBody":{"model":"doubao-seedance-2-5-hx","metadata":{"model":"doubao-seedance-2-5-hx","content":[{"type":"video_url","role":"reference_video","video_url":{"url":"asset://sa_source"}},{"type":"image_url","role":"reference_image","image_url":{"url":"https://media.example/style.png"}}],"omni_reference_task_type":"reference","duration":30,"ratio":"adaptive","resolution":"720p","output_format":"mov","return_last_frame":true,"watermark":false,"generate_audio":false}}}},
+    {"name":"2.5 auto with duration -1","hook":"native","member":"createTask","args":[{"body":{"kind":"json","value":{"model":"doubao-seedance-2-5-hx","content":[{"type":"video_url","role":"reference_video","video_url":{"url":"asset://sa_source"}},{"type":"image_url","role":"reference_image","image_url":{"url":"https://media.example/style.png"}}],"omni_reference_task_type":"auto","duration":-1,"ratio":"adaptive","resolution":"720p","output_format":"mov","return_last_frame":true,"watermark":false,"generate_audio":false}}}],"expected":{"kind":"submit","model":"doubao-seedance-2-5-hx","action":"image_to_video","requestBody":{"model":"doubao-seedance-2-5-hx","metadata":{"model":"doubao-seedance-2-5-hx","content":[{"type":"video_url","role":"reference_video","video_url":{"url":"asset://sa_source"}},{"type":"image_url","role":"reference_image","image_url":{"url":"https://media.example/style.png"}}],"omni_reference_task_type":"auto","ratio":"adaptive","resolution":"720p","output_format":"mov","return_last_frame":true,"watermark":false,"generate_audio":false},"automaticDuration":true}}},
+    {"name":"query exposes measured duration format video and last frame with public ID","hook":"native","member":"taskStatus","args":[{},{"task_id":"task_public","status":"SUCCESS","data":{"status":"succeeded","id":"private-id","content":{"video_url":"https://media.example/result.mov","last_frame_url":"https://media.example/last.jpg"},"duration":7,"resolution":"720p","ratio":"16:9","output_format":"mov","generate_audio":false,"usage":{"completion_tokens":151200,"total_tokens":151200}}}],"expected":{"status":"succeeded","id":"task_public","content":{"video_url":"https://media.example/result.mov","last_frame_url":"https://media.example/last.jpg"},"duration":7,"resolution":"720p","ratio":"16:9","output_format":"mov","generate_audio":false,"usage":{"completion_tokens":151200,"total_tokens":151200}}},
+    {"name":"asynchronous task type mismatch is terminal failure","hook":"parseTaskResult","args":[{},{"status":"failed","error":{"code":"InvalidParameter.TaskTypeMismatch","message":"prompt task type mismatch"}}],"expected":{"status":"FAILURE","progress":"100%","reason":"prompt task type mismatch"}},
+    {"name":"host poll exhaustion overrides stale running snapshot","hook":"native","member":"taskStatus","args":[{},{"task_id":"task_public","status":"FAILURE","fail_reason":"poll failure limit reached","data":{"status":"running"}}],"expected":{"id":"task_public","status":"failed","error":{"message":"poll failure limit reached"}}},
+    {"name":"failed generation cannot replace billing facts","hook":"extractUsageOnComplete","args":[{},{"status":"FAILURE"},{"usage":{"completion_tokens":9}}],"expected":{}},
+    {"name":"native query keeps upstream route and bearer authentication","hook":"buildQueryRequest","args":[{"baseUrl":"https://api.huanxing.ai","apiKey":"fixture-key","taskId":"upstream-task"}],"expected":{"url":"https://api.huanxing.ai/api/v3/contents/generations/tasks/upstream-task","method":"GET","headers":{"Accept":"application/json","Content-Type":"application/json","Authorization":"Bearer fixture-key"}}}
   ]
 }

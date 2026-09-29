@@ -5,6 +5,8 @@ import { readFileSync } from "node:fs";
 
 if (process.argv[2] !== "--apply-test") throw new Error("Requires --apply-test");
 const source = readFileSync(new URL("../plugins/local/seedance-hub/plugin.js", import.meta.url), "utf8");
+// This one-time script installs 2.0.5, not arbitrary current plugin behavior.
+if (!/^  version: "2\.0\.5",$/m.test(source)) throw new Error("Historical Hub deployment requires plugin 2.0.5; prepare a versioned upgrade for the current source");
 const hash = createHash("sha256").update(source).digest("hex");
 const quote = value => "'" + String(value).replaceAll("'", "''") + "'";
 const sql = `

@@ -7,6 +7,9 @@ import { join } from "node:path";
 
 if (process.argv[2] !== "--apply-test") throw new Error("Requires --apply-test");
 const source = readFileSync(new URL("../plugins/local/seedance-hx/plugin.js", import.meta.url), "utf8");
+// This historical registration pins its SQL row to 1.0.0. Never upload newer
+// behavior under that immutable version; an upgrade needs its own reviewed plan.
+if (!/^  version: "1\.0\.0",$/m.test(source)) throw new Error("Historical HX registration requires plugin 1.0.0; prepare a versioned upgrade for the current source");
 const hash = createHash("sha256").update(source).digest("hex");
 const quote = value => "'" + String(value).replaceAll("'", "''") + "'";
 const remote = ["-o", "BatchMode=yes", "root@47.99.98.76"];
