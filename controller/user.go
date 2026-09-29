@@ -438,6 +438,15 @@ func TransferAffQuota(c *gin.Context) {
 
 func GetAffCode(c *gin.Context) {
 	id := c.GetInt("id")
+	allowed, err := model.CanPartnerInvite(id)
+	if err != nil {
+		partnerError(c, err)
+		return
+	}
+	if !allowed {
+		partnerError(c, model.ErrPartnerState)
+		return
+	}
 	user, err := model.GetUserById(id, true)
 	if err != nil {
 		common.ApiError(c, err)

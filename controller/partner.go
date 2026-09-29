@@ -82,7 +82,7 @@ func GetPartnerOverview(c *gin.Context) {
 		remaining = &value
 	}
 	code := ""
-	if funds.Status == "approved" || funds.Status == "suspended" {
+	if funds.Status == "approved" {
 		code = user.AffCode
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"application": partner, "config": config, "money": money, "referral_code": code, "summary": gin.H{"invited_count": invited, "topup_count": totals.TopupCount, "topup_quota": totals.TopupQuota, "earned_quota": funds.EarnedQuota, "available_quota": funds.AvailableQuota, "reserved_quota": funds.ReservedQuota, "withdrawn_quota": funds.WithdrawnQuota, "transferred_quota": funds.TransferredQuota, "alipay_remaining_cents": remaining}}})

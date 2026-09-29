@@ -559,8 +559,17 @@ func GetUserIdByAffCode(affCode string) (int, error) {
 		return 0, errors.New("affCode 为空！")
 	}
 	var user User
-	err := DB.Select("id").First(&user, "aff_code = ?", affCode).Error
-	return user.Id, err
+	if err := DB.Select("id").First(&user, "aff_code = ? AND status = ?", affCode, common.UserStatusEnabled).Error; err != nil {
+		return 0, err
+	}
+	allowed, err := CanPartnerInvite(user.Id)
+	if err != nil {
+		return 0, err
+	}
+	if !allowed {
+		return 0, ErrPartnerState
+	}
+	return user.Id, nil
 }
 
 func DeleteUserById(id int) (err error) {

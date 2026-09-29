@@ -285,7 +285,7 @@ func TestPartnerAPIContractAndOwnerIsolation(t *testing.T) {
 	sqlDB.SetMaxOpenConns(1)
 	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.AuditLog{}, &model.Option{}, &model.Partner{}, &model.PartnerCommission{}, &model.PartnerPayout{}))
 	model.DB, model.LOG_DB, common.RedisEnabled = db, db, false
-	common.OptionMap = map[string]string{}
+	common.OptionMap = map[string]string{"PartnerProgram": `{"enabled":true,"min_payout_cents":1}`}
 	t.Cleanup(func() {
 		model.DB, model.LOG_DB, common.RedisEnabled = oldDB, oldLog, oldRedis
 		common.OptionMap = oldOptions
@@ -308,6 +308,8 @@ func TestPartnerAPIContractAndOwnerIsolation(t *testing.T) {
 		status              int
 		contains            string
 	}{
+		{"GET", "/api/user/aff", ownerToken, 200, `"data":"owner"`},
+		{"GET", "/api/user/aff", otherToken, 409, "partner_state"},
 		{"GET", "/api/tapcomfy/v1/partner", ownerToken, 200, `"referral_code":"owner"`},
 		{"GET", "/api/tapcomfy/v1/partner/invitees", ownerToken, 200, `"topup_count":1`},
 		{"GET", "/api/tapcomfy/v1/partner/invitees?user_id=1", otherToken, 200, `"items":[]`},
@@ -341,6 +343,42 @@ func TestPartnerAPIContractAndOwnerIsolation(t *testing.T) {
 			}
 			if strings.Contains(tc.path, "invitees") {
 				assert.NotContains(t, rec.Body.String(), "consumed")
+			}
+		})
+	}
+
+	for _, status := range []string{"pending", "needs_info", "rejected", "suspended", "approved"} {
+		t.Run("invitation_gate_"+status, func(t *testing.T) {
+			require.NoError(t, db.Model(&model.Partner{}).Where("user_id = ?", 1).Update("status", status).Error)
+			// Closing applications must not revoke an approved partner.
+			if status == "approved" {
+				common.OptionMap["PartnerProgram"] = `{"enabled":false,"min_payout_cents":1}`
+			}
+			for _, path := range []string{"/api/user/aff", "/api/tapcomfy/v1/partner", "/api/tapcomfy/v1/partner/payouts"} {
+				req := httptest.NewRequest(http.MethodGet, path, nil)
+				req.Header.Set("Authorization", "Bearer "+ownerToken)
+				rec := httptest.NewRecorder()
+				engine.ServeHTTP(rec, req)
+				switch path {
+				case "/api/user/aff":
+					if status == "approved" {
+						assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+						assert.Contains(t, rec.Body.String(), `"data":"owner"`)
+					} else {
+						assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+						assert.Contains(t, rec.Body.String(), "partner_state")
+					}
+				case "/api/tapcomfy/v1/partner":
+					assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+					if status == "approved" {
+						assert.Contains(t, rec.Body.String(), `"referral_code":"owner"`)
+					} else {
+						assert.Contains(t, rec.Body.String(), `"referral_code":""`)
+					}
+				default:
+					assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+					assert.Contains(t, rec.Body.String(), "private-payee", "historical payout records remain available")
+				}
 			}
 		})
 	}

@@ -19,7 +19,7 @@ var partnerDecimal = regexp.MustCompile(`^[0-9]{1,14}(\.[0-9]{1,8})?$`)
 // top-up cannot lose its commission on process exit or duplicate notification.
 func recordPartnerCommission(tx *gorm.DB, topup *TopUp) error {
 	config := GetPartnerConfig()
-	if !config.Enabled || topup.PaidSandbox || topup.PaidAmount == "" || topup.PaymentMethod == "alipay_native_sandbox" || topup.Amount <= 0 {
+	if topup.PaidSandbox || topup.PaidAmount == "" || topup.PaymentMethod == "alipay_native_sandbox" || topup.Amount <= 0 {
 		return nil
 	}
 	var customer User

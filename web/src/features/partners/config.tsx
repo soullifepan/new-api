@@ -63,7 +63,7 @@ export function PartnerSettings(props: { config: PartnerConfig }) {
         className='max-w-3xl space-y-5'
       >
         <p className='text-muted-foreground text-sm'>
-          汇率、展示单位及充值售价沿用系统现有设置。修改规则只影响之后的充值，不重算历史佣金。关闭推广后仍可结算历史收益。
+          汇率、展示单位及充值售价沿用系统现有设置。修改规则只影响之后的充值，不重算历史佣金。关闭申请仅停止接收新申请，已获批伙伴的邀请、返佣、提现与划转不受影响。
         </p>
         <FormField
           control={form.control}
@@ -76,7 +76,7 @@ export function PartnerSettings(props: { config: PartnerConfig }) {
                   onCheckedChange={field.onChange}
                 />
               </FormControl>
-              <FormLabel>开启合作伙伴计划</FormLabel>
+              <FormLabel>开放合作伙伴申请</FormLabel>
             </FormItem>
           )}
         />

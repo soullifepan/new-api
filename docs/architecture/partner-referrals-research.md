@@ -567,13 +567,13 @@ U6 已确认客户端与后台分工。下面的模块组织是建议实现方�
 推荐码复用既有 aff_code、客户端现有 aff 注册链接；首版不修改邀请码，不改注册链路。
 
 Partner: `{user_id,status:'pending'|'needs_info'|'approved'|'rejected'|'suspended',channels,links,plan,contact,evidence,notes,review_note,created_at,updated_at,approved_at,reviewed_by,available_quota,reserved_quota,earned_quota,withdrawn_quota,transferred_quota}`。
-Config: `{balance_price_source:'alipay_native',enabled:boolean,commission_bps:number,duration_days:number,first_topup_only:false,min_payout_cents:number,alipay_daily_limit_cents:number,bank_single_limit_cents:number}`。bps 1000=10%，天数0长期，限额0不限，默认关闭，默认比例0等待管理员设置；限额单位为现金人民币分。
+Config: `{balance_price_source:'alipay_native',enabled:boolean,commission_bps:number,duration_days:number,first_topup_only:false,min_payout_cents:number,alipay_daily_limit_cents:number,bank_single_limit_cents:number}`。bps 1000=10%，天数0长期，限额0不限，默认不开放申请，默认比例0等待管理员设置；限额单位为现金人民币分。
 Money: `{quota_per_unit:number,currency:string,currency_symbol:string,exchange_rate:string,cash_currency:'CNY',cash_exchange_rate:string,credit_price:string,quote:string}`。exchange_rate用于概览展示（USD/CNY/CUSTOM/TOKENS语义同wallet）；credit_price为每1消费美元额度所需人民币佣金（含用户充值分组倍率），quote为服务端不透明报价字符串；客户端原样回传。输入人民币 amount 对应消费额度 = amount/credit_price，显示为额度而非真实美元现金。可提人民币最大值向下截断到分。
 Summary: `{invited_count,topup_count,topup_quota,earned_quota,available_quota,reserved_quota,withdrawn_quota,transferred_quota,alipay_remaining_cents:number|null}`，null不限。
 Commission: `{id,partner_id,user_id,topup_id,paid_amount:string,paid_currency:string,exchange_rate:string,topup_quota,commission_bps,commission_quota,reason:string,created_at}`，每订单唯一，允许0佣金用于完整充值统计。
 Payout: `{id,user_id,request_id,kind,amount:string,currency:'CNY',debit_quota,status:'pending'|'paid'|'rejected',recipient_name,account,bank_name,company_code,exchange_rate,credit_price,quota,review_note,reviewed_by,created_at,completed_at}`；quota仅划转，debit_quota为扣除佣金。
 
-规则：有效期从 max(客户注册,伙伴首次获批) 起算；有效期内每次外部真实充值均可返佣；获批前不补；配置修改影响后续付款；暂停停止新增佣金保留资金出口；首版无等待期无手续费，订阅以后接入。充值统计仅累计计划开启后、邀请人已有申请的可靠付款记录，不伪造历史实付；并明确展示统计范围。注册奖励不算现金佣金。
+规则：有效期从 max(客户注册,伙伴首次获批) 起算；有效期内每次外部真实充值均可返佣；获批前不补；配置修改影响后续付款；暂停停止新增佣金保留资金出口；首版无等待期无手续费，订阅以后接入。充值统计仅累计功能部署后、邀请人已有申请的可靠付款记录，不伪造历史实付；并明确展示统计范围。注册奖励不算现金佣金。
 
 ### Admin
 
@@ -591,14 +591,14 @@ Payout: `{id,user_id,request_id,kind,amount:string,currency:'CNY',debit_quota,st
 
 首次完成验证时，代码位于两个仓库各自的 `codex/feature/partner-referrals` 分支；以下记录为当时的实现及测试结果。
 
-- new-api：独立 Partner / PartnerCommission / PartnerPayout 三表及接口、中文 `/partners` 管理页；TopUp 增加实付金额、币种、测试支付标记，支付成功事务调用佣金记账。未修改 relay、模型定价、任务插件和注册登录机制。
+- new-api：独立 Partner / PartnerCommission / PartnerPayout 三表及接口、中文 `/partners` 管理页；TopUp 增加实付金额、币种、测试支付标记，支付成功事务调用佣金记账。未修改 relay、模型定价和任务插件；注册时的邀请码归属查询增加合作伙伴审核门槛，保持原注册认证流程。
 - TapComfy：个人中心“合作伙伴”，申请与审核状态、推荐链接、客户充值次数/金额、佣金记录、提现及消费余额划转，通过已有 Rust 登录代理访问接口。伙伴不显示消耗统计。
 - 申请材料使用自由文本和可选 HTTP(S) 资料链接，审核时按需补充。没有新增图片托管及企业认证系统。
 - 佣金账本与旧注册赠送 `aff_quota` 隔离，消费划转不触发二次返佣。提现申请即占用，人工付款确认仅结算占用，驳回释放。
 - 真实付款按验签事件记账；易支付使用验签表单 money、Stripe 使用 amount_total、Creem 使用 amount_paid、Waffo/Pancake 使用回调实际金额。原生支付宝沿用核验后的订单实付金额。测试支付不返佣。手工补单缺少实付事实时不根据消费额度猜测现金佣金。
 - 目前原有后台只提供人民币/美元汇率，故返佣支持 CNY/USD。其他币种付款仍正常充值，记录原实付及 `reason=unsupported_currency`，明确显示“该付款币种未配置返佣汇率，未计佣金”；不猜汇率、不将消费额度当实付。不自动补发历史未计佣金记录。
-- 停用计划或暂停伙伴均保留已有余额的提现/划转；全局停用期间不新增充值佣金记录。规则变更不重算旧账。兑换操作锁定提交时汇率、售价和报价，重试返回原申请。
-- 默认关闭、默认佣金比例为 0；管理员先设置比例/期限/提现限额，再开启。资料补充/驳回/暂停必须填写原因。付款页展示收款资料与金额并二次确认，不接支付宝或银行转账 API。
+- 关闭申请入口不影响已获批伙伴的邀请、充值返佣、提现和划转；暂停单个伙伴仍保留已有余额的提现/划转。规则变更不重算旧账。兑换操作锁定提交时汇率、售价和报价，重试返回原申请。
+- 默认不开放申请、默认佣金比例为 0；管理员先设置比例/期限/提现限额，再开放申请。资料补充/驳回/暂停必须填写原因。付款页展示收款资料与金额并二次确认，不接支付宝或银行转账 API。
 - 查询只接受当前登录身份；Admin 路由复用现有管理员鉴权。既有管理端登录使用 Authorization Bearer，不新增 cookie 鉴权入口。接口设置禁止缓存。
 
 稳定错误码：`partner_invalid`（400）、`partner_state` / `partner_funds` / `partner_quote_changed` / `wallet_limit`（409）、`partner_not_found`（404）、`partner_unavailable`（500）。网络失败/5xx 等未知结果必须保留原参数和 request_id，核对记录后重试，不能重新生成申请。
@@ -615,7 +615,7 @@ TEST_POSTGRES_DSN='host=127.0.0.1 port=55439 user=partner_test dbname=partner_te
 go test ./model -run 'TestPartner(DatabaseMatrix|MoneyUsesConfiguredPrices)' -count=1 -v
 ```
 
-验证充值回调幂等、实际付款与赠送额度隔离、测试支付排除、未配置币种记录、重复充值持续返佣、旧首充配置不限制返佣、有效期到期、审核补材料、旧报价重试、提现占用/驳回/打款幂等、钱包上限回滚、暂停/停用资金出口和并发不可超额支取。使用支持范围内三个版本，不宣称已跑 MySQL 5.7 / PostgreSQL 9.6 的最低版本。
+验证充值回调幂等、实际付款与赠送额度隔离、测试支付排除、未配置币种记录、重复充值持续返佣、旧首充配置不限制返佣、有效期到期、审核补材料、旧报价重试、提现占用/驳回/打款幂等、钱包上限回滚、暂停/关闭申请后的资金出口和并发不可超额支取。使用支持范围内三个版本，不宣称已跑 MySQL 5.7 / PostgreSQL 9.6 的最低版本。
 
 #### 自动检查及验收边界
 
@@ -625,3 +625,15 @@ go test ./model -run 'TestPartner(DatabaseMatrix|MoneyUsesConfiguredPrices)' -co
 - 仓库全量 `bun run lint` 存在本次功能之外的存量报错，不能称全库 lint 通过；本次改动单独检查。
 - TapComfy 使用 `pnpm exec tsc --noEmit`、`node --experimental-strip-types --test src/lib/newapiPartner.test.ts src/lib/newapiWallet.test.ts`（26项）和 `cargo test --manifest-path src-tauri/Cargo.toml auth::newapi_partner::tests --lib`（5项）；未启动客户端、未使用 computer，没有进行真实站外转账或生产支付测试。
 - 视觉验收需要用户在客户端个人中心及 Admin 的合作伙伴页面检查桌面/窄屏布局、状态切换和资料展示。命令行测试不替代视觉验收。
+
+
+#### 邀请资格与开放申请开关（2026-09-29 修正）
+
+- `config.enabled` 保留接口字段名，仅表示是否接受新申请（包括补充后重新提交），管理端名称为“开放合作伙伴申请”。关闭不改变现有伙伴状态、邀请关系或返佣资格；已提交申请仍可审核。已获批伙伴关闭申请期间的充值照常按现有比例/期限计佣金。
+- TapComfy 移除独立“邀请好友”菜单，旧 `section=invitation` 进入“合作伙伴”。未申请、审核中、待补充、驳回不展示邀请码/分享/邀请记录；获批后才展示。单个伙伴暂停时停止新增邀请，仍保留历史账目和资金出口。
+- 服务端 `/api/user/aff` 检查获批资格，`overview.referral_code` 仅向获批伙伴返回。密码注册与 OAuth 注册共用 `GetUserIdByAffCode`，旧邀请码不能绕过审核；无效/未获批代码沿用原行为，注册成功但不建立邀请归属。既有邀请关系不删除、不回填。
+- 历史查询接口保持当前用户作用域，便于查阅旧账；未把历史数据读取当作新增邀请能力。客户端只用 overview 返回的邀请码生成链接，不再调用旧邀请码获取接口。
+- 鉴权核对依据 OWASP ASVS 5.0.0，以及 [Authentication](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html)、[Session Management](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)、[Authorization](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html) Cheat Sheets：复用现有登录鉴权，服务端逐请求验证邀请资格、默认拒绝未获批身份，查询按当前用户隔离。不改认证凭据或会话协议，不声称整站通过 ASVS 认证。
+- 本次三库矩阵沿用上述版本和命令，增加未申请/各审核状态、禁用用户旧码、关闭申请后获批代码仍有效、关闭时新申请拒绝、重复充值继续计佣金和原邀请关系保留的断言。路由测试增加旧发码端点、overview 各状态及关闭申请后照常返回获批邀请码；历史提现记录仍可查看。
+
+本次追加验证：`go test ./model ./controller ./router -run 'Test(Partner|Stripe|Recharge|AlipayNative|WaffoPancake|TapComfy|Register|OAuth)' -count=1` 通过；Admin 3项测试、类型检查、定向 lint 通过。协调者重新运行 TapComfy 类型检查及 `node --experimental-strip-types --test src/lib/partnerAccess.test.ts src/lib/newapiPartner.test.ts src/lib/newapiWallet.test.ts`，31项通过；worker 报告 Rust 6项通过。仍未进行应用视觉操作或真实支付联调。

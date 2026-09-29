@@ -101,6 +101,39 @@ func TestPartnerDatabaseMatrix(t *testing.T) {
 			_, err = SubmitPartnerApplication(1, PartnerApplicationInput{Channels: "社区", Plan: "分享实际使用经验", Contact: "contact"})
 			require.NoError(t, err)
 			require.NoError(t, ReviewPartner(1, 99, "approved", "通过"))
+			// Both password and OAuth signup use this lookup; old codes must not
+			// bypass application approval or individual suspension.
+			for _, status := range []string{"pending", "needs_info", "rejected", "suspended", "approved"} {
+				require.NoError(t, db.Model(&Partner{}).Where("user_id = ?", 1).Update("status", status).Error)
+				inviter, lookupErr := GetUserIdByAffCode("partner1")
+				if status == "approved" {
+					require.NoError(t, lookupErr)
+					assert.Equal(t, 1, inviter)
+				} else {
+					assert.ErrorIs(t, lookupErr, ErrPartnerState)
+					assert.Zero(t, inviter)
+				}
+			}
+			inviter, lookupErr := GetUserIdByAffCode("buyer2")
+			assert.ErrorIs(t, lookupErr, ErrPartnerState, "no application cannot invite")
+			assert.Zero(t, inviter)
+			config.Enabled = false
+			require.NoError(t, UpdatePartnerConfig(config))
+			inviter, lookupErr = GetUserIdByAffCode("partner1")
+			require.NoError(t, lookupErr, "closing applications preserves approved invitation codes")
+			assert.Equal(t, 1, inviter)
+			_, err = SubmitPartnerApplication(2, PartnerApplicationInput{Channels: "社区", Plan: "介绍产品", Contact: "contact"})
+			assert.ErrorIs(t, err, ErrPartnerInvalid, "new applications are closed")
+			config.Enabled = true
+			require.NoError(t, UpdatePartnerConfig(config))
+			require.NoError(t, db.Model(&User{}).Where("id = ?", 1).Update("status", common.UserStatusDisabled).Error)
+			inviter, lookupErr = GetUserIdByAffCode("partner1")
+			assert.Error(t, lookupErr)
+			assert.Zero(t, inviter)
+			require.NoError(t, db.Model(&User{}).Where("id = ?", 1).Update("status", common.UserStatusEnabled).Error)
+			var existingInvitee User
+			require.NoError(t, db.First(&existingInvitee, 2).Error)
+			assert.Equal(t, 1, existingInvitee.InviterId, "existing relationships survive eligibility changes")
 			// Use the real successful top-up function: gifted quota is unrelated to cash.
 			order := TopUp{UserId: 2, Amount: 100, Money: 70, TradeNo: "paid-one", PaymentProvider: PaymentProviderEpay, Status: common.TopUpStatusPending}
 			require.NoError(t, order.Insert())
@@ -176,7 +209,8 @@ func TestPartnerDatabaseMatrix(t *testing.T) {
 				_, err = CreatePartnerPayout(1, transfer)
 				assert.ErrorIs(t, err, ErrPartnerInvalid)
 			}
-			// Old first-only settings must not suppress subsequent eligible recharges.
+			// Closed applications and old first-only settings must not suppress recharges.
+			config.Enabled = false
 			config.FirstTopupOnly = true
 			require.NoError(t, UpdatePartnerConfig(config))
 			assert.False(t, GetPartnerConfig().FirstTopupOnly)
@@ -190,7 +224,7 @@ func TestPartnerDatabaseMatrix(t *testing.T) {
 			p, err = GetPartner(1)
 			require.NoError(t, err)
 			assert.Equal(t, int(common.QuotaPerUnit*2), p.EarnedQuota)
-			// A disabled program does not trap already-earned funds.
+			// Closed applications do not trap already-earned funds.
 			config.Enabled = false
 			require.NoError(t, UpdatePartnerConfig(config))
 			require.NoError(t, ReviewPartner(1, 99, "suspended", "暂时停止推广"))

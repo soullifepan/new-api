@@ -82,7 +82,7 @@ type PartnerPayout struct {
 
 type PartnerConfig struct {
 	BalancePriceSource string `json:"balance_price_source"`
-	Enabled            bool   `json:"enabled"`
+	Enabled            bool   `json:"enabled"` // Accept new applications; existing partners remain active.
 	CommissionBPS      int    `json:"commission_bps"`
 	DurationDays       int    `json:"duration_days"`
 	// Kept false in API responses for older clients; every eligible recharge earns commission.
@@ -183,6 +183,16 @@ func GetPartner(userID int) (*Partner, error) {
 		return nil, nil
 	}
 	return &p, err
+}
+
+// CanPartnerInvite applies the same eligibility to code issuance and signup
+// attribution. Existing invitation relationships and funds remain unchanged.
+func CanPartnerInvite(userID int) (bool, error) {
+	partner, err := GetPartner(userID)
+	if err != nil {
+		return false, err
+	}
+	return partner != nil && partner.Status == "approved", nil
 }
 
 type PartnerApplicationInput struct {

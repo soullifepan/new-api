@@ -159,6 +159,15 @@ test('administrator enters percentages and yuan while the API receives exact bas
   )
   await user.click(screen.getByRole('tab', { name: '返佣规则' }))
   const rate = await screen.findByLabelText('返佣比例（%）')
+  const applications = screen.getByRole('checkbox', {
+    name: '开放合作伙伴申请',
+  })
+  expect(applications).toBeChecked()
+  await user.click(applications)
+  expect(applications).not.toBeChecked()
+  expect(
+    screen.getByText(/已获批伙伴的邀请、返佣、提现与划转不受影响/)
+  ).toBeInTheDocument()
   expect(screen.queryByLabelText('仅客户首次充值返佣')).not.toBeInTheDocument()
   expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
   expect(
@@ -174,6 +183,7 @@ test('administrator enters percentages and yuan while the API receives exact bas
   await waitFor(() =>
     expect(api.savePartnerConfig).toHaveBeenCalledWith(
       expect.objectContaining({
+        enabled: false,
         commission_bps: 1250,
         alipay_daily_limit_cents: 50025,
       }),
