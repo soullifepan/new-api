@@ -24,6 +24,7 @@ var ErrPartnerQuote = errors.New("后台金额设置已变化，请刷新报价�
 type Partner struct {
 	UserID           int    `json:"user_id" gorm:"primaryKey;autoIncrement:false"`
 	CommissionBPS    *int   `json:"commission_bps"` // nil inherits the global rate; zero explicitly disables commission.
+	DurationDays     *int   `json:"duration_days"`  // nil inherits the global duration; zero means no expiry.
 	Status           string `json:"status" gorm:"type:varchar(20);index"`
 	Channels         string `json:"channels" gorm:"type:text"`
 	Links            string `json:"links" gorm:"type:text"`
@@ -196,27 +197,55 @@ func CanPartnerInvite(userID int) (bool, error) {
 	return partner != nil && partner.Status == "approved", nil
 }
 
-func EffectivePartnerCommissionBPS(partner *Partner, config PartnerConfig) int {
-	if partner != nil && partner.CommissionBPS != nil {
-		return *partner.CommissionBPS
+// EffectivePartnerConfig overlays independently configured partner terms.
+func EffectivePartnerConfig(partner *Partner, config PartnerConfig) PartnerConfig {
+	if partner == nil {
+		return config
 	}
-	return config.CommissionBPS
+	if partner.CommissionBPS != nil {
+		config.CommissionBPS = *partner.CommissionBPS
+	}
+	if partner.DurationDays != nil {
+		config.DurationDays = *partner.DurationDays
+	}
+	return config
 }
 
-func UpdatePartnerCommission(userID int, bps *int) (*Partner, error) {
-	if userID <= 0 || (bps != nil && (*bps < 0 || *bps > 10000)) {
+// UpdatePartnerCommission changes only supplied terms. Explicit null restores inheritance.
+func UpdatePartnerCommission(userID int, input map[string]*int) (*Partner, error) {
+	if userID <= 0 || len(input) == 0 {
 		return nil, ErrPartnerInvalid
+	}
+	updates := make(map[string]any, len(input)+1)
+	for key, value := range input {
+		var limit int
+		switch key {
+		case "commission_bps":
+			limit = 10000
+		case "duration_days":
+			limit = 36500
+		default:
+			return nil, ErrPartnerInvalid
+		}
+		if value != nil && (*value < 0 || *value > limit) {
+			return nil, ErrPartnerInvalid
+		}
+		updates[key] = value
 	}
 	var partner Partner
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		if err := lockForUpdate(tx).First(&partner, "user_id = ?", userID).Error; err != nil {
 			return err
 		}
-		partner.CommissionBPS = bps
+		if bps, present := input["commission_bps"]; present {
+			partner.CommissionBPS = bps
+		}
+		if days, present := input["duration_days"]; present {
+			partner.DurationDays = days
+		}
 		partner.UpdatedAt = common.GetTimestamp()
-		return tx.Model(&Partner{}).Where("user_id = ?", userID).Updates(map[string]any{
-			"commission_bps": bps, "updated_at": partner.UpdatedAt,
-		}).Error
+		updates["updated_at"] = partner.UpdatedAt
+		return tx.Model(&Partner{}).Where("user_id = ?", userID).Updates(updates).Error
 	})
 	return &partner, err
 }

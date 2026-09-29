@@ -69,7 +69,8 @@ func recordPartnerCommission(tx *gorm.DB, topup *TopUp) error {
 		return ErrPartnerInvalid
 	}
 	start := max(customer.CreatedAt, partner.ApprovedAt)
-	commissionBPS := EffectivePartnerCommissionBPS(&partner, config)
+	config = EffectivePartnerConfig(&partner, config)
+	commissionBPS := config.CommissionBPS
 	eligible := partner.Status == "approved" && partner.ApprovedAt > 0 && topup.CompleteTime >= partner.ApprovedAt && (config.DurationDays == 0 || topup.CompleteTime < start+int64(config.DurationDays)*86400)
 	commission := 0
 	if eligible {

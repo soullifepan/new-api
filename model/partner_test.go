@@ -135,7 +135,10 @@ func TestPartnerDatabaseMatrix(t *testing.T) {
 			require.NoError(t, db.First(&existingInvitee, 2).Error)
 			assert.Equal(t, 1, existingInvitee.InviterId, "existing relationships survive eligibility changes")
 			// Upgrade the previously deployed partner schema with an existing approved row.
-			require.NoError(t, db.Migrator().DropColumn(&Partner{}, "CommissionBPS"))
+			legacyRate := 1250
+			_, err = UpdatePartnerCommission(1, map[string]*int{"commission_bps": &legacyRate})
+			require.NoError(t, err)
+			require.NoError(t, db.Migrator().DropColumn(&Partner{}, "DurationDays"))
 			for range 2 {
 				require.NoError(t, db.AutoMigrate(models...))
 			}
@@ -149,7 +152,10 @@ func TestPartnerDatabaseMatrix(t *testing.T) {
 			DB, LOG_DB = db, db
 			migrated, err := GetPartner(1)
 			require.NoError(t, err)
-			assert.Nil(t, migrated.CommissionBPS, "existing partners inherit the global rate")
+			assert.Equal(t, &legacyRate, migrated.CommissionBPS, "existing custom rate survives upgrade")
+			assert.Nil(t, migrated.DurationDays, "existing partners inherit global duration")
+			_, err = UpdatePartnerCommission(1, map[string]*int{"commission_bps": nil})
+			require.NoError(t, err)
 			assert.Equal(t, "approved", migrated.Status)
 			// Use the real successful top-up function: gifted quota is unrelated to cash.
 			order := TopUp{UserId: 2, Amount: 100, Money: 70, TradeNo: "paid-one", PaymentProvider: PaymentProviderEpay, Status: common.TopUpStatusPending}
@@ -349,7 +355,7 @@ func TestPartnerDatabaseMatrix(t *testing.T) {
 			} {
 				config.CommissionBPS = tc.global
 				require.NoError(t, UpdatePartnerConfig(config))
-				_, err := UpdatePartnerCommission(1, tc.rate)
+				_, err := UpdatePartnerCommission(1, map[string]*int{"commission_bps": tc.rate})
 				require.NoError(t, err)
 				// Startup migration must preserve null, zero and custom values.
 				for range 2 {
@@ -358,7 +364,7 @@ func TestPartnerDatabaseMatrix(t *testing.T) {
 				current, err := GetPartner(1)
 				require.NoError(t, err)
 				assert.Equal(t, tc.rate, current.CommissionBPS)
-				assert.Equal(t, tc.wantBPS, EffectivePartnerCommissionBPS(current, GetPartnerConfig()))
+				assert.Equal(t, tc.wantBPS, EffectivePartnerConfig(current, GetPartnerConfig()).CommissionBPS)
 				topup := TopUp{UserId: 2, Amount: 10, Money: 10, TradeNo: "rate-" + tc.name, PaymentProvider: PaymentProviderStripe, Status: common.TopUpStatusPending}
 				require.NoError(t, topup.Insert())
 				require.NoError(t, Recharge(topup.TradeNo, "", "", PartnerPayment{Amount: "10", Currency: "USD"}))
@@ -376,11 +382,61 @@ func TestPartnerDatabaseMatrix(t *testing.T) {
 			assert.Equal(t, 1000, original.CommissionBPS)
 			assert.Equal(t, int(common.QuotaPerUnit), original.CommissionQuota)
 			for _, invalid := range []int{-1, 10001} {
-				_, err := UpdatePartnerCommission(1, &invalid)
+				_, err := UpdatePartnerCommission(1, map[string]*int{"commission_bps": &invalid})
 				assert.ErrorIs(t, err, ErrPartnerInvalid)
 			}
-			_, err = UpdatePartnerCommission(999, &customRate)
+			_, err = UpdatePartnerCommission(999, map[string]*int{"commission_bps": &customRate})
 			assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
+			// Each term inherits independently; changing duration keeps the referral clock.
+			const referralStart int64 = 1700000000
+			require.NoError(t, db.Model(&User{}).Where("id = ?", 2).Update("created_at", referralStart).Error)
+			require.NoError(t, db.Model(&Partner{}).Where("user_id = ?", 1).Update("approved_at", referralStart-86400).Error)
+			twoDays, threeDays, unlimited := 2, 3, 0
+			for _, tc := range []struct {
+				name   string
+				days   *int
+				global int
+				paidAt int64
+				earns  bool
+			}{
+				{"extended", &threeDays, 1, referralStart + 2*86400, true},
+				{"exclusive-boundary", &twoDays, 365, referralStart + 2*86400, false},
+				{"before-boundary", &twoDays, 365, referralStart + 2*86400 - 1, true},
+				{"unlimited", &unlimited, 1, referralStart + 1000*86400, true},
+				{"restored", nil, 1, referralStart + 2*86400, false},
+				{"inherited-change", nil, 3, referralStart + 2*86400, true},
+			} {
+				config.DurationDays = tc.global
+				require.NoError(t, UpdatePartnerConfig(config))
+				_, err = UpdatePartnerCommission(1, map[string]*int{"duration_days": tc.days})
+				require.NoError(t, err)
+				for range 2 {
+					require.NoError(t, db.AutoMigrate(models...))
+				}
+				current, err := GetPartner(1)
+				require.NoError(t, err)
+				assert.Equal(t, tc.days, current.DurationDays)
+				assert.Nil(t, current.CommissionBPS, "duration changes do not override rate")
+				assert.Equal(t, referralStart-86400, current.ApprovedAt, "duration changes do not restart the clock")
+				topup := TopUp{UserId: 2, Amount: 10, Money: 10, TradeNo: "duration-" + tc.name, Status: common.TopUpStatusSuccess, PaidAmount: "10", PaidCurrency: "USD", CompleteTime: tc.paidAt}
+				require.NoError(t, topup.Insert())
+				for range 2 {
+					require.NoError(t, db.Transaction(func(tx *gorm.DB) error { return recordPartnerCommission(tx, &topup) }))
+				}
+				var entry PartnerCommission
+				require.NoError(t, db.Where("top_up_id = ?", topup.Id).First(&entry).Error)
+				want := 0
+				if tc.earns {
+					want = 1250000
+				}
+				assert.Equal(t, want, entry.CommissionQuota, tc.name)
+			}
+			for _, invalid := range []int{-1, 36501} {
+				_, err = UpdatePartnerCommission(1, map[string]*int{"duration_days": &invalid})
+				assert.ErrorIs(t, err, ErrPartnerInvalid)
+			}
+			require.NoError(t, db.Where("top_up_id = ?", order.Id).First(&original).Error)
+			assert.Equal(t, int(common.QuotaPerUnit), original.CommissionQuota, "duration changes preserve historical commissions")
 
 		})
 	}

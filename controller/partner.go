@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -72,7 +73,7 @@ func GetPartnerOverview(c *gin.Context) {
 		funds = &model.Partner{}
 	}
 	config := model.GetPartnerConfig()
-	config.CommissionBPS = model.EffectivePartnerCommissionBPS(partner, config)
+	config = model.EffectivePartnerConfig(partner, config)
 	var remaining *int64
 	if config.AlipayDailyLimitCents > 0 {
 		used, err := model.PartnerAlipayUsedCents(model.DB, userID)
@@ -158,21 +159,14 @@ func UpdatePartnerCommission(c *gin.Context) {
 		partnerError(c, model.ErrPartnerInvalid)
 		return
 	}
-	bps, present := input["commission_bps"]
-	if !present || len(input) != 1 {
-		partnerError(c, model.ErrPartnerInvalid)
-		return
-	}
-	partner, err := model.UpdatePartnerCommission(id, bps)
+	partner, err := model.UpdatePartnerCommission(id, input)
 	if err != nil {
 		partnerError(c, err)
 		return
 	}
-	rate := "global"
-	if bps != nil {
-		rate = strconv.Itoa(*bps) + " bps"
-	}
-	model.RecordAuditLog(c, model.AuditLog{UserId: c.GetInt("id"), ActorRole: c.GetInt("role"), Category: model.AuditCategoryOperation, Action: "partner_commission_update", Success: true, Content: fmt.Sprintf("Partner %d commission rate: %s", id, rate)})
+	// Serialize validated fields only; omitted terms are left unchanged.
+	changes, _ := common.Marshal(input)
+	model.RecordAuditLog(c, model.AuditLog{UserId: c.GetInt("id"), ActorRole: c.GetInt("role"), Category: model.AuditCategoryOperation, Action: "partner_commission_update", Success: true, Content: fmt.Sprintf("Partner %d commission settings: %s", id, changes)})
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": partner})
 }
 

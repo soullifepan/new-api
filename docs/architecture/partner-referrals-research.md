@@ -642,8 +642,19 @@ go test ./model -run 'TestPartner(DatabaseMatrix|MoneyUsesConfiguredPrices)' -co
 
 - 管理端“申请与伙伴”新增返佣比例列；“查看资料”内可设置专属比例或恢复全局比例。复用现有 Dialog、Form、Checkbox、Input、Button。
 - `partners.commission_bps` 新增可空整数字段：NULL 沿用全局；0 明确为 0%；1–10000 对应 0.01%–100%。老伙伴迁移后默认 NULL，不改变已有规则或账本。
-- 管理员接口 `PUT /api/tapcomfy/v1/admin/partners/:id/commission`，id 为伙伴 user_id，body 必须包含 `commission_bps`，整数设置专属比例，null 恢复全局；遗漏、越界、字符串、小数及额外字段拒绝。复用 AdminAuth，记录操作审计。
+- 管理员接口 `PUT /api/tapcomfy/v1/admin/partners/:id/commission`，id 为伙伴 user_id，body 可包含 `commission_bps` 或 `duration_days`（至少一项），整数设置专属值，null 恢复该项全局设置，省略的项不变；空对象、越界、字符串、小数及未知字段拒绝。复用 AdminAuth，记录操作审计。
 - 支付成功事务锁定伙伴，优先采用专属比例，并在佣金记录保存当次实际比例。修改全局比例不覆盖专属比例，历史佣金不重算，重复付款通知不重复记账。
 - 客户端概览的 `config.commission_bps` 返回当前伙伴的实际生效比例；管理端规则接口仍返回全局比例。TapComfy 已从概览读取并展示此字段，无需另加计算或硬编码。
 - 三库验证：SQLite 3.50.4、MySQL 8.4.11、PostgreSQL 16.15，沿用上文矩阵命令，全部通过；覆盖空库、已有伙伴旧表升级、两次迁移、NULL/0/专属值保留、恢复全局、全局变化隔离、历史账目不变和回调幂等。升级夹具移除新列后迁移，重开连接模拟应用重启并清空驱动语句缓存。未使用新的数据库专有语法。
 - `go test ./model ./controller ./router -run 'Test(Partner|Stripe|Recharge|AlipayNative|WaffoPancake|TapComfy|Register|OAuth)' -count=1` 通过；接口测试覆盖普通用户无权修改、参数校验、伙伴本人概览显示专属比例、其他用户与全局比例不受影响。Admin 合作伙伴 4 项交互测试通过，含专属比例保存、失败保留重试、0% 和恢复全局。未进行浏览器视觉操作。
+
+
+#### 单个伙伴专属返佣天数（2026-09-29）
+
+- 同一个“查看资料”弹窗支持专属比例与专属天数，两项独立选择是否沿用全局，一次保存。列表同时显示实际比例、天数及全局/专属来源，0 天显示“长期”。沿用既有中文后台和表单组件。
+- 新增 `partners.duration_days` 可空整数列。NULL 跟随全局，0 长期，正整数为天数，上限与全局一致（36500）。升级时老伙伴保持 NULL，已有专属比例和资金不变。
+- 兼容原 `PUT /admin/partners/:id/commission`，支持仅修改比例、仅修改天数或一起修改；先校验所有字段再原子保存，null 与省略严格区分。客户端概览 config 同时返回当前伙伴生效的比例和天数，管理端 config 保持全局值。
+- 结算按伙伴有效天数判定，沿用 max(客户注册、伙伴首次获批) 起点及到期时刻不再计佣规则；修改不重新计时、不重算历史。延长期限只影响其后符合期限的付款，不补发过去付款。
+- 三库 SQLite 3.50.4、MySQL 8.4.11、PostgreSQL 16.15，沿用上文 `TEST_MYSQL_DSN=... TEST_POSTGRES_DSN=... go test ./model -run 'TestPartner(DatabaseMatrix|MoneyUsesConfiguredPrices)' -count=1 -v` 命令，全部通过。覆盖新建表、上一发布结构已有专属比例的伙伴升级、两次迁移、NULL/0/正整数持久化、专属与全局独立、到期前一秒及到期瞬间、长期、恢复全局和历史佣金保留。
+- `go test ./model ./controller ./router -run 'Test(Partner|Stripe|Recharge|AlipayNative|WaffoPancake|TapComfy|Register|OAuth)' -count=1` 通过，含管理员权限、部分更新、无效参数不部分保存、概览本人和其他用户隔离。
+- Admin `bun run typecheck`、定向 oxlint、`bun run test src/features/partners/partners.test.tsx`（4 项）通过，扩展保存/失败保留/重试/长期/恢复全局交互。TapComfy 现有 ProfilePartner 从 overview.config.duration_days 显示期限，未修改客户端；未操作浏览器或进行视觉验收。

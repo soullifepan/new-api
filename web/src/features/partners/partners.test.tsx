@@ -198,6 +198,7 @@ test('partner rate supports custom percentages, failure retry, explicit zero and
     user_id: 11,
     status: 'approved',
     commission_bps: null,
+    duration_days: null,
     channels: '视频号',
     links: '',
     plan: '',
@@ -217,7 +218,7 @@ test('partner rate supports custom percentages, failure retry, explicit zero and
     page: 1,
   })
   vi.mocked(api.updatePartnerCommission).mockImplementation(
-    async (_, rate) => ({ ...partner, commission_bps: rate })
+    async (_, settings) => ({ ...partner, ...settings })
   )
   const user = userEvent.setup()
   render(
@@ -238,12 +239,15 @@ test('partner rate supports custom percentages, failure retry, explicit zero and
   vi.mocked(api.updatePartnerCommission).mockRejectedValueOnce(
     new Error('network unavailable')
   )
-  await user.click(screen.getByRole('button', { name: '保存返佣比例' }))
+  await user.click(screen.getByRole('button', { name: '保存返佣设置' }))
   expect(await screen.findByText('保存失败，请重试。')).toBeInTheDocument()
   expect(rate).toHaveValue(12.5)
-  await user.click(screen.getByRole('button', { name: '保存返佣比例' }))
+  await user.click(screen.getByRole('button', { name: '保存返佣设置' }))
   await waitFor(() =>
-    expect(api.updatePartnerCommission).toHaveBeenLastCalledWith(11, 1250)
+    expect(api.updatePartnerCommission).toHaveBeenLastCalledWith(11, {
+      commission_bps: 1250,
+      duration_days: null,
+    })
   )
   await waitFor(() =>
     expect(screen.queryByText('保存失败，请重试。')).not.toBeInTheDocument()
@@ -251,18 +255,72 @@ test('partner rate supports custom percentages, failure retry, explicit zero and
   const savedRate = screen.getByLabelText('返佣比例（%）')
   await user.clear(savedRate)
   await user.type(savedRate, '0')
-  await user.click(screen.getByRole('button', { name: '保存返佣比例' }))
+  await user.click(screen.getByRole('button', { name: '保存返佣设置' }))
   await waitFor(() =>
-    expect(api.updatePartnerCommission).toHaveBeenLastCalledWith(11, 0)
+    expect(api.updatePartnerCommission).toHaveBeenLastCalledWith(11, {
+      commission_bps: 0,
+      duration_days: null,
+    })
   )
   await waitFor(() =>
-    expect(screen.getByRole('button', { name: '保存返佣比例' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '保存返佣设置' })).toBeEnabled()
   )
   await user.click(
     screen.getByRole('checkbox', { name: '沿用全局比例（10%）' })
   )
-  await user.click(screen.getByRole('button', { name: '保存返佣比例' }))
+  await user.click(screen.getByRole('button', { name: '保存返佣设置' }))
   await waitFor(() =>
-    expect(api.updatePartnerCommission).toHaveBeenLastCalledWith(11, null)
+    expect(api.updatePartnerCommission).toHaveBeenLastCalledWith(11, {
+      commission_bps: null,
+      duration_days: null,
+    })
+  )
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: '保存返佣设置' })).toBeEnabled()
+  )
+  await user.click(
+    screen.getByRole('checkbox', { name: '沿用全局天数（365 天）' })
+  )
+  const days = screen.getByLabelText('返佣天数（0 表示长期）')
+  await user.clear(days)
+  await user.type(days, '730')
+  vi.mocked(api.updatePartnerCommission).mockRejectedValueOnce(
+    new Error('network unavailable')
+  )
+  await user.click(screen.getByRole('button', { name: '保存返佣设置' }))
+  expect(await screen.findByText('保存失败，请重试。')).toBeInTheDocument()
+  expect(days).toHaveValue(730)
+  await user.click(screen.getByRole('button', { name: '保存返佣设置' }))
+  await waitFor(() =>
+    expect(api.updatePartnerCommission).toHaveBeenLastCalledWith(11, {
+      commission_bps: null,
+      duration_days: 730,
+    })
+  )
+  await waitFor(() =>
+    expect(screen.queryByText('保存失败，请重试。')).not.toBeInTheDocument()
+  )
+  const savedDays = screen.getByLabelText('返佣天数（0 表示长期）')
+  await user.clear(savedDays)
+  await user.type(savedDays, '0')
+  await user.click(screen.getByRole('button', { name: '保存返佣设置' }))
+  await waitFor(() =>
+    expect(api.updatePartnerCommission).toHaveBeenLastCalledWith(11, {
+      commission_bps: null,
+      duration_days: 0,
+    })
+  )
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: '保存返佣设置' })).toBeEnabled()
+  )
+  await user.click(
+    screen.getByRole('checkbox', { name: '沿用全局天数（365 天）' })
+  )
+  await user.click(screen.getByRole('button', { name: '保存返佣设置' }))
+  await waitFor(() =>
+    expect(api.updatePartnerCommission).toHaveBeenLastCalledWith(11, {
+      commission_bps: null,
+      duration_days: null,
+    })
   )
 })

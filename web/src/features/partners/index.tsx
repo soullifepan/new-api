@@ -45,7 +45,7 @@ import {
   type Payout,
   type Commission,
 } from './api'
-import { PartnerCommissionRate } from './commission-rate'
+import { PartnerCommissionSettings } from './commission-settings'
 import { PartnerSettings } from './config'
 
 const partnerStatus: Record<string, string> = {
@@ -104,7 +104,10 @@ export function PartnersAdmin() {
             )}
           </TabsContent>
           <TabsContent value='partners'>
-            <PartnerList globalCommissionBPS={config.data?.commission_bps} />
+            <PartnerList
+              globalCommissionBPS={config.data?.commission_bps}
+              globalDurationDays={config.data?.duration_days}
+            />
           </TabsContent>
           <TabsContent value='payouts'>
             <PayoutList />
@@ -118,7 +121,10 @@ export function PartnersAdmin() {
   )
 }
 
-function PartnerList(props: { globalCommissionBPS?: number }) {
+function PartnerList(props: {
+  globalCommissionBPS?: number
+  globalDurationDays?: number
+}) {
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 })
   const [filter, setFilter] = useState('pending')
   const [detail, setDetail] = useState<Partner | null>(null)
@@ -164,10 +170,27 @@ function PartnerList(props: { globalCommissionBPS?: number }) {
     {
       accessorKey: 'commission_bps',
       header: '返佣比例',
-      cell: ({ row }) =>
-        row.original.commission_bps == null
-          ? `全局 ${props.globalCommissionBPS === undefined ? '—' : `${formatNumber(props.globalCommissionBPS / 100, 'zh-CN')}%`}`
-          : `${formatNumber(row.original.commission_bps / 100, 'zh-CN')}%（专属）`,
+      cell: ({ row }) => {
+        const bps = row.original.commission_bps ?? props.globalCommissionBPS
+        if (bps === undefined) return '—'
+        const rate = `${formatNumber(bps / 100, 'zh-CN')}%`
+        return row.original.commission_bps == null
+          ? `全局 ${rate}`
+          : `${rate}（专属）`
+      },
+    },
+    {
+      accessorKey: 'duration_days',
+      header: '返佣天数',
+      cell: ({ row }) => {
+        const days = row.original.duration_days ?? props.globalDurationDays
+        if (days === undefined) return '—'
+        const duration =
+          days === 0 ? '长期' : `${formatNumber(days, 'zh-CN')} 天`
+        return row.original.duration_days == null
+          ? `全局 ${duration}`
+          : `${duration}（专属）`
+      },
     },
     {
       accessorKey: 'earned_quota',
@@ -308,14 +331,16 @@ function PartnerList(props: { globalCommissionBPS?: number }) {
                 </div>
               ))}
             </dl>
-            {props.globalCommissionBPS !== undefined && (
-              <PartnerCommissionRate
-                key={`${detail.user_id}:${detail.commission_bps}`}
-                partner={detail}
-                globalCommissionBPS={props.globalCommissionBPS}
-                onSaved={setDetail}
-              />
-            )}
+            {props.globalCommissionBPS !== undefined &&
+              props.globalDurationDays !== undefined && (
+                <PartnerCommissionSettings
+                  key={`${detail.user_id}:${detail.commission_bps}:${detail.duration_days}`}
+                  partner={detail}
+                  globalCommissionBPS={props.globalCommissionBPS}
+                  globalDurationDays={props.globalDurationDays}
+                  onSaved={setDetail}
+                />
+              )}
           </div>
         )}
       </Dialog>

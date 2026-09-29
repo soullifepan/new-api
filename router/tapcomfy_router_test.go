@@ -347,20 +347,32 @@ func TestPartnerAPIContractAndOwnerIsolation(t *testing.T) {
 		})
 	}
 
-	common.OptionMap["PartnerProgram"] = `{"enabled":true,"commission_bps":1000,"min_payout_cents":1}`
+	common.OptionMap["PartnerProgram"] = `{"enabled":true,"commission_bps":1000,"duration_days":365,"min_payout_cents":1}`
 	for _, tc := range []struct {
-		name, token, body string
-		code, wantRate    int
+		name, token, body        string
+		code, wantRate, wantDays int
 	}{
-		{"forbidden", ownerToken, `{"commission_bps":1250}`, 403, 1000},
-		{"omitted", adminToken, `{}`, 400, 1000},
-		{"negative", adminToken, `{"commission_bps":-1}`, 400, 1000},
-		{"too high", adminToken, `{"commission_bps":10001}`, 400, 1000},
-		{"fraction", adminToken, `{"commission_bps":12.5}`, 400, 1000},
-		{"string", adminToken, `{"commission_bps":"1250"}`, 400, 1000},
-		{"custom", adminToken, `{"commission_bps":1250}`, 200, 1250},
-		{"zero", adminToken, `{"commission_bps":0}`, 200, 0},
-		{"restore", adminToken, `{"commission_bps":null}`, 200, 1000},
+		{"forbidden", ownerToken, `{"commission_bps":1250}`, 403, 1000, 365},
+		{"omitted", adminToken, `{}`, 400, 1000, 365},
+		{"negative", adminToken, `{"commission_bps":-1}`, 400, 1000, 365},
+		{"too high", adminToken, `{"commission_bps":10001}`, 400, 1000, 365},
+		{"fraction", adminToken, `{"commission_bps":12.5}`, 400, 1000, 365},
+		{"string", adminToken, `{"commission_bps":"1250"}`, 400, 1000, 365},
+		{"custom", adminToken, `{"commission_bps":1250}`, 200, 1250, 365},
+		{"zero", adminToken, `{"commission_bps":0}`, 200, 0, 365},
+		{"restore", adminToken, `{"commission_bps":null}`, 200, 1000, 365},
+		{"duration forbidden", ownerToken, `{"duration_days":30}`, 403, 1000, 365},
+		{"duration custom", adminToken, `{"duration_days":730}`, 200, 1000, 730},
+		{"rate preserves duration", adminToken, `{"commission_bps":1250}`, 200, 1250, 730},
+		{"duration negative", adminToken, `{"duration_days":-1}`, 400, 1250, 730},
+		{"duration too high", adminToken, `{"duration_days":36501}`, 400, 1250, 730},
+		{"duration fraction", adminToken, `{"duration_days":1.5}`, 400, 1250, 730},
+		{"duration string", adminToken, `{"duration_days":"30"}`, 400, 1250, 730},
+		{"unknown field", adminToken, `{"duration_days":30,"unknown":null}`, 400, 1250, 730},
+		{"atomic validation", adminToken, `{"commission_bps":100,"duration_days":-1}`, 400, 1250, 730},
+		{"duration unlimited", adminToken, `{"duration_days":0}`, 200, 1250, 0},
+		{"duration restore", adminToken, `{"duration_days":null}`, 200, 1250, 365},
+		{"both terms", adminToken, `{"commission_bps":1500,"duration_days":30}`, 200, 1500, 30},
 	} {
 		t.Run("commission_"+tc.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPut, "/api/tapcomfy/v1/admin/partners/1/commission", strings.NewReader(tc.body))
@@ -382,12 +394,16 @@ func TestPartnerAPIContractAndOwnerIsolation(t *testing.T) {
 				}
 				require.NoError(t, common.Unmarshal(rec.Body.Bytes(), &overview))
 				want := tc.wantRate
+				wantDays := tc.wantDays
 				if token == otherToken {
 					want = 1000
+					wantDays = 365
 				}
 				assert.Equal(t, want, overview.Data.Config.CommissionBPS)
+				assert.Equal(t, wantDays, overview.Data.Config.DurationDays)
 			}
 			assert.Equal(t, 1000, model.GetPartnerConfig().CommissionBPS, "global rate is unchanged")
+			assert.Equal(t, 365, model.GetPartnerConfig().DurationDays, "global duration is unchanged")
 		})
 	}
 
