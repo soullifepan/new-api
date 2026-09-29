@@ -142,8 +142,8 @@ export function RechargeFormCard({
     topupInfo?.enable_online_topup ||
     topupInfo?.enable_stripe_topup ||
     enableWaffoTopup ||
-    enableWaffoPancakeTopup
-    || enableAlipayNative
+    enableWaffoPancakeTopup ||
+    enableAlipayNative
   const hasAnyTopup = hasConfigurableTopup || enableCreemTopup
   const hasStandardPaymentMethods =
     Array.isArray(topupInfo?.pay_methods) && topupInfo.pay_methods.length > 0
@@ -397,25 +397,38 @@ export function RechargeFormCard({
                   <Button
                     variant='outline'
                     onClick={onAlipayNativeSelect}
-                    disabled={!!paymentLoading || (alipayNativeMinTopup ?? 0) > topupAmount}
+                    disabled={
+                      !!paymentLoading ||
+                      (alipayNativeMinTopup ?? 0) > topupAmount
+                    }
                     className='min-h-14 w-full justify-start gap-2 rounded-lg px-3 py-2 text-left'
                   >
-                    {paymentLoading === 'alipay_native' ? <Loader2 className='h-4 w-4 animate-spin' /> : getPaymentIcon('alipay_native', 'h-4 w-4')}
+                    {paymentLoading === 'alipay_native' ? (
+                      <Loader2 className='h-4 w-4 animate-spin' />
+                    ) : (
+                      getPaymentIcon('alipay_native', 'h-4 w-4')
+                    )}
                     <span className='flex min-w-0 flex-col items-start gap-0.5'>
                       <span>{t('Alipay')}</span>
-                      {alipayNativeSandbox && <span className='text-muted-foreground text-[11px] font-normal'>{t('Alipay sandbox')}</span>}
+                      {alipayNativeSandbox && (
+                        <span className='text-muted-foreground text-[11px] font-normal'>
+                          {t('Alipay sandbox')}
+                        </span>
+                      )}
                     </span>
                   </Button>
                 )}
-                {!hasStandardPaymentMethods && !hasWaffoPaymentMethods && (
-                  <Alert>
-                    <AlertDescription>
-                      {t(
-                        'No payment methods available. Please contact administrator.'
-                      )}
-                    </AlertDescription>
-                  </Alert>
-                )}
+                {!hasStandardPaymentMethods &&
+                  !hasWaffoPaymentMethods &&
+                  !(enableAlipayNative && onAlipayNativeSelect) && (
+                    <Alert>
+                      <AlertDescription>
+                        {t(
+                          'No payment methods available. Please contact administrator.'
+                        )}
+                      </AlertDescription>
+                    </Alert>
+                  )}
               </div>
 
               {enableWaffoTopup &&

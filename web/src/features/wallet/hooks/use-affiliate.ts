@@ -16,16 +16,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQuery } from '@tanstack/react-query'
 import i18next from 'i18next'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
 
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { getSelf } from '@/lib/api'
 import { handleServerError } from '@/lib/handle-server-error'
 import { requireServerSuccess } from '@/lib/server-error-message'
+import { useAuthStore } from '@/stores/auth-store'
 
-import { getAffiliateCode, transferAffiliateQuota } from '../api'
+import {
+  getAffiliateCode,
+  getPartnerAccess,
+  transferAffiliateQuota,
+} from '../api'
 import { generateAffiliateLink } from '../lib'
 
 // ============================================================================
@@ -33,29 +39,22 @@ import { generateAffiliateLink } from '../lib'
 // ============================================================================
 
 export function useAffiliate() {
-  const [affiliateCode, setAffiliateCode] = useState<string>('')
-  const [affiliateLink, setAffiliateLink] = useState<string>('')
-  const [loading, setLoading] = useState(true)
+  const userId = useAuthStore((state) => state.auth.user?.id)
   const [transferring, setTransferring] = useState(false)
   const { copyToClipboard } = useCopyToClipboard()
-
-  // Fetch affiliate code
-  const fetchAffiliateCode = useCallback(async () => {
-    try {
-      setLoading(true)
-      const response = requireServerSuccess(await getAffiliateCode())
-
-      if (response.success && response.data) {
-        setAffiliateCode(response.data)
-        const link = generateAffiliateLink(response.data)
-        setAffiliateLink(link)
-      }
-    } catch (error) {
-      handleServerError(error)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  const invitation = useQuery({
+    queryKey: ['wallet', 'affiliate', userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const access = requireServerSuccess(await getPartnerAccess()).data
+      if (!access?.can_access || access.status !== 'approved') return ''
+      return requireServerSuccess(await getAffiliateCode()).data ?? ''
+    },
+  })
+  const affiliateCode = userId && invitation.isSuccess ? invitation.data : ''
+  const affiliateLink = affiliateCode
+    ? generateAffiliateLink(affiliateCode)
+    : ''
 
   // Copy affiliate link
   const copyAffiliateLink = useCallback(() => {
@@ -84,17 +83,13 @@ export function useAffiliate() {
     }
   }, [])
 
-  useEffect(() => {
-    fetchAffiliateCode()
-  }, [fetchAffiliateCode])
-
   return {
     affiliateCode,
     affiliateLink,
-    loading,
+    loading: !!userId && invitation.isPending,
     transferring,
     copyAffiliateLink,
     transferQuota,
-    refetch: fetchAffiliateCode,
+    refetch: invitation.refetch,
   }
 }

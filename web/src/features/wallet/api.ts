@@ -211,6 +211,13 @@ export async function requestWaffoPancakePayment(
   return res.data
 }
 
+export async function getPartnerAccess(): Promise<
+  ApiResponse<{ can_access: boolean; status: string }>
+> {
+  const res = await api.get('/api/tapcomfy/v1/partner/access')
+  return res.data
+}
+
 /**
  * Get affiliate code
  */

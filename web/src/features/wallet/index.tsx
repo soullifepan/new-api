@@ -25,9 +25,9 @@ import { useSystemConfig } from '@/hooks/use-system-config'
 import { getSelf } from '@/lib/api'
 
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
+import { AlipayNativePaymentDialog } from './components/dialogs/alipay-native-payment-dialog'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
-import { AlipayNativePaymentDialog } from './components/dialogs/alipay-native-payment-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
 import { TransferDialog } from './components/dialogs/transfer-dialog'
 import { RechargeFormCard } from './components/recharge-form-card'
@@ -362,15 +362,17 @@ export function Wallet(props: WalletProps) {
               />
             </div>
 
-            <AffiliateRewardsCard
-              user={user}
-              affiliateLink={affiliateLink}
-              onTransfer={() => setTransferDialogOpen(true)}
-              complianceConfirmed={
-                topupInfo?.payment_compliance_confirmed !== false
-              }
-              loading={affiliateLoading}
-            />
+            {affiliateLink && (
+              <AffiliateRewardsCard
+                user={user}
+                affiliateLink={affiliateLink}
+                onTransfer={() => setTransferDialogOpen(true)}
+                complianceConfirmed={
+                  topupInfo?.payment_compliance_confirmed !== false
+                }
+                loading={affiliateLoading}
+              />
+            )}
           </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>
@@ -413,7 +415,9 @@ export function Wallet(props: WalletProps) {
         payment={alipayNative.payment}
         status={alipayNative.status}
         onRetry={alipayNative.retry}
-        onOpenChange={(open) => { if (!open) alipayNative.close() }}
+        onOpenChange={(open) => {
+          if (!open) alipayNative.close()
+        }}
       />
     </>
   )
