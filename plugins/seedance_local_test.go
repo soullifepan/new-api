@@ -230,6 +230,146 @@ func TestSeedanceLocalVideoContract(t *testing.T) {
 	}
 }
 
+func TestSeedanceSeaAutomaticDuration(t *testing.T) {
+	source, err := os.ReadFile("local/seedance-sea/plugin.js")
+	require.NoError(t, err)
+	plugin, err := jsplugin.NewRegistry().Register(string(source), jsplugin.Options{})
+	require.NoError(t, err)
+	for _, tc := range []struct {
+		version, upstream string
+		maxSeconds        float64
+	}{
+		{"2-0", "2-0-260128", 15}, {"2-0-fast", "2-0-fast-260128", 15},
+		{"2-0-mini", "2-0-mini-260615", 15}, {"2-5", "2-5-260628", 30},
+	} {
+		t.Run(tc.version, func(t *testing.T) {
+			model := "doubao-seedance-" + tc.version + "-sea"
+			body := map[string]any{"model": model, "content": []any{map[string]any{"type": "text", "text": "cat"}}, "duration": -1, "watermark": false, "generate_audio": false}
+			value, err := plugin.Engine.CallMember(t.Context(), "native", "createTask", map[string]any{"body": map[string]any{"kind": "json", "value": body}})
+			require.NoError(t, err)
+			intent := seedanceResult(t, value)
+			adaptor := taskplugin.New(plugin)
+			info := &relaycommon.RelayInfo{OriginModelName: model, ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://provider.example", ApiKey: "fixture-key"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{Action: intent["action"].(string)}}
+			adaptor.Init(info)
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/seedance-sea/api/v3/contents/generations/tasks", nil)
+			c.Set("task_request", intent["requestBody"])
+			require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
+			facts, err := adaptor.ExtractUsageFactsValidated(c, info)
+			require.NoError(t, err)
+			assert.Equal(t, tc.maxSeconds*21600, facts["tokens"])
+			wire, err := adaptor.BuildRequestBody(c, info)
+			require.NoError(t, err)
+			var upstream map[string]any
+			require.NoError(t, common.DecodeJson(wire, &upstream))
+			assert.Equal(t, -1.0, upstream["duration"])
+			assert.Equal(t, "doubao-seedance-"+tc.upstream, upstream["model"])
+			assert.Equal(t, false, upstream["watermark"])
+			assert.Equal(t, false, upstream["generate_audio"])
+			assert.NotContains(t, upstream, "automaticDuration")
+			expression := `tier("video", u("tokens") * 2 / 1000000)`
+			snapshot := &billingexpr.BillingSnapshot{ExprString: expression, ExprHash: billingexpr.ExprHashString(expression), GroupRatio: 1, QuotaPerUnit: 500000, ExprVersion: 1, TaskUsageBilling: true}
+			reserved, err := billingexpr.ComputeTieredQuotaWithRequest(snapshot, billingexpr.TokenParams{}, billingexpr.RequestInput{Usage: facts})
+			require.NoError(t, err)
+			assert.EqualValues(t, tc.maxSeconds*21600, reserved.ActualQuotaAfterGroup)
+			value, err = plugin.Engine.Call(t.Context(), "extractUsageOnComplete", map[string]any{}, map[string]any{"status": "SUCCESS"}, map[string]any{"usage": map[string]any{"total_tokens": 151200}})
+			require.NoError(t, err)
+			maps.Copy(facts, seedanceResult(t, value))
+			settled, err := billingexpr.ComputeTieredQuotaWithRequest(snapshot, billingexpr.TokenParams{}, billingexpr.RequestInput{Usage: facts})
+			require.NoError(t, err)
+			assert.Equal(t, 151200, settled.ActualQuotaAfterGroup)
+		})
+	}
+	for _, request := range []map[string]any{
+		{"automaticDuration": false, "metadata": map[string]any{"content": []any{map[string]any{"type": "text", "text": "cat"}}}},
+		{"automaticDuration": true, "metadata": map[string]any{"duration": 1000000, "content": []any{map[string]any{"type": "text", "text": "cat"}}}},
+	} {
+		for _, hook := range []string{"extractUsage", "buildSubmitRequest"} {
+			_, err := plugin.Engine.Call(t.Context(), hook, map[string]any{"model": "doubao-seedance-2-5-sea", "requestBody": request})
+			require.ErrorContains(t, err, "invalid automatic duration state")
+		}
+	}
+}
+
+func TestSeedanceSea25Contract(t *testing.T) {
+	source, err := os.ReadFile("local/seedance-sea/plugin.js")
+	require.NoError(t, err)
+	plugin, err := jsplugin.NewRegistry().Register(string(source), jsplugin.Options{})
+	require.NoError(t, err)
+	for _, tc := range []struct{ name, fields, failure string }{
+		{"edit defaults", `{"omni_reference_task_type":"edit","output_format":"mov","return_last_frame":true}`, ""},
+		{"extend fixed duration", `{"omni_reference_task_type":"extend","duration":12}`, ""},
+		{"reference fixed ratio and max duration", `{"omni_reference_task_type":"reference","ratio":"21:9","duration":30,"output_format":"mp4"}`, ""},
+		{"auto remains upstream semantic choice", `{"omni_reference_task_type":"auto","ratio":"16:9","duration":5}`, ""},
+		{"text default", `{"content":[{"type":"text","text":"cat"}]}`, ""},
+		{"audio only", `{"content":[{"type":"audio_url","audio_url":{"url":"asset://asset-audio"}}]}`, ""},
+		{"first last frames", `{"content":[{"type":"image_url","role":"first_frame","image_url":{"url":"asset://asset-first"}},{"type":"image_url","role":"last_frame","image_url":{"url":"asset://asset-last"}}]}`, ""},
+		{"edit fixed duration", `{"omni_reference_task_type":"edit","duration":5}`, "edit requires automatic duration"},
+		{"edit fixed ratio", `{"omni_reference_task_type":"edit","ratio":"16:9"}`, "edit requires adaptive ratio"},
+		{"extend fixed ratio", `{"omni_reference_task_type":"extend","ratio":"16:9"}`, "extend requires adaptive ratio"},
+		{"edit without video", `{"omni_reference_task_type":"edit","content":[{"type":"image_url","role":"reference_image","image_url":{"url":"asset://asset-image"}}]}`, "requires reference video"},
+		{"last frame alone", `{"content":[{"type":"image_url","role":"last_frame","image_url":{"url":"asset://asset-last"}}]}`, "one first frame"},
+		{"frame with references", `{"content":[{"type":"image_url","role":"first_frame","image_url":{"url":"asset://asset-first"}},{"type":"audio_url","audio_url":{"url":"asset://asset-audio"}}]}`, "cannot be mixed"},
+		{"first frame fixed ratio", `{"ratio":"16:9","content":[{"type":"image_url","image_url":{"url":"asset://asset-first"}}]}`, "require adaptive ratio"},
+		{"invalid enum", `{"omni_reference_task_type":"remix"}`, "unsupported omni_reference_task_type"},
+		{"invalid format", `{"output_format":"webm"}`, "unsupported output_format"},
+		{"SEA 2.5 retains resolution limit", `{"resolution":"1080p"}`, "unsupported resolution"},
+		{"nested duration bypass", `{"content":[{"type":"video_url","video_url":{"url":"asset://asset-video","duration":1000000}}]}`, "unsupported media URL field"},
+		{"prompt duration bypass", `{"content":[{"type":"text","text":"cat --dur 1000000"}]}`, "top-level video parameters"},
+		{"SEA native ID stays strict", `{"content":[{"type":"video_url","video_url":{"url":"asset://sa_source"}}]}`, "invalid native asset reference"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body := map[string]any{"model": "doubao-seedance-2-5-sea", "content": []any{map[string]any{"type": "video_url", "role": "reference_video", "video_url": map[string]any{"url": "asset://asset-source"}}}}
+			var fields map[string]any
+			require.NoError(t, common.UnmarshalJsonStr(tc.fields, &fields))
+			maps.Copy(body, fields)
+			value, err := plugin.Engine.CallMember(t.Context(), "native", "createTask", map[string]any{"body": map[string]any{"kind": "json", "value": body}})
+			if tc.failure != "" {
+				require.ErrorContains(t, err, tc.failure)
+				for _, hook := range []string{"extractUsage", "buildSubmitRequest"} {
+					_, err = plugin.Engine.Call(t.Context(), hook, map[string]any{"model": body["model"], "requestBody": map[string]any{"metadata": body}, "baseUrl": "https://provider.example"})
+					require.ErrorContains(t, err, tc.failure)
+				}
+				return
+			}
+			require.NoError(t, err)
+			intent := seedanceResult(t, value)
+			ctx := map[string]any{"model": body["model"], "requestBody": intent["requestBody"], "baseUrl": "https://provider.example"}
+			value, err = plugin.Engine.Call(t.Context(), "buildSubmitRequest", ctx)
+			require.NoError(t, err)
+			upstream := seedanceResult(t, value)["body"].(map[string]any)
+			wantDuration, supplied := body["duration"]
+			if !supplied {
+				wantDuration = -1.0
+			}
+			assert.Equal(t, wantDuration, upstream["duration"])
+			assert.NotContains(t, upstream, "automaticDuration")
+			value, err = plugin.Engine.Call(t.Context(), "extractUsage", ctx)
+			require.NoError(t, err)
+			assert.Greater(t, seedanceResult(t, value)["tokens"].(float64), 0.0)
+		})
+	}
+	for _, media := range []struct {
+		kind, role string
+		max        int
+	}{
+		{"image_url", "reference_image", 30}, {"video_url", "reference_video", 10}, {"audio_url", "reference_audio", 10},
+	} {
+		for _, count := range []int{media.max, media.max + 1} {
+			content := make([]any, count)
+			for i := range count {
+				content[i] = map[string]any{"type": media.kind, "role": media.role, media.kind: map[string]any{"url": "asset://asset-source"}}
+			}
+			_, err := plugin.Engine.CallMember(t.Context(), "native", "createTask", map[string]any{"body": map[string]any{"kind": "json", "value": map[string]any{"model": "doubao-seedance-2-5-sea", "content": content}}})
+			if count == media.max {
+				require.NoError(t, err, media.kind)
+			} else {
+				require.ErrorContains(t, err, "too many reference media")
+			}
+		}
+	}
+}
+
 func seedanceResult(t *testing.T, value any) map[string]any {
 	t.Helper()
 	encoded, err := common.Marshal(value)

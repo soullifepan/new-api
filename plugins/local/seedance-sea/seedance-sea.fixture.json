@@ -44,7 +44,8 @@
           "duration": 4,
           "resolution": "1080p",
           "watermark": false,
-          "generate_audio": false
+          "generate_audio": false,
+          "ratio": "adaptive"
         },
         "action": "text_to_video"
       }
@@ -109,7 +110,8 @@
               }
             ],
             "duration": 5,
-            "resolution": "720p"
+            "resolution": "720p",
+            "ratio": "adaptive"
           }
         }
       },
@@ -139,7 +141,7 @@
       "member": "createTask"
     },
     {
-      "name": "reject duration -1",
+      "name": "automatic duration is normalized before host validation",
       "hook": "native",
       "args": [
         {
@@ -158,8 +160,27 @@
           }
         }
       ],
-      "expectedError": "duration is outside",
-      "member": "createTask"
+      "member": "createTask",
+      "expected": {
+        "kind": "submit",
+        "model": "doubao-seedance-2-0-sea",
+        "action": "text_to_video",
+        "requestBody": {
+          "model": "doubao-seedance-2-0-sea",
+          "metadata": {
+            "model": "doubao-seedance-2-0-sea",
+            "content": [
+              {
+                "type": "text",
+                "text": "cat"
+              }
+            ],
+            "resolution": "720p",
+            "ratio": "adaptive"
+          },
+          "automaticDuration": true
+        }
+      }
     },
     {
       "name": "reject duration 3",
@@ -659,7 +680,8 @@
             }
           ],
           "duration": 5,
-          "resolution": "720p"
+          "resolution": "720p",
+          "ratio": "adaptive"
         },
         "action": "image_to_video"
       }
@@ -772,6 +794,422 @@
         "errorCode": "Rejected",
         "errorMessage": "rejected",
         "task_id": "task_gateway"
+      }
+    },
+    {
+      "name": "reject public automaticDuration",
+      "hook": "native",
+      "member": "createTask",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "doubao-seedance-2-5-sea",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cat"
+                }
+              ],
+              "automaticDuration": true
+            }
+          }
+        }
+      ],
+      "expectedError": "unsupported video field: automaticDuration"
+    },
+    {
+      "name": "reject 2.0 omni_reference_task_type",
+      "hook": "native",
+      "member": "createTask",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "doubao-seedance-2-0-sea",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cat"
+                }
+              ],
+              "omni_reference_task_type": "edit"
+            }
+          }
+        }
+      ],
+      "expectedError": "unsupported video field: omni_reference_task_type"
+    },
+    {
+      "name": "reject 2.0 output_format",
+      "hook": "native",
+      "member": "createTask",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "doubao-seedance-2-0-sea",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cat"
+                }
+              ],
+              "output_format": "mov"
+            }
+          }
+        }
+      ],
+      "expectedError": "unsupported video field: output_format"
+    },
+    {
+      "name": "failed ends automatic video task",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "status": "failed",
+          "error": {
+            "message": "upstream failure"
+          }
+        }
+      ],
+      "expected": {
+        "status": "FAILURE",
+        "progress": "100%",
+        "reason": "upstream failure"
+      }
+    },
+    {
+      "name": "expired ends automatic video task",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "status": "expired",
+          "error": {
+            "message": "upstream failure"
+          }
+        }
+      ],
+      "expected": {
+        "status": "FAILURE",
+        "progress": "100%",
+        "reason": "upstream failure"
+      }
+    },
+    {
+      "name": "failed task has no completion usage overlay",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {},
+        {
+          "status": "FAILURE"
+        },
+        {
+          "usage": {
+            "total_tokens": 100
+          }
+        }
+      ],
+      "expected": {}
+    },
+    {
+      "name": "reject duration -2",
+      "hook": "native",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "doubao-seedance-2-0-sea",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cat"
+                }
+              ],
+              "duration": -2
+            }
+          }
+        }
+      ],
+      "expectedError": "duration is outside",
+      "member": "createTask"
+    },
+    {
+      "name": "2.5 edit uses automatic defaults and preserves explicit flags",
+      "hook": "native",
+      "member": "createTask",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "doubao-seedance-2-5-sea",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Edit the video: remove background music"
+                },
+                {
+                  "type": "video_url",
+                  "role": "reference_video",
+                  "video_url": {
+                    "url": "asset://asset-source"
+                  }
+                }
+              ],
+              "omni_reference_task_type": "edit",
+              "return_last_frame": true,
+              "output_format": "mov",
+              "generate_audio": false,
+              "watermark": false
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "doubao-seedance-2-5-sea",
+        "action": "image_to_video",
+        "requestBody": {
+          "model": "doubao-seedance-2-5-sea",
+          "metadata": {
+            "model": "doubao-seedance-2-5-sea",
+            "content": [
+              {
+                "type": "text",
+                "text": "Edit the video: remove background music"
+              },
+              {
+                "type": "video_url",
+                "role": "reference_video",
+                "video_url": {
+                  "url": "asset://asset-source"
+                }
+              }
+            ],
+            "omni_reference_task_type": "edit",
+            "return_last_frame": true,
+            "output_format": "mov",
+            "generate_audio": false,
+            "watermark": false,
+            "resolution": "720p",
+            "ratio": "adaptive"
+          },
+          "automaticDuration": true
+        }
+      }
+    },
+    {
+      "name": "2.5 edit restores sentinel with Token0A route and native asset ID",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "model": "doubao-seedance-2-5-sea",
+          "requestBody": {
+            "model": "doubao-seedance-2-5-sea",
+            "metadata": {
+              "model": "doubao-seedance-2-5-sea",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Edit the video: remove background music"
+                },
+                {
+                  "type": "video_url",
+                  "role": "reference_video",
+                  "video_url": {
+                    "url": "asset://asset-source"
+                  }
+                }
+              ],
+              "omni_reference_task_type": "edit",
+              "return_last_frame": true,
+              "output_format": "mov",
+              "generate_audio": false,
+              "watermark": false,
+              "resolution": "720p",
+              "ratio": "adaptive"
+            },
+            "automaticDuration": true
+          },
+          "baseUrl": "https://seedance.0a.com",
+          "apiKey": "fixture-key"
+        }
+      ],
+      "expected": {
+        "url": "https://seedance.0a.com/api/token/v3/contents/generations/tasks",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-key"
+        },
+        "body": {
+          "model": "doubao-seedance-2-5-260628",
+          "content": [
+            {
+              "type": "text",
+              "text": "Edit the video: remove background music"
+            },
+            {
+              "type": "video_url",
+              "role": "reference_video",
+              "video_url": {
+                "url": "asset://asset-source"
+              }
+            }
+          ],
+          "omni_reference_task_type": "edit",
+          "return_last_frame": true,
+          "output_format": "mov",
+          "generate_audio": false,
+          "watermark": false,
+          "resolution": "720p",
+          "ratio": "adaptive",
+          "duration": -1
+        },
+        "action": "image_to_video"
+      }
+    },
+    {
+      "name": "query preserves MOV last frame and duration",
+      "hook": "native",
+      "member": "taskStatus",
+      "args": [
+        {},
+        {
+          "task_id": "task-public",
+          "status": "SUCCESS",
+          "data": {
+            "status": "succeeded",
+            "id": "private-id",
+            "content": {
+              "video_url": "https://media.example/result.mov",
+              "last_frame_url": "https://media.example/last.png"
+            },
+            "duration": 7,
+            "output_format": "mov",
+            "generate_audio": false
+          }
+        }
+      ],
+      "expected": {
+        "status": "succeeded",
+        "id": "task-public",
+        "content": {
+          "video_url": "https://media.example/result.mov",
+          "last_frame_url": "https://media.example/last.png"
+        },
+        "duration": 7,
+        "output_format": "mov",
+        "generate_audio": false
+      }
+    },
+    {
+      "name": "query preserves InvalidParameter.TaskTypeMismatch",
+      "hook": "native",
+      "member": "taskStatus",
+      "args": [
+        {},
+        {
+          "task_id": "task-public",
+          "status": "FAILURE",
+          "data": {
+            "status": "failed",
+            "id": "private-id",
+            "content": {
+              "video_url": "https://media.example/result.mov",
+              "last_frame_url": "https://media.example/last.png"
+            },
+            "duration": 7,
+            "output_format": "mov",
+            "generate_audio": false,
+            "error": {
+              "code": "InvalidParameter.TaskTypeMismatch",
+              "message": "original error"
+            }
+          },
+          "fail_reason": "provider task failed"
+        }
+      ],
+      "expected": {
+        "status": "failed",
+        "id": "task-public",
+        "content": {
+          "video_url": "https://media.example/result.mov",
+          "last_frame_url": "https://media.example/last.png"
+        },
+        "duration": 7,
+        "output_format": "mov",
+        "generate_audio": false,
+        "error": {
+          "code": "InvalidParameter.TaskTypeMismatch",
+          "message": "provider task failed"
+        }
+      }
+    },
+    {
+      "name": "query preserves InvalidParameter.TaskTypeConstraint",
+      "hook": "native",
+      "member": "taskStatus",
+      "args": [
+        {},
+        {
+          "task_id": "task-public",
+          "status": "FAILURE",
+          "data": {
+            "status": "failed",
+            "id": "private-id",
+            "content": {
+              "video_url": "https://media.example/result.mov",
+              "last_frame_url": "https://media.example/last.png"
+            },
+            "duration": 7,
+            "output_format": "mov",
+            "generate_audio": false,
+            "error": {
+              "code": "InvalidParameter.TaskTypeConstraint",
+              "message": "original error"
+            }
+          },
+          "fail_reason": "provider task failed"
+        }
+      ],
+      "expected": {
+        "status": "failed",
+        "id": "task-public",
+        "content": {
+          "video_url": "https://media.example/result.mov",
+          "last_frame_url": "https://media.example/last.png"
+        },
+        "duration": 7,
+        "output_format": "mov",
+        "generate_audio": false,
+        "error": {
+          "code": "InvalidParameter.TaskTypeConstraint",
+          "message": "provider task failed"
+        }
+      }
+    },
+    {
+      "name": "cancelled video task is terminal failure",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "status": "cancelled"
+        }
+      ],
+      "expected": {
+        "status": "FAILURE",
+        "progress": "100%",
+        "reason": "cancelled"
       }
     }
   ]
