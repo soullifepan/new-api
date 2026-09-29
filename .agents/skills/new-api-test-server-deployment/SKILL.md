@@ -5,7 +5,9 @@ description: 发布、更新或排查 Tapcomfy New API 测试服务器，包括 
 
 # New API 测试服务器发布
 
-用于 Tapcomfy 的 New API 测试环境：`root@47.99.98.76`、服务域名 `llm-test.tapcomfy.com`、主容器 `tapcomfy-newapi-test`、Caddy 容器 `tapcomfy-newapi-caddy`、PostgreSQL 容器 `tapcomfy-newapi-postgres`。所有连接均不得在输出中泄露密钥。
+用于 Tapcomfy 的 New API 测试环境：`root@47.99.98.76`、服务域名 `llm.tapcomfy.com`、主容器 `tapcomfy-newapi-test`、Caddy 容器 `tapcomfy-newapi-caddy`、PostgreSQL 容器 `tapcomfy-newapi-postgres`。所有连接均不得在输出中泄露密钥。
+
+测试环境的统一访问与健康检查域名为 `https://llm.tapcomfy.com`；域名不带 `-test` 仍是上述测试环境。SSH 地址、容器名和部署目录保持不变。客户端为旧会话、任务恢复和素材缓存保留的历史域名兼容标识，不作为部署或请求目标。
 
 ## 安全边界
 

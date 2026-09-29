@@ -57,7 +57,7 @@ podman compose -f docker-compose.dev.yml logs -f new-api
 
 ### 架构与原则
 
-测试服务器目录为 `/opt/tapcomfy/newapi`，应用使用 `llm-test.tapcomfy.com` 对外提供 HTTPS 服务。
+测试服务器目录为 `/opt/tapcomfy/newapi`，应用使用 `llm.tapcomfy.com` 对外提供 HTTPS 服务。
 
 发布流程如下：
 
@@ -93,7 +93,7 @@ make deploy-test
 默认目标是 `root@47.99.98.76:/opt/tapcomfy/newapi`。发布完成后应看到 `Deployment <发布标识> is healthy`。随后可访问：
 
 ```text
-https://llm-test.tapcomfy.com/
+https://llm.tapcomfy.com/
 ```
 
 ### 服务器检查

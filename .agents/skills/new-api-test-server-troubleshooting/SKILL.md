@@ -5,13 +5,15 @@ description: 排查 Tapcomfy New API 测试服务器的任务、插件、计费�
 
 # New API 测试服务器排查
 
-用于只读定位 `llm-test.tapcomfy.com` 的运行时问题。测试环境拓扑固定为：
+用于只读定位 `llm.tapcomfy.com` 的运行时问题。测试环境拓扑固定为：
 
 - SSH：`root@47.99.98.76`
 - 应用容器：`tapcomfy-newapi-test`
 - PostgreSQL 容器：`tapcomfy-newapi-postgres`
 - PostgreSQL 用户及数据库：`newapi` / `newapi`
 - Caddy 容器：`tapcomfy-newapi-caddy`
+
+测试环境的统一访问与健康检查域名为 `https://llm.tapcomfy.com`；域名不带 `-test` 仍是上述测试环境。SSH 地址、容器名和部署目录保持不变。客户端为旧会话、任务恢复和素材缓存保留的历史域名兼容标识，不作为部署或请求目标。
 
 ## 数据源硬性规则
 
