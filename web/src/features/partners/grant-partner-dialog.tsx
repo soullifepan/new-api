@@ -43,7 +43,6 @@ import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
 import { searchUsers } from '@/features/users/api'
-import { useDebounce } from '@/hooks/use-debounce'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { grantPartner } from './api'
@@ -51,7 +50,12 @@ import { grantPartner } from './api'
 const schema = z.object({
   user_id: z.number().int().positive('请选择用户'),
   channels: z.string().max(1000, '推广渠道过长'),
-  notes: z.string().max(1000, '备注过长'),
+  notes: z.string().max(1000, '补充说明过长'),
+  links: z.string().max(1000, '账号链接过长'),
+  plan: z.string().max(1000, '推广计划过长'),
+  contact: z.string().max(1000, '联系方式过长'),
+  evidence: z.string().max(1000, '证明链接过长'),
+  review_note: z.string().max(1000, '合作备注过长'),
 })
 type GrantForm = z.infer<typeof schema>
 
@@ -62,10 +66,19 @@ export function GrantPartnerDialog(props: {
 }) {
   const client = useQueryClient()
   const [keyword, setKeyword] = useState('')
-  const search = useDebounce(keyword.trim(), 250)
+  const [search, setSearch] = useState('')
   const form = useForm<GrantForm>({
     resolver: zodResolver(schema),
-    defaultValues: { user_id: 0, channels: '', notes: '' },
+    defaultValues: {
+      user_id: 0,
+      channels: '',
+      links: '',
+      plan: '',
+      contact: '',
+      evidence: '',
+      notes: '',
+      review_note: '',
+    },
   })
   const users = useQuery({
     queryKey: ['partners', 'user-search', search],
@@ -75,9 +88,9 @@ export function GrantPartnerDialog(props: {
         await searchUsers({ keyword: search, page_size: 20 })
       ).data?.items ?? [],
   })
-  const searching = keyword.trim() !== search || users.isFetching
+  const searching = users.isFetching
   const candidates =
-    keyword.trim() && !searching && !users.isError ? (users.data ?? []) : []
+    search && !searching && !users.isError ? (users.data ?? []) : []
   const grant = useMutation({
     mutationFn: grantPartner,
     onSuccess: () => {
@@ -87,6 +100,12 @@ export function GrantPartnerDialog(props: {
       props.onOpenChange(false)
     },
   })
+  const runSearch = () => {
+    if (!keyword.trim() || grant.isPending || searching) return
+    form.setValue('user_id', 0)
+    if (search === keyword.trim()) void users.refetch()
+    else setSearch(keyword.trim())
+  }
   const selectedId = form.watch('user_id')
   const canSubmit = candidates.some(
     (user) => user.id === selectedId && user.status === 1
@@ -109,33 +128,50 @@ export function GrantPartnerDialog(props: {
         >
           <div className='space-y-2'>
             <Label htmlFor='partner-user-search'>搜索用户</Label>
-            <Input
-              id='partner-user-search'
-              value={keyword}
-              placeholder='输入用户名或用户 ID'
-              disabled={grant.isPending}
-              onChange={(e) => {
-                setKeyword(e.target.value)
-                form.setValue('user_id', 0)
-                grant.reset()
-              }}
-            />
+            <div className='flex items-center gap-2'>
+              <Input
+                id='partner-user-search'
+                value={keyword}
+                placeholder='输入用户名或用户 ID'
+                disabled={grant.isPending}
+                onChange={(e) => {
+                  setKeyword(e.target.value)
+                  setSearch('')
+                  form.setValue('user_id', 0)
+                  grant.reset()
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    runSearch()
+                  }
+                }}
+              />
+              <Button
+                type='button'
+                variant='outline'
+                disabled={!keyword.trim() || grant.isPending || searching}
+                onClick={runSearch}
+              >
+                搜索
+              </Button>
+            </div>
           </div>
           <div
             className='max-h-64 min-h-28 overflow-y-auto rounded-lg border p-2'
             aria-busy={searching}
           >
-            {!keyword.trim() && (
+            {!search && (
               <p className='text-muted-foreground p-3 text-sm'>
-                输入用户名或用户 ID，选择要添加的用户。
+                输入用户名或用户 ID，点击搜索。
               </p>
             )}
-            {keyword.trim() && searching && (
+            {search && searching && (
               <p role='status' className='text-muted-foreground p-3 text-sm'>
                 搜索中…
               </p>
             )}
-            {keyword.trim() && !searching && users.isError && (
+            {search && !searching && users.isError && (
               <div role='alert' className='space-y-2 p-3 text-sm'>
                 <p>搜索失败，请重试。</p>
                 <Button
@@ -148,7 +184,7 @@ export function GrantPartnerDialog(props: {
                 </Button>
               </div>
             )}
-            {keyword.trim() &&
+            {search &&
               !searching &&
               !users.isError &&
               candidates.length === 0 && (
@@ -200,41 +236,51 @@ export function GrantPartnerDialog(props: {
               补充资料（选填）
             </CollapsibleTrigger>
             <CollapsibleContent className='space-y-3 pt-3'>
-              <FormField
-                control={form.control}
-                name='channels'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>推广渠道</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        placeholder='例如：视频号、社群、客户推荐'
-                        maxLength={1000}
-                        disabled={grant.isPending}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name='notes'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>备注</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        {...field}
-                        maxLength={1000}
-                        disabled={grant.isPending}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {(
+                [
+                  [
+                    'channels',
+                    '推广渠道',
+                    '例如：视频号、社群、客户推荐',
+                    false,
+                  ],
+                  ['links', '账号链接', 'https://', false],
+                  ['plan', '推广计划', '', true],
+                  ['contact', '联系方式', '微信、手机号或邮箱', false],
+                  ['evidence', '证明链接', 'https://', false],
+                  ['notes', '补充说明', '', true],
+                  ['review_note', '合作备注', '', true],
+                ] as const
+              ).map(([name, label, placeholder, multiline]) => (
+                <FormField
+                  key={name}
+                  control={form.control}
+                  name={name}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{label}</FormLabel>
+                      <FormControl>
+                        {multiline ? (
+                          <Textarea
+                            {...field}
+                            placeholder={placeholder}
+                            maxLength={1000}
+                            disabled={grant.isPending}
+                          />
+                        ) : (
+                          <Input
+                            {...field}
+                            placeholder={placeholder}
+                            maxLength={1000}
+                            disabled={grant.isPending}
+                          />
+                        )}
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ))}
             </CollapsibleContent>
           </Collapsible>
           {grant.isError && (

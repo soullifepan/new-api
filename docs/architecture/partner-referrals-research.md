@@ -693,3 +693,12 @@ go test ./model -run 'TestPartner(DatabaseMatrix|MoneyUsesConfiguredPrices)' -co
 推广渠道和备注保留为折叠的选填“补充资料”。管理员添加 API body 更新为 `{user_id:number,channels?:string,notes?:string}`，复用已有 channels/notes 列，无新数据库列；重复添加不覆盖已有合作资料。原合作说明 note 不再由添加表单提交。列表继续展示推广渠道，资料内可查看备注。
 
 验证：Admin `bun run typecheck`、伙伴文件定向 oxlint、`bun run test src/features/partners/partners.test.tsx`（6 项）通过，覆盖筛选顺序、工具行对齐约束、直接单选、选填资料、失败重试、搜索改变撤销选择、禁用账号、空结果和取消重开。SQLite 3.50.4 / MySQL 8.4.11 / PostgreSQL 16.15 真实矩阵使用前节相同 DSN 与 `go test ./model ./router -run 'TestPartner(DatabaseMatrix|MoneyUsesConfiguredPrices|APIContractAndOwnerIsolation)' -count=1 -v` 通过，新增渠道与备注持久化、重复请求保留的断言。没有操作浏览器，未做像素级视觉验收。
+
+
+#### 添加伙伴资料与手动搜索（2026-09-30）
+
+本节覆盖上一节的输入自动搜索交互。搜索框右侧显示“搜索”按钮，点击或按回车才查询；输入时不请求接口。下方直接显示候选单选列表，选中后“确定”。修改输入会清空旧选择，避免提交已过期的候选。
+
+“补充资料（选填）”补齐与详情一致的七项：推广渠道、账号链接、推广计划、联系方式、证明链接、补充说明、合作备注。添加接口除 user_id 外接收可选 channels、links、plan、contact、evidence、notes、review_note；全部复用现有列，无数据库结构变更。重复添加不覆盖已合作伙伴的资料、首次合作时间、规则或资金。
+
+验证：`bun run typecheck`、定向 oxlint、`bun run test src/features/partners/partners.test.tsx`（6 项）通过，覆盖输入不查询、按钮和回车查询、七项资料提交、失败保留和候选切换。SQLite 3.50.4、MySQL 8.4.11、PostgreSQL 16.15 真实实例使用上文相同 DSN 执行 `go test ./model ./router -run 'TestPartner(DatabaseMatrix|MoneyUsesConfiguredPrices|APIContractAndOwnerIsolation)' -count=1 -v` 全部通过，验证七项资料保存与重复请求保留。复用现有 Dialog、Form、Collapsible、RadioGroup、Input、Textarea、Button；未使用 computer 或浏览器视觉验收。

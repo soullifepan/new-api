@@ -158,7 +158,12 @@ export async function updatePartnerCommission(
 export async function grantPartner(input: {
   user_id: number
   channels: string
+  links: string
+  plan: string
+  contact: string
+  evidence: string
   notes: string
+  review_note: string
 }) {
   return requireServerSuccess(
     (await api.post<{ success: boolean; data: Partner }>(base, input)).data

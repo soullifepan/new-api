@@ -94,7 +94,7 @@ func TestPartnerDatabaseMatrix(t *testing.T) {
 			assert.Error(t, db.Create(&duplicate).Error, "existing trade uniqueness survives upgrade")
 			config := PartnerConfig{Enabled: true, CommissionBPS: 1000, MinPayoutCents: 1, AlipayDailyLimitCents: 10000, BankSingleLimitCents: 50000}
 			require.NoError(t, UpdatePartnerConfig(config))
-			app, err := GrantPartner(PartnerGrantInput{UserID: 1, Channels: "视频号", Notes: "线下确认合作"}, 99)
+			app, err := GrantPartner(PartnerGrantInput{UserID: 1, Channels: "视频号", Links: "https://example.com/account", Plan: "视频直播", Contact: "微信联系", Evidence: "https://example.com/proof", Notes: "线下确认合作", ReviewNote: "合作备注"}, 99)
 			require.NoError(t, err)
 			assert.Equal(t, "approved", app.Status)
 			assert.Positive(t, app.ApprovedAt)
@@ -103,6 +103,11 @@ func TestPartnerDatabaseMatrix(t *testing.T) {
 			assert.Equal(t, app.ApprovedAt, repeated.ApprovedAt)
 			assert.Equal(t, "线下确认合作", repeated.Notes)
 			assert.Equal(t, "视频号", repeated.Channels)
+			assert.Equal(t, "https://example.com/account", repeated.Links)
+			assert.Equal(t, "视频直播", repeated.Plan)
+			assert.Equal(t, "微信联系", repeated.Contact)
+			assert.Equal(t, "https://example.com/proof", repeated.Evidence)
+			assert.Equal(t, "合作备注", repeated.ReviewNote)
 			assert.False(t, GetPartnerConfig().Enabled, "old settings cannot reopen public applications")
 
 			// Both password and OAuth signup use this lookup; old codes must not

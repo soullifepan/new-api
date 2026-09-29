@@ -383,9 +383,8 @@ test('offline membership offers only active and ended filters and grants an expl
   const confirm = within(dialog).getByRole('button', { name: '确定' })
   expect(confirm).toBeDisabled()
   await user.type(within(dialog).getByLabelText('搜索用户'), 'offline-partner')
-  expect(
-    within(dialog).queryByRole('button', { name: '搜索' })
-  ).not.toBeInTheDocument()
+  expect(searchUsers).not.toHaveBeenCalled()
+  await user.click(within(dialog).getByRole('button', { name: '搜索' }))
   expect(within(dialog).queryByRole('combobox')).not.toBeInTheDocument()
   expect(
     within(dialog).queryByRole('textbox', { name: /说明/ })
@@ -403,7 +402,18 @@ test('offline membership offers only active and ended filters and grants an expl
     within(dialog).getByRole('button', { name: '补充资料（选填）' })
   )
   await user.type(within(dialog).getByLabelText('推广渠道'), '视频号')
-  await user.type(within(dialog).getByLabelText('备注'), '微信联系')
+  await user.type(within(dialog).getByLabelText('补充说明'), '微信联系')
+  await user.type(
+    within(dialog).getByLabelText('账号链接'),
+    'https://example.com/account'
+  )
+  await user.type(within(dialog).getByLabelText('推广计划'), '视频与直播')
+  await user.type(within(dialog).getByLabelText('联系方式'), '微信号')
+  await user.type(
+    within(dialog).getByLabelText('证明链接'),
+    'https://example.com/proof'
+  )
+  await user.type(within(dialog).getByLabelText('合作备注'), '已线下确认')
   vi.mocked(api.grantPartner).mockRejectedValueOnce(new Error('request failed'))
   await user.click(confirm)
   expect(await screen.findByRole('alert')).toHaveTextContent('添加失败')
@@ -415,7 +425,16 @@ test('offline membership offers only active and ended filters and grants an expl
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   )
   expect(api.grantPartner).toHaveBeenLastCalledWith(
-    { user_id: 22, channels: '视频号', notes: '微信联系' },
+    {
+      user_id: 22,
+      channels: '视频号',
+      notes: '微信联系',
+      links: 'https://example.com/account',
+      plan: '视频与直播',
+      contact: '微信号',
+      evidence: 'https://example.com/proof',
+      review_note: '已线下确认',
+    },
     expect.anything()
   )
 })
@@ -458,6 +477,8 @@ test('changing the search clears the selected user and cannot submit stale or di
   const input = within(dialog).getByLabelText('搜索用户')
   const confirm = within(dialog).getByRole('button', { name: '确定' })
   await user.type(input, 'zero')
+  expect(searchUsers).not.toHaveBeenCalled()
+  await user.keyboard('{Enter}')
   const radio = await screen.findByRole('radio', {
     name: 'offline-partner（ID：22）',
   })
@@ -471,6 +492,8 @@ test('changing the search clears the selected user and cannot submit stale or di
   expect(confirm).toBeDisabled()
   expect(within(dialog).queryByRole('radio')).not.toBeInTheDocument()
   await user.type(input, 'missing')
+  expect(searchUsers).toHaveBeenCalledTimes(1)
+  await user.click(within(dialog).getByRole('button', { name: '搜索' }))
   expect(await within(dialog).findByText('未找到匹配用户')).toBeInTheDocument()
   expect(confirm).toBeDisabled()
   await user.click(within(dialog).getByRole('button', { name: '取消' }))
