@@ -182,20 +182,27 @@ describe('audit log sidebar entry', () => {
 })
 
 describe('TapComfy sidebar group', () => {
-  it('keeps 3D models inside a dedicated TapComfy secondary menu', () => {
-    const { result } = sidebarFor()
-    const adminItems =
-      result.current.find((group) => group.id === 'admin')?.items ?? []
-    expect(adminItems).toContainEqual(
-      expect.objectContaining({
-        title: 'TapComfy',
-        items: [
-          expect.objectContaining({
-            title: '3D 模型',
-            url: '/tapcomfy-models',
-          }),
-        ],
-      })
-    )
-  })
+  it.each([undefined, { admin: { enabled: true, models: true, user: true } }])(
+    'shows 3D models and partners under TapComfy with default or saved settings (%j)',
+    (admin) => {
+      const { result } = sidebarFor(admin)
+      const adminItems =
+        result.current.find((group) => group.id === 'admin')?.items ?? []
+      expect(adminItems).toContainEqual(
+        expect.objectContaining({
+          title: 'TapComfy',
+          items: [
+            expect.objectContaining({
+              title: '3D 模型',
+              url: '/tapcomfy-models',
+            }),
+            expect.objectContaining({
+              title: '合作伙伴',
+              url: '/partners',
+            }),
+          ],
+        })
+      )
+    }
+  )
 })
