@@ -969,6 +969,9 @@ type OriginTaskRef struct {
 	Action         string
 	Status         string
 	Data           []byte
+	Model          string
+	CreatedAt      int64
+	State          []byte
 }
 
 type TaskRelayInfo struct {

@@ -1089,6 +1089,7 @@ func TestSubmitContextExposesOriginTasks(t *testing.T) {
 				Action:         "text_to_video",
 				Status:         "SUCCESS",
 				Data:           []byte(`{"id":"cgt-upstream-1"}`),
+				Model:          "seedance-2.5-am", CreatedAt: 1700000000, State: []byte(`{"seedanceDraft":{"draft":true}}`),
 			}},
 		},
 	}
@@ -1105,6 +1106,9 @@ func TestSubmitContextExposesOriginTasks(t *testing.T) {
 	assert.Equal(t, "cgt-upstream-1", originTasks[0]["upstreamTaskId"])
 	assert.Equal(t, "text_to_video", originTasks[0]["action"])
 	assert.Equal(t, "SUCCESS", originTasks[0]["status"])
+	assert.Equal(t, "seedance-2.5-am", originTasks[0]["model"])
+	assert.Equal(t, int64(1700000000), originTasks[0]["createdAt"])
+	assert.Equal(t, map[string]any{"seedanceDraft": map[string]any{"draft": true}}, originTasks[0]["state"])
 	assert.Equal(t, map[string]any{"id": "cgt-upstream-1"}, originTasks[0]["data"])
 }
 

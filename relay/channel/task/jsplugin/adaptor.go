@@ -1349,6 +1349,12 @@ func (a *TaskAdaptor) submitContext(c *gin.Context, info *relaycommon.RelayInfo)
 		originTasks := make([]map[string]any, 0, len(info.OriginTasks))
 		for _, ref := range info.OriginTasks {
 			var data any
+			var state any
+			if len(ref.State) > 0 {
+				if err := common.Unmarshal(ref.State, &state); err != nil {
+					state = nil
+				}
+			}
 			if len(ref.Data) > 0 {
 				if err := common.Unmarshal(ref.Data, &data); err != nil {
 					data = nil
@@ -1360,6 +1366,9 @@ func (a *TaskAdaptor) submitContext(c *gin.Context, info *relaycommon.RelayInfo)
 				"action":         ref.Action,
 				"status":         ref.Status,
 				"data":           data,
+				"model":          ref.Model,
+				"createdAt":      ref.CreatedAt,
+				"state":          state,
 			})
 		}
 		ctx["originTasks"] = originTasks

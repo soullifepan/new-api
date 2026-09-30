@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
@@ -61,27 +62,32 @@ func TestSeedanceLocalVideoContract(t *testing.T) {
 				{"legacy auto and last frame", "2-0", `{"duration":-1,"return_last_frame":true,"resolution":"4k"}`, ""},
 				{"fast automatic", "2-0-fast", `{"duration":-1}`, ""},
 				{"mini automatic", "2-0-mini", `{"duration":-1}`, ""},
-				{"invalid task enum", "2-5", `{"omni_reference_task_type":"remix"}`, "unsupported omni_reference_task_type"},
-				{"null task enum", "2-5", `{"omni_reference_task_type":null}`, "unsupported omni_reference_task_type"},
-				{"edit fixed duration", "2-5", `{"omni_reference_task_type":"edit","duration":5}`, "edit requires automatic duration"},
-				{"edit fixed ratio", "2-5", `{"omni_reference_task_type":"edit","ratio":"16:9"}`, "edit requires adaptive ratio"},
-				{"extend fixed ratio", "2-5", `{"omni_reference_task_type":"extend","ratio":"16:9"}`, "extend requires adaptive ratio"},
-				{"edit image only", "2-5", `{"omni_reference_task_type":"edit","content":[{"type":"image_url","role":"reference_image","image_url":{"url":"asset://sa_image"}}]}`, "requires reference video"},
-				{"extend audio only", "2-5", `{"omni_reference_task_type":"extend","content":[{"type":"audio_url","audio_url":{"url":"asset://sa_audio"}}]}`, "requires reference video"},
-				{"omni text only", "2-5", `{"omni_reference_task_type":"reference","content":[{"type":"text","text":"cat"}]}`, "requires reference media"},
-				{"legacy task enum", "2-0", `{"omni_reference_task_type":"auto"}`, "unsupported video field"},
-				{"legacy output format", "2-0", `{"output_format":"mov"}`, "unsupported video field"},
-				{"legacy audio only", "2-0", `{"content":[{"type":"audio_url","audio_url":{"url":"asset://sa_audio"}}]}`, "audio requires a reference image or video"},
+				{"invalid task enum", "2-5", `{"omni_reference_task_type":"remix"}`, ""},
+				{"null task enum", "2-5", `{"omni_reference_task_type":null}`, ""},
+				{"edit fixed duration", "2-5", `{"omni_reference_task_type":"edit","duration":5}`, ""},
+				{"edit fixed ratio", "2-5", `{"omni_reference_task_type":"edit","ratio":"16:9"}`, ""},
+				{"extend fixed ratio", "2-5", `{"omni_reference_task_type":"extend","ratio":"16:9"}`, ""},
+				{"edit image only", "2-5", `{"omni_reference_task_type":"edit","content":[{"type":"image_url","role":"reference_image","image_url":{"url":"asset://sa_image"}}]}`, ""},
+				{"extend audio only", "2-5", `{"omni_reference_task_type":"extend","content":[{"type":"audio_url","audio_url":{"url":"asset://sa_audio"}}]}`, ""},
+				{"omni text only", "2-5", `{"omni_reference_task_type":"reference","content":[{"type":"text","text":"cat"}]}`, ""},
+				{"legacy task enum", "2-0", `{"omni_reference_task_type":"auto"}`, ""},
+				{"legacy output format", "2-0", `{"output_format":"mov"}`, ""},
+				{"legacy audio only", "2-0", `{"content":[{"type":"audio_url","audio_url":{"url":"asset://sa_audio"}}]}`, ""},
 				{"fast resolution", "2-0-fast", `{"resolution":"1080p"}`, "unsupported resolution"},
 				{"mini resolution", "2-0-mini", `{"resolution":"4k"}`, "unsupported resolution"},
 				{"2.5 resolution", "2-5", `{"resolution":"4k"}`, "unsupported resolution"},
+				{"ordinary extension", "2-5", `{"camera_fixed":false,"seed":0,"vendor_option":{"enabled":false},"tools":[{"type":"web_search"}]}`, ""},
+				{"unknown task reference", "2-5", `{"options":{"task_id":"private"}}`, "unsupported video field"},
+				{"internal common wrapper", "2-5", `{"common":{"resolution":"480p"}}`, "unsupported video field"},
+				{"internal advanced wrapper", "2-5", `{"advancedParams":{"draft":true}}`, "unsupported video field"},
+				{"draft requires boolean", "2-5", `{"draft":"true"}`, "invalid draft option"},
 				{"unknown field", "2-5", `{"n":2}`, "unsupported video field"},
 				{"private normalization flag is not public", "2-5", `{"automaticDuration":true}`, "unsupported video field"},
 				{"nested billing bypass", "2-5", `{"metadata":{"duration":1000000}}`, "unsupported video field"},
 				{"legacy frame multiplier", "2-5", `{"frames":1000000}`, "unsupported video field"},
-				{"unsupported format", "2-5", `{"output_format":"webm"}`, "unsupported output_format"},
-				{"string flag", "2-5", `{"return_last_frame":"true"}`, "must be boolean"},
-				{"null flag", "2-5", `{"generate_audio":null}`, "must be boolean"},
+				{"unsupported format", "2-5", `{"output_format":"webm"}`, ""},
+				{"string flag", "2-5", `{"return_last_frame":"true"}`, ""},
+				{"null flag", "2-5", `{"generate_audio":null}`, ""},
 				{"invalid ratio", "2-5", `{"ratio":"3:2"}`, "unsupported ratio"},
 				{"null duration", "2-5", `{"duration":null}`, "duration is outside"},
 				{"string duration", "2-5", `{"duration":"-1"}`, "duration is outside"},
@@ -102,10 +108,10 @@ func TestSeedanceLocalVideoContract(t *testing.T) {
 				{"video base64", "2-5", `{"content":[{"type":"video_url","video_url":{"url":"data:video/mp4;base64,YQ=="}}]}`, "invalid native asset reference or media URL"},
 				{"wrong role", "2-5", `{"content":[{"type":"video_url","role":"first_frame","video_url":{"url":"asset://sa_video"}}]}`, "invalid role"},
 				{"unknown nested field", "2-5", `{"content":[{"type":"video_url","video_url":{"url":"asset://sa_video","duration":1000}}]}`, "unsupported media URL field"},
-				{"last frame without first", "2-5", `{"content":[{"type":"image_url","role":"last_frame","image_url":{"url":"asset://sa_image"}}]}`, "one first frame"},
-				{"implicit duplicate first frames", "2-5", `{"content":[{"type":"image_url","image_url":{"url":"asset://sa_one"}},{"type":"image_url","image_url":{"url":"asset://sa_two"}}]}`, "one first frame"},
-				{"frame reference conflict", "2-5", `{"content":[{"type":"image_url","role":"first_frame","image_url":{"url":"asset://sa_image"}},{"type":"video_url","video_url":{"url":"asset://sa_video"}}]}`, "cannot be mixed"},
-				{"2.5 first frame fixed ratio", "2-5", `{"ratio":"16:9","content":[{"type":"image_url","image_url":{"url":"asset://sa_image"}}]}`, "require adaptive ratio"},
+				{"last frame without first", "2-5", `{"content":[{"type":"image_url","role":"last_frame","image_url":{"url":"asset://sa_image"}}]}`, ""},
+				{"implicit duplicate first frames", "2-5", `{"content":[{"type":"image_url","image_url":{"url":"asset://sa_one"}},{"type":"image_url","image_url":{"url":"asset://sa_two"}}]}`, ""},
+				{"frame reference conflict", "2-5", `{"content":[{"type":"image_url","role":"first_frame","image_url":{"url":"asset://sa_image"}},{"type":"video_url","video_url":{"url":"asset://sa_video"}}]}`, ""},
+				{"2.5 first frame fixed ratio", "2-5", `{"ratio":"16:9","content":[{"type":"image_url","image_url":{"url":"asset://sa_image"}}]}`, ""},
 				{"legacy first frame fixed ratio", "2-0", `{"ratio":"16:9","content":[{"type":"image_url","image_url":{"url":"asset://sa_image"}}]}`, ""},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
@@ -128,6 +134,13 @@ func TestSeedanceLocalVideoContract(t *testing.T) {
 					require.NoError(t, err)
 					intent := seedanceResult(t, value)
 					assert.Equal(t, body["model"], intent["model"])
+					if tc.name == "ordinary extension" {
+						metadata := intent["requestBody"].(map[string]any)["metadata"].(map[string]any)
+						assert.Equal(t, false, metadata["camera_fixed"])
+						assert.Equal(t, float64(0), metadata["seed"])
+						assert.Equal(t, fields["tools"], metadata["tools"])
+						assert.Equal(t, fields["vendor_option"], metadata["vendor_option"])
+					}
 					if _, explicit := body["duration"]; !explicit {
 						wantDuration := 5.0
 						if tc.version == "2-5" {
@@ -257,7 +270,11 @@ func TestSeedanceSeaAutomaticDuration(t *testing.T) {
 			require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
 			facts, err := adaptor.ExtractUsageFactsValidated(c, info)
 			require.NoError(t, err)
-			assert.Equal(t, tc.maxSeconds*21600, facts["tokens"])
+			expectedTokens := tc.maxSeconds * 21600
+			if tc.version == "2-5" {
+				expectedTokens = 652084
+			}
+			assert.Equal(t, expectedTokens, facts["tokens"])
 			wire, err := adaptor.BuildRequestBody(c, info)
 			require.NoError(t, err)
 			var upstream map[string]any
@@ -271,7 +288,7 @@ func TestSeedanceSeaAutomaticDuration(t *testing.T) {
 			snapshot := &billingexpr.BillingSnapshot{ExprString: expression, ExprHash: billingexpr.ExprHashString(expression), GroupRatio: 1, QuotaPerUnit: 500000, ExprVersion: 1, TaskUsageBilling: true}
 			reserved, err := billingexpr.ComputeTieredQuotaWithRequest(snapshot, billingexpr.TokenParams{}, billingexpr.RequestInput{Usage: facts})
 			require.NoError(t, err)
-			assert.EqualValues(t, tc.maxSeconds*21600, reserved.ActualQuotaAfterGroup)
+			assert.EqualValues(t, expectedTokens, reserved.ActualQuotaAfterGroup)
 			value, err = plugin.Engine.Call(t.Context(), "extractUsageOnComplete", map[string]any{}, map[string]any{"status": "SUCCESS"}, map[string]any{"usage": map[string]any{"total_tokens": 151200}})
 			require.NoError(t, err)
 			maps.Copy(facts, seedanceResult(t, value))
@@ -304,16 +321,16 @@ func TestSeedanceSea25Contract(t *testing.T) {
 		{"text default", `{"content":[{"type":"text","text":"cat"}]}`, ""},
 		{"audio only", `{"content":[{"type":"audio_url","audio_url":{"url":"asset://asset-audio"}}]}`, ""},
 		{"first last frames", `{"content":[{"type":"image_url","role":"first_frame","image_url":{"url":"asset://asset-first"}},{"type":"image_url","role":"last_frame","image_url":{"url":"asset://asset-last"}}]}`, ""},
-		{"edit fixed duration", `{"omni_reference_task_type":"edit","duration":5}`, "edit requires automatic duration"},
-		{"edit fixed ratio", `{"omni_reference_task_type":"edit","ratio":"16:9"}`, "edit requires adaptive ratio"},
-		{"extend fixed ratio", `{"omni_reference_task_type":"extend","ratio":"16:9"}`, "extend requires adaptive ratio"},
-		{"edit without video", `{"omni_reference_task_type":"edit","content":[{"type":"image_url","role":"reference_image","image_url":{"url":"asset://asset-image"}}]}`, "requires reference video"},
-		{"last frame alone", `{"content":[{"type":"image_url","role":"last_frame","image_url":{"url":"asset://asset-last"}}]}`, "one first frame"},
-		{"frame with references", `{"content":[{"type":"image_url","role":"first_frame","image_url":{"url":"asset://asset-first"}},{"type":"audio_url","audio_url":{"url":"asset://asset-audio"}}]}`, "cannot be mixed"},
-		{"first frame fixed ratio", `{"ratio":"16:9","content":[{"type":"image_url","image_url":{"url":"asset://asset-first"}}]}`, "require adaptive ratio"},
-		{"invalid enum", `{"omni_reference_task_type":"remix"}`, "unsupported omni_reference_task_type"},
-		{"invalid format", `{"output_format":"webm"}`, "unsupported output_format"},
-		{"SEA 2.5 retains resolution limit", `{"resolution":"1080p"}`, "unsupported resolution"},
+		{"edit fixed duration", `{"omni_reference_task_type":"edit","duration":5}`, ""},
+		{"edit fixed ratio", `{"omni_reference_task_type":"edit","ratio":"16:9"}`, ""},
+		{"extend fixed ratio", `{"omni_reference_task_type":"extend","ratio":"16:9"}`, ""},
+		{"edit without video", `{"omni_reference_task_type":"edit","content":[{"type":"image_url","role":"reference_image","image_url":{"url":"asset://asset-image"}}]}`, ""},
+		{"last frame alone", `{"content":[{"type":"image_url","role":"last_frame","image_url":{"url":"asset://asset-last"}}]}`, ""},
+		{"frame with references", `{"content":[{"type":"image_url","role":"first_frame","image_url":{"url":"asset://asset-first"}},{"type":"audio_url","audio_url":{"url":"asset://asset-audio"}}]}`, ""},
+		{"first frame fixed ratio", `{"ratio":"16:9","content":[{"type":"image_url","image_url":{"url":"asset://asset-first"}}]}`, ""},
+		{"invalid enum", `{"omni_reference_task_type":"remix"}`, ""},
+		{"invalid format", `{"output_format":"webm"}`, ""},
+		{"SEA 2.5 supports official 1080p", `{"resolution":"1080p"}`, ""},
 		{"nested duration bypass", `{"content":[{"type":"video_url","video_url":{"url":"asset://asset-video","duration":1000000}}]}`, "unsupported media URL field"},
 		{"prompt duration bypass", `{"content":[{"type":"text","text":"cat --dur 1000000"}]}`, "top-level video parameters"},
 		{"SEA native ID stays strict", `{"content":[{"type":"video_url","video_url":{"url":"asset://sa_source"}}]}`, "invalid native asset reference"},
@@ -377,4 +394,66 @@ func seedanceResult(t *testing.T, value any) map[string]any {
 	var result map[string]any
 	require.NoError(t, common.Unmarshal(encoded, &result))
 	return result
+}
+
+func TestSeedanceNativeDraftHostContract(t *testing.T) {
+	for _, provider := range []string{"hub", "hx", "sea"} {
+		t.Run(provider, func(t *testing.T) {
+			key := "seedance-" + provider
+			source, err := os.ReadFile("local/" + key + "/plugin.js")
+			require.NoError(t, err)
+			fixture, err := os.ReadFile("local/" + key + "/" + key + ".fixture.json")
+			require.NoError(t, err)
+			report, err := jsplugin.ReplayFixture(t.Context(), string(source), fixture)
+			require.NoError(t, err)
+			require.Equal(t, report.Total, report.Passed)
+			plugin, err := jsplugin.NewRegistry().Register(string(source), jsplugin.Options{Now: func() time.Time { return time.Unix(1800000000, 0) }})
+			require.NoError(t, err)
+			model := "doubao-seedance-2-5-" + provider
+			upstreamModel := "doubao-seedance-2-5-260628"
+			if provider == "hx" {
+				upstreamModel = "doubao-seedance-2.5"
+			}
+			body := map[string]any{"model": model, "content": []any{map[string]any{"type": "draft_task", "draft_task": map[string]any{"id": "task_draft"}}}, "priority": 0, "watermark": false}
+			decoded, err := plugin.Engine.CallMember(t.Context(), "native", "createTask", map[string]any{"body": map[string]any{"kind": "json", "value": body}})
+			require.NoError(t, err)
+			intent := seedanceResult(t, decoded)
+			assert.Equal(t, []any{"task_draft"}, intent["originTaskIds"])
+			state, err := common.Marshal(map[string]any{"seedanceDraft": map[string]any{"version": 1, "draft": true, "duration": 5, "hasVideo": true, "upstreamModel": upstreamModel}})
+			require.NoError(t, err)
+			info := &relaycommon.RelayInfo{OriginModelName: model, ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://provider.example", ApiKey: "fixture-key"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{Action: "text_to_video", OriginTasks: []relaycommon.OriginTaskRef{{TaskID: "task_draft", UpstreamTaskID: "cgt-channel", Action: "image_to_video", Status: "SUCCESS", Model: model, CreatedAt: 1799999999, State: state}}}}
+			adaptor := taskplugin.New(plugin)
+			adaptor.Init(info)
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/"+key+"/api/v3/contents/generations/tasks", nil)
+			c.Set("task_request", intent["requestBody"])
+			require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
+			facts, err := adaptor.ExtractUsageFactsValidated(c, info)
+			require.NoError(t, err)
+			assert.Equal(t, "video", facts["video_input"])
+			assert.Equal(t, "1080p", facts["resolution"])
+			assert.EqualValues(t, 1711891, facts["tokens"])
+			wire, err := adaptor.BuildRequestBody(c, info)
+			require.NoError(t, err)
+			var payload map[string]any
+			require.NoError(t, common.DecodeJson(wire, &payload))
+			assert.Equal(t, upstreamModel, payload["model"])
+			assert.Equal(t, "cgt-channel", payload["content"].([]any)[0].(map[string]any)["draft_task"].(map[string]any)["id"])
+			for _, field := range []string{"duration", "ratio", "seed", "generate_audio", "prompt", "automaticDuration"} {
+				assert.NotContains(t, payload, field)
+			}
+			assert.Equal(t, float64(0), payload["priority"])
+			expression := `tier("video", u("tokens") / 1000000 * (u("video_input") == "video" ? 2 : 3))`
+			value, err := plugin.Engine.Call(t.Context(), "extractUsageOnComplete", map[string]any{}, map[string]any{"status": "SUCCESS"}, map[string]any{"usage": map[string]any{"completion_tokens": 100, "total_tokens": 200}})
+			require.NoError(t, err)
+			maps.Copy(facts, seedanceResult(t, value))
+			cost, _, err := billingexpr.RunExprWithRequest(expression, billingexpr.TokenParams{}, billingexpr.RequestInput{Usage: facts})
+			require.NoError(t, err)
+			wantCost := 0.0002
+			if provider == "sea" {
+				wantCost = 0.0004
+			}
+			assert.InDelta(t, wantCost, cost, 1e-10)
+		})
+	}
 }

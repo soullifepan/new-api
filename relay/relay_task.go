@@ -167,6 +167,9 @@ func ApplyChannelPin(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError
 				Action:         task.Action,
 				Status:         string(task.Status),
 				Data:           append([]byte(nil), task.Data...),
+				Model:          task.Properties.OriginModelName,
+				CreatedAt:      task.CreatedAt,
+				State:          append([]byte(nil), task.PrivateData.PluginState...),
 			})
 		}
 		info.OriginTasks = refs

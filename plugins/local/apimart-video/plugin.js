@@ -129,7 +129,7 @@ export const meta = {
   name: "AM Video",
   icon: "text:AV",
   description: { en: "Validated AM asynchronous video generation tasks.", zh: "经过逐模型校验的 AM 异步视频生成任务。" },
-  version: "0.3.2",
+  version: "0.4.0",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   allowedHosts: ["api.apib.ai", "api.apimart.ai", "upload.apimart.ai", "cdn.apimart.ai"],
@@ -195,14 +195,48 @@ function seedanceURL(value, field) {
   return mediaURL(value, field, false);
 }
 
+function normalizeSeedanceFinal(model, request) {
+  const allowed = new Set(["model", "draft_task_id", "draft", "resolution", "output_format", "watermark", "return_last_frame"]);
+  for (const field of Object.keys(request)) if (!allowed.has(field)) throw new Error("unsupported final video field: " + field);
+  if (model !== "seedance-2.5-am" || request.model !== undefined && request.model !== model) throw new Error("draft requires Seedance 2.5");
+  if (typeof request.draft_task_id !== "string" || !/^task_[A-Za-z0-9_-]+$/.test(request.draft_task_id)) throw new Error("draft_task_id must be a public gateway task ID");
+  if (request.resolution !== undefined && request.resolution !== "1080p") throw new Error("final video requires 1080p");
+  if (request.draft !== undefined && boolean(request.draft, "draft") !== false) throw new Error("draft and draft_task_id are mutually exclusive");
+  const body = { model: model, draft_task_id: request.draft_task_id, resolution: "1080p" };
+  if (request.output_format !== undefined) {
+    if (!["mp4", "mov"].includes(request.output_format)) throw new Error("unsupported output_format");
+    body.output_format = request.output_format;
+  }
+  for (const key of ["watermark", "return_last_frame"]) if (request[key] !== undefined) body[key] = boolean(request[key], key);
+  return body;
+}
+
+function seedanceDraftOrigin(ctx, body) {
+  const origin = (ctx.originTasks || []).find(function (task) { return task.taskId === body.draft_task_id; });
+  if (!origin) throw new Error("draft task is not available or owned by you");
+  const facts = origin.state && origin.state.seedanceDraft;
+  if (!facts || facts.version !== 1 || !origin.model || !Number.isInteger(origin.createdAt) || origin.createdAt <= 0) throw new Error("trusted draft facts unavailable; upgrade the gateway and create a new draft");
+  if (origin.model !== ctx.model || facts.upstreamModel !== "seedance-2.5" || facts.upstreamModel !== (ctx.upstreamModel && ctx.upstreamModel !== ctx.model ? ctx.upstreamModel : "seedance-2.5")) throw new Error("draft model does not match");
+  if (origin.status !== "SUCCESS" || origin.action !== "video_generation" || facts.draft !== true) throw new Error("origin must be a successful draft video");
+  const age = utils.unixNow() - origin.createdAt;
+  if (age < 0 || age >= 7 * 24 * 60 * 60) throw new Error("draft has expired or has an invalid creation time");
+  if (facts.duration !== -1) integer(facts.duration, "draft duration", 4, 30);
+  if (!text(origin.upstreamTaskId)) throw new Error("draft upstream reference is unavailable");
+  return origin;
+}
+
 function normalizeSeedance(model, request) {
+  if (Object.prototype.hasOwnProperty.call(request, "draft_task_id")) return normalizeSeedanceFinal(model, request);
   const spec = MODELS.get(model);
   const v25 = model === "seedance-2.5-am";
   for (const field of Object.keys(request)) {
-    if (!SEEDANCE_FIELDS.has(field) || (!v25 && ["aspect_ratio", "audio", "watermark", "output_format", "omni_reference_task_type"].includes(field))) throw new Error("unsupported field for " + model + ": " + field);
+    if (!(SEEDANCE_FIELDS.has(field) || v25 && field === "draft") || (!v25 && ["aspect_ratio", "audio", "watermark", "output_format", "omni_reference_task_type"].includes(field))) throw new Error("unsupported field for " + model + ": " + field);
   }
   if (request.model !== undefined && request.model !== model) throw new Error("model must be " + model);
-  const body = { model: model, resolution: normalizedResolution(request.resolution, spec) };
+  const draft = request.draft === undefined ? false : boolean(request.draft, "draft");
+  if (draft && request.resolution !== undefined && request.resolution !== "480p") throw new Error("draft requires 480p");
+  const body = { model: model, resolution: draft ? "480p" : normalizedResolution(request.resolution, spec) };
+  if (request.draft !== undefined) body.draft = draft;
   const mode = request.omni_reference_task_type === undefined ? "auto" : request.omni_reference_task_type;
   if (!["auto", "reference", "edit", "extend"].includes(mode)) throw new Error("unsupported omni_reference_task_type");
   body.duration = request.duration === undefined ? (mode === "edit" ? -1 : 5) : request.duration;
@@ -408,6 +442,15 @@ function videoURLs(task) {
   return urls;
 }
 
+function videoArtifacts(task) {
+  const items = videoURLs(task).map(function (url) { return { url: url, type: "video", mimeType: /\.mov(?:[?#]|$)/i.test(url) ? "video/quicktime" : /\.mp4(?:[?#]|$)/i.test(url) ? "video/mp4" : undefined }; });
+  const data = taskData(task);
+  for (const video of data.result && data.result.videos || []) {
+    if (video && typeof video.last_frame_url === "string" && /^https?:\/\//i.test(video.last_frame_url)) items.push({ url: video.last_frame_url, type: "image", mimeType: /\.png(?:[?#]|$)/i.test(video.last_frame_url) ? "image/png" : /\.jpe?g(?:[?#]|$)/i.test(video.last_frame_url) ? "image/jpeg" : undefined });
+  }
+  return items;
+}
+
 function artifactKey(index, url) {
   return "video-" + index + "-" + utils.hmacSHA256(url, "new-api:apimart-video:artifact-key");
 }
@@ -421,6 +464,7 @@ export function buildSubmitRequest(ctx) {
   if (upstream && upstream !== publicModel && upstream !== spec.upstream) throw new Error("upstream model does not match the public video model");
   const body = ctx.action === "asset" ? normalizeAssets(request) : normalize(publicModel, request);
   body.model = upstream && upstream !== publicModel ? upstream : spec.upstream;
+  if (body.draft_task_id) body.draft_task_id = seedanceDraftOrigin(ctx, body).upstreamTaskId;
   if (publicModel.startsWith("seedance-") && ctx.action !== "asset") {
     for (const field of ["image_urls", "video_urls", "audio_urls", "image_with_roles"]) {
       if (!body[field]) continue;
@@ -453,7 +497,12 @@ export function parseSubmitResponse(ctx, response) {
   const entry = ctx.action === "asset" ? body.data || {} : Array.isArray(body.data) && body.data[0] && typeof body.data[0] === "object" ? body.data[0] : {};
   const taskId = text(ctx.action === "asset" ? entry.id : entry.task_id);
   if (!taskId) throw new Error("AM submit response is missing task_id");
-  return { taskId: taskId, taskData: body };
+  const result = { taskId: taskId, taskData: body };
+  if (ctx.model === "seedance-2.5-am" && ctx.action !== "asset" && ctx.requestBody && ctx.requestBody.draft === true) {
+    const request = normalizeSeedance(ctx.model, ctx.requestBody);
+    result.state = { seedanceDraft: { version: 1, draft: true, duration: request.duration, upstreamModel: ctx.upstreamModel && ctx.upstreamModel !== ctx.model ? ctx.upstreamModel : "seedance-2.5" } };
+  }
+  return result;
 }
 
 export function extractUsage(ctx) {
@@ -464,6 +513,12 @@ export function extractUsage(ctx) {
     const asset = ctx.action === "asset";
     const body = asset ? normalizeAssets(request) : normalize(model, request);
     if (asset) return { upstream_credits: 0 };
+    if (body.draft_task_id) {
+      const origin = seedanceDraftOrigin(ctx, body);
+      const duration = origin.state.seedanceDraft.duration;
+      const seconds = duration === -1 ? 30 : duration;
+      return { upstream_credits: Math.round(seconds * SEEDANCE_CREDITS_PER_SECOND[model]["1080p"][0] * 1e8) / 1e8 };
+    }
     const hasVideo = !asset && !!body.video_urls;
     // Remote media durations are not client-trusted billing facts. Reserve the
     // documented total-input ceiling; final cost replaces this estimate.
@@ -516,11 +571,11 @@ export function parseTaskResult(ctx, body) {
 
 export function listArtifacts(task) {
   if (String(task && task.status || "").toUpperCase() !== "SUCCESS") return [];
-  return videoURLs(task).map(function (url, index) { return { key: artifactKey(index, url), type: "video" }; });
+  return videoArtifacts(task).map(function (item, index) { const artifact = { key: artifactKey(index, item.url), type: item.type }; if (item.mimeType) artifact.mimeType = item.mimeType; return artifact; });
 }
 
 export function buildContentRequest(ctx) {
-  const urls = videoURLs(ctx);
+  const urls = videoArtifacts(ctx).map(function (item) { return item.url; });
   for (let index = 0; index < urls.length; index += 1) {
     if (artifactKey(index, urls[index]) === ctx.artifactKey) return { url: urls[index], method: ctx.clientRequest.method, credentialless: true };
   }
@@ -540,7 +595,7 @@ export const native = {
     const body = normalize(model, request);
     const intent = { kind: "submit", model: model, action: "video_generation", requestBody: body };
     if (model.startsWith("seedance-")) {
-      const refs = assetReferences(body);
+      const refs = body.draft_task_id ? [body.draft_task_id] : assetReferences(body);
       if (refs.length) intent.originTaskIds = refs;
     }
     return intent;

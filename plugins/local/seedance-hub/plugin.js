@@ -27,8 +27,18 @@ const ASSET_ACTIONS = new Set([
   "CreateVisualValidateSession", "GetVisualValidateResult",
 ]);
 
-const VIDEO_FIELDS = new Set(["model", "content", "duration", "resolution", "ratio", "watermark", "generate_audio", "return_last_frame"]);
-const VIDEO_25_FIELDS = new Set(["omni_reference_task_type", "output_format"]);
+// Ordinary vendor options pass through; these fields cross host, billing or
+// unresolved task-reference boundaries and must not be supplied as extensions.
+const RESERVED_VIDEO_FIELDS = new Set(["common", "advanced", "input", "commonParams", "advancedParams", "variantId", "providerId", "qualityLevel", "aspectRatio", "durationId", "capabilityType", "automaticDuration", "metadata", "parameters", "state", "data", "requestBody", "originTasks", "originTaskIds", "upstreamModel", "publicTaskId", "apiKey", "authHeader", "baseUrl", "billing_usage", "cost", "credits_cost", "usage", "n", "batch_size", "num_videos", "frames", "fps", "seconds", "size", "quality", "service_tier", "draft", "draft_task_id"]);
+function validateVideoExtensions(value) {
+  if (!value || typeof value !== "object") return;
+  for (const key of Object.keys(value)) {
+    if (key.startsWith("_") || RESERVED_VIDEO_FIELDS.has(key) || /(?:task_?ids?$|taskId$|taskIds$|^draft_task$)/i.test(key)) throw new Error("unsupported video field: " + key);
+    // Duration and pixel multipliers are only accepted at the validated top level.
+    if (key === "duration" || key === "resolution" || key === "ratio") throw new Error("unsupported nested billing field: " + key);
+    validateVideoExtensions(value[key]);
+  }
+}
 
 export const meta = {
   apiVersion: 1,
@@ -36,7 +46,7 @@ export const meta = {
   name: "Seedance Hub",
   icon: "Doubao.Color",
   description: { en: "Seedance video generation and owned asset management through the Hub API", zh: "通过 Hub API 生成 Seedance 视频并管理归属素材" },
-  version: "2.1.0",
+  version: "2.3.0",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   models: [...VIDEO_MODELS.keys()],
@@ -114,40 +124,72 @@ function validateContent(content, v25) {
     if (!roles.includes(role)) throw new Error("invalid role for " + item.type);
     counts[role]++;
   }
-  if (counts.first_frame > 1 || counts.last_frame > 1 || (counts.last_frame && !counts.first_frame)) throw new Error("use one first frame and at most one last frame");
-  const references = counts.reference_image + counts.reference_video + counts.reference_audio;
-  if ((counts.first_frame || counts.last_frame) && references) throw new Error("first/last frames cannot be mixed with reference media");
   if (counts.reference_image > (v25 ? 30 : 9) || counts.reference_video > (v25 ? 10 : 3) || counts.reference_audio > (v25 ? 10 : 3)) throw new Error("too many reference media for this model");
-  if (!v25 && counts.reference_audio && !counts.reference_image && !counts.reference_video) throw new Error("Seedance 2.0 audio requires a reference image or video");
-  return counts;
+}
+// Draft references are public gateway IDs until the driver resolves owned origins.
+function draftTaskID(body) {
+  const content = body.content;
+  if (!Array.isArray(content) || !content.some(function (item) { return item && item.type === "draft_task"; })) return "";
+  if (content.length !== 1) throw new Error("final video content must contain only one draft_task");
+  const item = object(content[0], "invalid draft_task");
+  const ref = object(item.draft_task, "invalid draft_task reference");
+  if (Object.keys(item).some(function (key) { return key !== "type" && key !== "draft_task"; }) || Object.keys(ref).some(function (key) { return key !== "id"; }) || typeof ref.id !== "string" || !/^task_[A-Za-z0-9_-]+$/.test(ref.id)) throw new Error("draft_task.id must be a public gateway task ID");
+  return ref.id;
+}
+function normalizeFinalVideo(body) {
+  const allowed = new Set(["model", "content", "draft", "resolution", "return_last_frame", "output_format", "watermark", "service_tier", "execution_expires_after", "priority", "callback_url", "safety_identifier"]);
+  for (const key of Object.keys(body)) if (!allowed.has(key)) throw new Error("unsupported final video field: " + key);
+  if (body.draft !== undefined && body.draft !== false) throw new Error("final video cannot enable draft");
+  if (body.resolution !== undefined && body.resolution !== "1080p") throw new Error("final video requires 1080p");
+  for (const key of ["return_last_frame", "watermark"]) if (body[key] !== undefined && typeof body[key] !== "boolean") throw new Error("invalid " + key);
+  if (body.output_format !== undefined && !["mp4", "mov"].includes(body.output_format)) throw new Error("invalid output_format");
+  if (body.service_tier !== undefined && body.service_tier !== "default") throw new Error("Seedance 2.5 requires default service_tier");
+  if (body.execution_expires_after !== undefined && (!Number.isInteger(body.execution_expires_after) || body.execution_expires_after < 3600 || body.execution_expires_after > 259200)) throw new Error("invalid execution_expires_after");
+  if (body.priority !== undefined && (!Number.isInteger(body.priority) || body.priority < 0 || body.priority > 9)) throw new Error("invalid priority");
+  if (body.callback_url !== undefined && (typeof body.callback_url !== "string" || !/^https?:\/\/[^\s]+$/.test(body.callback_url))) throw new Error("invalid callback_url");
+  if (body.safety_identifier !== undefined && (typeof body.safety_identifier !== "string" || !/^[\x20-\x7e]{1,64}$/.test(body.safety_identifier))) throw new Error("invalid safety_identifier");
+  const request = copy(body);
+  delete request.draft;
+  request.resolution = "1080p";
+  return { model: body.model, request: request };
+}
+function nativeDraftOrigin(ctx, metadata) {
+  const id = draftTaskID(metadata);
+  const origin = (ctx.originTasks || []).find(function (task) { return task.taskId === id; });
+  if (!origin) throw new Error("draft task is not available or owned by you");
+  const facts = origin.state && origin.state.seedanceDraft;
+  if (!facts || facts.version !== 1 || !origin.model || !Number.isInteger(origin.createdAt) || origin.createdAt <= 0) throw new Error("trusted draft facts unavailable; upgrade the gateway and create a new draft");
+  if (origin.model !== ctx.model || facts.upstreamModel !== UPSTREAM_MODELS.get(ctx.model) || ctx.upstreamModel && ctx.upstreamModel !== ctx.model && ctx.upstreamModel !== facts.upstreamModel) throw new Error("draft model does not match");
+  if (origin.status !== "SUCCESS" || !["text_to_video", "image_to_video"].includes(origin.action) || facts.draft !== true) throw new Error("origin must be a successful draft video");
+  const age = utils.unixNow() - origin.createdAt;
+  if (age < 0 || age >= 7 * 24 * 60 * 60) throw new Error("draft has expired or has an invalid creation time");
+  if (facts.duration !== -1 && (!Number.isInteger(facts.duration) || facts.duration < 4 || facts.duration > 30) || typeof facts.hasVideo !== "boolean") throw new Error("invalid trusted draft billing facts");
+  if (!text(origin.upstreamTaskId)) throw new Error("draft upstream reference is unavailable");
+  return origin;
 }
 function validateVideo(body) {
   const model = text(body.model);
   const spec = VIDEO_MODELS.get(model);
   if (!spec) throw new Error("unsupported Seedance model");
   const v25 = model === "doubao-seedance-2-5-hub";
-  for (const field of Object.keys(body)) {
-    if (!VIDEO_FIELDS.has(field) && !(v25 && VIDEO_25_FIELDS.has(field))) throw new Error("unsupported video field: " + field);
+  if (draftTaskID(body)) {
+    if (!v25) throw new Error("draft requires Seedance 2.5");
+    return normalizeFinalVideo(body);
   }
-  const counts = validateContent(body.content, v25);
+  if (own(body, "draft") && (!v25 || typeof body.draft !== "boolean")) throw new Error("invalid draft option");
+  if (own(body, "service_tier") && body.service_tier !== "default") throw new Error("unsupported service_tier");
+  for (const field of Object.keys(body)) {
+    if (!["model", "content", "duration", "resolution", "ratio", "draft", "service_tier"].includes(field)) validateVideoExtensions({ [field]: body[field] });
+  }
+  validateContent(body.content, v25);
   // Keep the deployed 2.0 default; 2.5 defaults to the official automatic mode.
   const duration = own(body, "duration") ? body.duration : v25 ? -1 : 5;
   if (!Number.isInteger(duration) || (duration !== -1 && (duration < 4 || duration > spec[spec.length - 1]))) throw new Error("duration is outside the supported range");
-  const resolution = own(body, "resolution") ? text(body.resolution).toLowerCase() : "720p";
+  const resolution = own(body, "resolution") ? text(body.resolution).toLowerCase() : body.draft === true ? "480p" : "720p";
+  if (body.draft === true && resolution !== "480p") throw new Error("draft requires 480p");
   if (!spec.slice(0, -1).includes(resolution)) throw new Error("unsupported resolution");
   const ratio = own(body, "ratio") ? body.ratio : "adaptive";
   if (!["adaptive", "16:9", "4:3", "1:1", "3:4", "9:16", "21:9"].includes(ratio)) throw new Error("unsupported ratio");
-  for (const field of ["watermark", "generate_audio", "return_last_frame"]) if (own(body, field) && typeof body[field] !== "boolean") throw new Error(field + " must be boolean");
-  if (own(body, "output_format") && !["mp4", "mov"].includes(body.output_format)) throw new Error("unsupported output_format");
-  const taskType = own(body, "omni_reference_task_type") ? body.omni_reference_task_type : "auto";
-  if (!["auto", "reference", "edit", "extend"].includes(taskType)) throw new Error("unsupported omni_reference_task_type");
-  if (own(body, "omni_reference_task_type") && !(counts.reference_image + counts.reference_video + counts.reference_audio)) throw new Error("omni_reference_task_type requires reference media");
-  if (taskType === "edit" || taskType === "extend") {
-    if (!counts.reference_video) throw new Error(taskType + " requires reference video input");
-    if (ratio !== "adaptive") throw new Error(taskType + " requires adaptive ratio");
-    if (taskType === "edit" && duration !== -1) throw new Error("edit requires automatic duration (-1)");
-  }
-  if (v25 && counts.first_frame && ratio !== "adaptive") throw new Error("Seedance 2.5 first/last frames require adaptive ratio");
   const request = copy(body);
   request.duration = duration;
   request.resolution = resolution;
@@ -218,7 +260,10 @@ export const native = {
       request.automaticDuration = true;
       delete request.metadata.duration;
     }
-    return { kind: "submit", model: video.model, action: taskAction(video.request.content), requestBody: request };
+    const intent = { kind: "submit", model: video.model, action: taskAction(video.request.content), requestBody: request };
+    const draftID = draftTaskID(video.request);
+    if (draftID) intent.originTaskIds = [draftID];
+    return intent;
   },
   taskCreated: function (_ctx, task) { return { id: task.task_id }; },
   taskStatus: function (_ctx, task) {
@@ -254,6 +299,8 @@ export function buildSubmitRequest(ctx) {
   const metadata = validatedVideoRequest(ctx);
   const expectedUpstream = UPSTREAM_MODELS.get(ctx.model) || ctx.model;
   if (ctx.upstreamModel && ctx.upstreamModel !== ctx.model && ctx.upstreamModel !== expectedUpstream) throw new Error("upstream model does not match the Seedance Hub alias");
+  const draftID = draftTaskID(metadata);
+  if (draftID) metadata.content[0].draft_task.id = nativeDraftOrigin(ctx, metadata).upstreamTaskId;
   metadata.model = expectedUpstream;
   return { url: ctx.baseUrl + "/api/v3/contents/generations/tasks", method: "POST", headers: headers(ctx.apiKey), body: metadata, action: taskAction(metadata.content) };
 }
@@ -265,7 +312,12 @@ export function parseSubmitResponse(ctx, response) {
   if (!isAssetAction(ctx.action)) {
     const id = responseID(body);
     if (!id) throw new Error("task_id is empty");
-    return { taskId: id, taskData: body };
+    const result = { taskId: id, taskData: body };
+    if (ctx.requestBody && ctx.requestBody.metadata && ctx.requestBody.metadata.draft === true) {
+      const metadata = validatedVideoRequest(ctx);
+      result.state = { seedanceDraft: { version: 1, draft: true, duration: metadata.duration, hasVideo: hasVideo(metadata.content), upstreamModel: UPSTREAM_MODELS.get(ctx.model) } };
+    }
+    return result;
   }
   const taskData = { action: ctx.action, body: body };
   const id = responseID(body) || ctx.publicTaskId || utils.uuid();
@@ -304,8 +356,13 @@ export function extractUsage(ctx) {
   const metadata = validatedVideoRequest(ctx);
   // -1 is an upstream selection sentinel, never a negative billable quantity.
   // Reserve the model maximum; only measured tokens can complete settlement.
+  if (draftTaskID(metadata)) {
+    const facts = nativeDraftOrigin(ctx, metadata).state.seedanceDraft;
+    const seconds = (facts.duration === -1 ? 30 : facts.duration) + (facts.hasVideo ? 30 : 0);
+    return { tokens: estimateTokens(seconds, "1080p"), resolution: "1080p", video_input: facts.hasVideo ? "video" : "none" };
+  }
   const spec = VIDEO_MODELS.get(ctx.model);
-  const seconds = metadata.duration === -1 ? spec[spec.length - 1] : metadata.duration;
+  const seconds = (metadata.duration === -1 ? spec[spec.length - 1] : metadata.duration) + (metadata.draft === true && hasVideo(metadata.content) ? 30 : 0);
   const resolution = text(metadata.resolution || "720p").toLowerCase();
   return { tokens: estimateTokens(seconds, resolution), resolution: resolution, video_input: hasVideo(metadata.content) ? "video" : "none" };
 }

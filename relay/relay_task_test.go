@@ -53,8 +53,9 @@ func TestApplyChannelPinPreservesOriginTasksAndRetryMode(t *testing.T) {
 	require.NoError(t, database.Create(channel).Error)
 	originTask := &model.Task{
 		TaskID: "task-lock", ChannelId: channel.Id, Action: "text_to_video", Status: model.TaskStatusSuccess,
-		PrivateData: model.TaskPrivateData{UpstreamTaskID: "upstream-task-lock"},
-		Data:        []byte(`{"id":"upstream-task-lock"}`),
+		PrivateData: model.TaskPrivateData{UpstreamTaskID: "upstream-task-lock", PluginState: []byte(`{"draft":true}`)},
+		Properties:  model.Properties{OriginModelName: "seedance-2.5-am"}, CreatedAt: 1700000000,
+		Data: []byte(`{"id":"upstream-task-lock"}`),
 	}
 
 	for _, tc := range []struct {
@@ -90,6 +91,9 @@ func TestApplyChannelPinPreservesOriginTasksAndRetryMode(t *testing.T) {
 			assert.Equal(t, "text_to_video", info.OriginTasks[0].Action)
 			assert.Equal(t, string(model.TaskStatusSuccess), info.OriginTasks[0].Status)
 			assert.Equal(t, []byte(originTask.Data), info.OriginTasks[0].Data)
+			assert.Equal(t, []byte(originTask.PrivateData.PluginState), info.OriginTasks[0].State)
+			assert.Equal(t, originTask.CreatedAt, info.OriginTasks[0].CreatedAt)
+			assert.Equal(t, originTask.Properties.OriginModelName, info.OriginTasks[0].Model)
 		})
 	}
 }
