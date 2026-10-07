@@ -40,6 +40,96 @@
       "expected":{"status":"IN_PROGRESS","progress":"99%","reason":""}
     },
     {
+      "name": "GPT25 reserves documented 2K landscape high output tokens",
+      "hook": "extractUsage",
+      "args": [{"model":"gpt-image-2.5-sunburst-am","requestBody":{"prompt":"test","size":"4:3","resolution":"2k","quality":"high"}}],
+      "expected": {"upstream_credits":0.53368}
+    },
+    {
+      "name": "GPT25 portrait and landscape use the same documented token budget",
+      "hook": "extractUsage",
+      "args": [{"model":"gpt-image-2.5-flare-am","requestBody":{"prompt":"test","size":"3:4","resolution":"2K","quality":"high"}}],
+      "expected": {"upstream_credits":0.53368}
+    },
+    {
+      "name": "GPT25 known exact pixels override a conflicting resolution tier",
+      "hook": "extractUsage",
+      "args": [{"model":"gpt-image-2.5-sunburst-am","requestBody":{"prompt":"test","size":"1536x2048","resolution":"4k","quality":"high"}}],
+      "expected": {"upstream_credits":0.53368}
+    },
+    {
+      "name": "GPT25 auto quality estimates high for the requested aspect ratio",
+      "hook": "extractUsage",
+      "args": [{"model":"gpt-image-2.5-sunburst-am","requestBody":{"prompt":"test","size":"16:9","resolution":"2k","quality":"auto"}}],
+      "expected": {"upstream_credits":0.33928}
+    },
+    {
+      "name": "GPT25 omitted quality and size retain an estimated high square budget",
+      "hook": "extractUsage",
+      "args": [{"model":"gpt-image-2.5-flare-am","requestBody":{"prompt":"test","resolution":"2k"}}],
+      "expected": {"upstream_credits":0.85648}
+    },
+    {
+      "name": "GPT25 explicit max quality retains its full documented budget",
+      "hook": "extractUsage",
+      "args": [{"model":"gpt-image-2.5-sunburst-am","requestBody":{"prompt":"test","size":"4:3","resolution":"2k","quality":"max"}}],
+      "expected": {"upstream_credits":2.13424}
+    },
+    {
+      "name": "GPT25 1K ultrawide low uses its own token budget",
+      "hook": "extractUsage",
+      "args": [{"model":"gpt-image-2.5-flare-am","requestBody":{"prompt":"test","size":"3:1","resolution":"1k","quality":"low"}}],
+      "expected": {"upstream_credits":0.0136}
+    },
+    {
+      "name": "GPT25 4K portrait ultrawide xhigh uses its own token budget",
+      "hook": "extractUsage",
+      "args": [{"model":"gpt-image-2.5-sunburst-am","requestBody":{"prompt":"test","size":"9:21","resolution":"4k","quality":"xhigh"}}],
+      "expected": {"upstream_credits":0.86368}
+    },
+    {
+      "name": "GPT25 unlisted exact dimensions keep the 4K fallback at selected quality",
+      "hook": "extractUsage",
+      "args": [{"model":"gpt-image-2.5-sunburst-am","requestBody":{"prompt":"test","size":"1600x1200","resolution":"1k","quality":"high"}}],
+      "expected": {"upstream_credits":1.42336}
+    },
+    {
+      "name": "GPT25 output count scales output while reference input remains reserved",
+      "hook": "extractUsage",
+      "args": [{"model":"gpt-image-2.5-flare-am","requestBody":{"prompt":"test","size":"5:4","resolution":"1k","quality":"high","n":4,"image_urls":["https://example.com/one.png","https://example.com/two.png"]}}],
+      "expected": {"upstream_credits":3.546912}
+    },
+    {
+      "name": "GPT25 text estimate accounts for UTF8 multibyte and supplementary characters",
+      "hook": "extractUsage",
+      "args": [{"model":"gpt-image-2.5-sunburst-am","requestBody":{"prompt":"Aé猫😀","size":"4:3","resolution":"2k","quality":"high"}}],
+      "expected": {"upstream_credits":0.53392}
+    },
+    {
+      "name": "GPT25 auto estimate does not replace upstream auto quality",
+      "hook": "buildSubmitRequest",
+      "args": [{"model":"gpt-image-2.5-sunburst-am","baseUrl":"https://example.test","apiKey":"fixture","requestBody":{"prompt":"test","size":"4:3","resolution":"2k","quality":"auto"}}],
+      "expected": {"url":"https://example.test/v1/images/generations","method":"POST","headers":{"Accept":"application/json","Content-Type":"application/json","Authorization":"Bearer fixture"},"body":{"model":"gpt-image-2.5-sunburst","prompt":"test","size":"4:3","resolution":"2k","n":1,"quality":"auto","output_format":"png","moderation":"low"},"action":"image_generation"}
+    },
+    {
+      "name": "GPT25 freezes the revised estimate when accepting a submitted task",
+      "hook": "parseSubmitResponse",
+      "args": [{"model":"gpt-image-2.5-sunburst-am","requestBody":{"prompt":"test","size":"4:3","resolution":"2k","quality":"auto"}},{"body":{"code":200,"data":[{"task_id":"task_fixture","status":"submitted"}]}}],
+      "expected": {"taskId":"task_fixture","taskData":{"code":200,"data":[{"task_id":"task_fixture","status":"submitted"}]},"state":{"billing_usage":{"upstream_credits":0.53368}}}
+    },
+    {
+      "name": "GPT25 completion above the estimate returns the full actual cost",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model":"gpt-image-2.5-sunburst-am","state":{"billing_usage":{"upstream_credits":0.53368}}},{},{"data":{"status":"completed","cost":0.2,"credits_cost":2}}],
+      "expected": {"upstream_credits":2}
+    },
+    {
+      "name": "GPT25 historical reservation is replaced by lower actual cost",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model":"gpt-image-2.5-flare-am","state":{"billing_usage":{"upstream_credits":3.5}}},{},{"data":{"status":"completed","cost":0.02,"credits_cost":0.2}}],
+      "expected": {"upstream_credits":0.2}
+    },
+    {
       "name": "accepts a documented image generation request",
       "hook": "native",
       "member": "decodeImageGeneration",

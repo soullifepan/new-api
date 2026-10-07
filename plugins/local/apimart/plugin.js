@@ -19,14 +19,46 @@ const gpt25Models = new Map([
   ["gpt-image-2.5-sunburst-am", "gpt-image-2.5-sunburst"],
 ]);
 const gpt25Ext = "gpt-image-2.5-ext-am";
+// APIMart's per-image output token reference, ordered low/medium/high/xhigh/max:
+// https://docs.apimart.ai/en/api-reference/images/gpt-image-2.5/generation
+// Portrait sizes share the landscape budget. Keep pixels for exact-size requests,
+// where the provider ignores resolution; do not extrapolate from image area.
+const gpt25OutputSpecs = {
+  "1k": {
+    "1:1": { pixels: "1024x1024", tokens: [196, 439, 1756, 3122, 7024] },
+    "3:2": { pixels: "1536x1024", tokens: [158, 343, 1372, 2459, 5488] },
+    "4:3": { pixels: "1024x768", tokens: [134, 301, 1204, 2140, 4815] },
+    "5:4": { pixels: "1280x1024", tokens: [173, 378, 1510, 2702, 6119] },
+    "16:9": { pixels: "1536x864", tokens: [120, 280, 1078, 1917, 4312] },
+    "2:1": { pixels: "2048x1024", tokens: [132, 295, 1180, 2098, 4720] },
+    "21:9": { pixels: "2016x864", tokens: [105, 225, 943, 1617, 3682] },
+    "3:1": { pixels: "1536x512", tokens: [56, 134, 535, 937, 2140] },
+  },
+  "2k": {
+    "1:1": { pixels: "2048x2048", tokens: [397, 892, 3568, 6343, 14272] },
+    "3:2": { pixels: "2048x1360", tokens: [211, 460, 1838, 3216, 7351] },
+    "4:3": { pixels: "2048x1536", tokens: [247, 556, 2223, 3952, 8892] },
+    "5:4": { pixels: "2560x2048", tokens: [377, 826, 3303, 5911, 13385] },
+    "16:9": { pixels: "2048x1152", tokens: [157, 367, 1413, 2511, 5650] },
+    "2:1": { pixels: "2688x1344", tokens: [180, 405, 1617, 2874, 6466] },
+    "21:9": { pixels: "2688x1152", tokens: [143, 306, 1285, 2202, 5016] },
+    "3:1": { pixels: "3072x1024", tokens: [103, 247, 988, 1729, 3952] },
+  },
+  "4k": {
+    "1:1": { pixels: "2880x2880", tokens: [659, 1483, 5930, 10542, 23719] },
+    "3:2": { pixels: "3520x2336", tokens: [450, 982, 3926, 6870, 15703] },
+    "4:3": { pixels: "3312x2480", tokens: [491, 1104, 4413, 7845, 17650] },
+    "5:4": { pixels: "3216x2576", tokens: [535, 1173, 4690, 8393, 19006] },
+    "16:9": { pixels: "3840x2160", tokens: [371, 865, 3336, 5930, 13342] },
+    "2:1": { pixels: "3840x1920", tokens: [300, 675, 2700, 4799, 10798] },
+    "21:9": { pixels: "3840x1648", tokens: [234, 500, 2099, 3598, 8196] },
+    "3:1": { pixels: "3840x1280", tokens: [139, 332, 1328, 2324, 5311] },
+  },
+};
 // Documented 1:1 output tokens. These display examples exclude all input costs;
 // they are not the reservation calculation or a fixed per-image billing contract.
-const gpt25OutputExamples = Object.entries({
-  "1K": [196, 439, 1756, 3122, 7024],
-  "2K": [397, 892, 3568, 6343, 14272],
-  "4K": [659, 1483, 5930, 10542, 23719],
-}).flatMap(([resolution, tokens]) => tokens.map((count, index) => ({
-  label: "1:1 · " + resolution + " · " + ["low", "medium", "high", "xhigh", "max"][index] + " · 1张仅输出预估",
+const gpt25OutputExamples = Object.entries(gpt25OutputSpecs).flatMap(([resolution, specs]) => specs["1:1"].tokens.map((count, index) => ({
+  label: "1:1 · " + resolution.toUpperCase() + " · " + ["low", "medium", "high", "xhigh", "max"][index] + " · 1张仅输出预估",
   facts: { upstream_credits: count * 24 / 100000 },
 })));
 
@@ -39,7 +71,7 @@ export const meta = {
     en: "AM asynchronous image generation tasks",
     zh: "AM 异步图片生成任务",
   },
-  version: "0.10.2",
+  version: "0.10.3",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   usageProfiles: (function () {
@@ -426,14 +458,32 @@ function normalizeGPT25(model, request) {
 
 function gpt25Usage(model, request) {
   if (model === gpt25Ext) return { images: request.n, resolution: request.resolution.toLowerCase(), version: request.version };
-  // Conservative reservation: maximum documented output tokens across ratios
-  // in the requested tier. Explicit pixels use the 4K bound; auto quality uses max.
-  // Input estimates are reservations, never claims of measured token usage.
-  const table = { "1k": [196, 439, 1756, 3122, 7024], "2k": [397, 892, 3568, 6343, 14272], "4k": [659, 1483, 5930, 10542, 23719] };
-  const quality = request.quality === "auto" ? "max" : request.quality;
-  const tokens = table[/^\d+x\d+$/.test(request.size) ? "4k" : request.resolution][["low", "medium", "high", "xhigh", "max"].indexOf(quality)];
-  const cost = request.n * tokens * 24 / 1000000 + request.prompt.length * 4 * 4 / 1000000 + (request.image_urls || []).length * 16384 * 6.4 / 1000000;
-  return { upstream_credits: cost * 10 };
+  // Estimate auto at high without changing the upstream quality. This is an
+  // expected-use reservation, not a maximum charge: completion replaces it
+  // with validated actual cost, including a supplemental charge when higher.
+  const quality = request.quality === "auto" ? "high" : request.quality;
+  let spec = gpt25OutputSpecs[request.resolution]["1:1"];
+  if (request.size.includes(":")) {
+    const [width, height] = request.size.split(":").map(Number);
+    const ratio = Math.max(width, height) + ":" + Math.min(width, height);
+    spec = gpt25OutputSpecs[request.resolution][ratio];
+  } else if (request.size !== "auto") {
+    const [width, height] = request.size.split("x").map(Number);
+    const pixels = Math.max(width, height) + "x" + Math.min(width, height);
+    spec = Object.values(gpt25OutputSpecs).flatMap(Object.values).find(value => value.pixels === pixels)
+      || gpt25OutputSpecs["4k"]["1:1"];
+  }
+  const tokens = spec.tokens[["low", "medium", "high", "xhigh", "max"].indexOf(quality)];
+  // UTF-8 bytes bound prompt tokens more closely than four tokens per UTF-16
+  // code unit. Reference dimensions are unavailable, so keep their reservation.
+  let promptTokens = 0;
+  for (const character of request.prompt) {
+    const point = character.codePointAt(0);
+    promptTokens += point <= 0x7f ? 1 : point <= 0x7ff ? 2 : point <= 0xffff ? 3 : 4;
+  }
+  // Credits per million tokens: output 240, text input 40, image input 64.
+  const credits = (request.n * tokens * 240 + promptTokens * 40 + (request.image_urls || []).length * 16384 * 64) / 1000000;
+  return { upstream_credits: credits };
 }
 
 function gpt25ActualCredits(data) {
