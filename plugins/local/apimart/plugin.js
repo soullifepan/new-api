@@ -5,6 +5,8 @@ const nanoBananaModels = new Map([
   ["nano-banana-2-am", { upstream: "gemini-3.1-flash-image-preview-official", resolutions: ["0.5k", "1k", "2k", "4k"], maxImages: 1, credits: { "0.5k": 0.536, "1k": 0.536, "2k": 0.808, "4k": 1.208 } }],
   ["nano-banana-pro-am", { upstream: "gemini-3-pro-image-preview-official", resolutions: ["1k", "2k", "4k"], maxImages: 1, credits: { "1k": 1.072, "2k": 1.072, "4k": 1.92 } }],
   ["nano-banana-2-lite-am", { upstream: "gemini-3.1-flash-lite-image", resolutions: ["1k"], maxImages: 4, credits: { "1k": 0.32 } }],
+  ["nano-banana-2-1-am", { upstream: "gemini-nano-banana-2.1", resolutions: ["1k", "2k", "4k"], maxImages: 4, credits: { "1k": 0.2688, "2k": 0.4032, "4k": 0.9072 } }],
+  ["nano-banana-2-1-ext-am", { upstream: "gemini-nano-banana-2.1-ext", resolutions: ["1k", "2k", "4k"], maxImages: 1 }],
   ["nano-banana-ext-am", { upstream: "gemini-2.5-flash-image-preview", resolutions: ["1k"], maxImages: 1 }],
   ["nano-banana-2-ext-am", { upstream: "gemini-3.1-flash-image-preview", resolutions: ["0.5k", "1k", "2k", "4k"], maxImages: 1 }],
   ["nano-banana-pro-ext-am", { upstream: "gemini-3-pro-image-preview", resolutions: ["1k", "2k", "4k"], maxImages: 1 }],
@@ -71,7 +73,7 @@ export const meta = {
     en: "AM asynchronous image generation tasks",
     zh: "AM 异步图片生成任务",
   },
-  version: "0.10.3",
+  version: "0.11.0",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   usageProfiles: (function () {
@@ -98,6 +100,13 @@ export const meta = {
     },
     "nano-banana-2-lite-am": {
       upstream_credits: { type: "number", unit: "credit", description: { en: "Estimated credits at submission, replaced by validated actual task deduction at completion.", zh: "提交时预扣估算积分，完成后按已校验的任务实际扣费多退少补。" } },
+    },
+    "nano-banana-2-1-am": {
+      upstream_credits: { type: "number", unit: "credit", description: { en: "Image generation credit unit price", zh: "图片生成积分单价" } },
+    },
+    "nano-banana-2-1-ext-am": {
+      images: { type: "number", unit: "count", unitLabel: { en: "image", zh: "张" }, description: { en: "Image generation unit price", zh: "图片生成单价" } },
+      resolution: { enum: ["1k", "2k", "4k"], description: { en: "Output resolution", zh: "输出分辨率" } },
     },
     "nano-banana-ext-am": {
       images: { type: "number", unit: "count", description: { en: "Requested images, replaced by successful output count at completion.", zh: "提交时请求张数，完成后按实际成功张数结算。" } },
@@ -157,6 +166,17 @@ export const meta = {
       { label: "4K · 1 image (estimate)", facts: { upstream_credits: 1.92 } },
     ],
     "nano-banana-2-lite-am": [{ label: "1K · 1 image (estimate)", facts: { upstream_credits: 0.32 } }, { label: "1K · 4 images (estimate)", facts: { upstream_credits: 1.28 } }],
+    "nano-banana-2-1-am": [
+      { label: "1K · 1 image (estimate)", facts: { upstream_credits: 0.2688 } },
+      { label: "2K · 1 image (estimate)", facts: { upstream_credits: 0.4032 } },
+      { label: "4K · 1 image (estimate)", facts: { upstream_credits: 0.9072 } },
+      { label: "4K · 4 images (estimate)", facts: { upstream_credits: 3.6288 } },
+    ],
+    "nano-banana-2-1-ext-am": [
+      { label: "1K · 1 image", facts: { images: 1, resolution: "1k" } },
+      { label: "2K · 1 image", facts: { images: 1, resolution: "2k" } },
+      { label: "4K · 1 image", facts: { images: 1, resolution: "4k" } },
+    ],
     "nano-banana-ext-am": [{ label: "1K · 1 image", facts: { images: 1, resolution: "1k" } }],
     "nano-banana-2-ext-am": [
       { label: "0.5K · 1 image", facts: { images: 1, resolution: "0.5k" } },
@@ -189,6 +209,8 @@ export const meta = {
     "nano-banana-2-am",
     "nano-banana-pro-am",
     "nano-banana-2-lite-am",
+    "nano-banana-2-1-am",
+    "nano-banana-2-1-ext-am",
     "nano-banana-ext-am",
     "nano-banana-2-ext-am",
     "nano-banana-pro-ext-am",
@@ -281,9 +303,21 @@ function imageURLs(value, maximum) {
 
 function normalizedRatio(value, ratios, errorMessage) {
   const size = trimmed(value).toLowerCase();
-  const normalized = /^([12])x([12])$/.test(size) ? size.replace("x", ":") : size;
+  const normalized = /^(\d{1,2})x(\d{1,2})$/.test(size) ? size.replace("x", ":") : size;
   if (!ratios.has(normalized)) throw new Error(errorMessage);
   return normalized;
+}
+
+function normalizedNanoBananaRatio(value, model, resolution) {
+  const ratio = normalizedRatio(value, nanoBanana2Ratios, "unsupported Nano Banana ratio");
+  const extremeRatio = ["1:4", "4:1", "1:8", "8:1"].includes(ratio);
+  if (model === "nano-banana-2-1-ext-am" && extremeRatio && resolution !== "1k") {
+    throw new Error("unsupported Nano Banana ratio for resolution");
+  }
+  if (!["nano-banana-2-ext-am", "nano-banana-2-am", "nano-banana-2-1-am", "nano-banana-2-1-ext-am"].includes(model) && extremeRatio) {
+    throw new Error("unsupported Nano Banana ratio");
+  }
+  return ratio;
 }
 
 function normalizedProSize(value) {
@@ -317,12 +351,13 @@ function normalizeAPIMartModelRequest(model, request) {
     const resolution = request.resolution === undefined ? "1k" : trimmed(request.resolution).toLowerCase();
     const acceptedResolutions = banana.maxImages === 4 ? ["0.5k", "1k", "2k", "4k"] : banana.resolutions;
     if (!acceptedResolutions.includes(resolution)) throw new Error("unsupported Nano Banana resolution");
+    const defaultSize = ["nano-banana-2-1-am", "nano-banana-2-1-ext-am"].includes(model) ? "auto" : "1:1";
     const output = {
       model: model,
       prompt: prompt,
       n: count,
-      size: request.size === undefined ? "1:1" : normalizedRatio(request.size, model === "nano-banana-2-ext-am" || model === "nano-banana-2-am" ? nanoBanana2Ratios : nanoBananaRatios, "unsupported Nano Banana ratio"),
-      resolution: banana.maxImages === 4 ? "1k" : resolution,
+      size: request.size === undefined ? defaultSize : normalizedNanoBananaRatio(request.size, model, resolution),
+      resolution: banana.maxImages === 4 && model !== "nano-banana-2-1-am" ? "1k" : resolution,
     };
     const images = imageURLs(request.image_urls, 14);
     if (images) output.image_urls = images;
