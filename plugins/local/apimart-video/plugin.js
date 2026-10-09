@@ -8,9 +8,12 @@ const VIDEO_FIELDS = new Set([
   "model", "prompt", "negative_prompt", "nsfw_check", "duration", "resolution",
   "size", "aspect_ratio", "seed", "watermark", "prompt_optimizer",
   "first_frame_image", "last_frame_image", "image_urls", "image_with_roles",
-  "video_urls", "audio_url", "audio", "generate_audio", "generation_type",
+  "video_urls", "audio_url", "audio_urls", "audio", "generate_audio", "generation_type",
   "prompt_extend",
 ]);
+
+const H3_CONTEXT_MODEL = "minimax-h3-context-ir-am";
+const H3_REGENERATION_MODEL = "minimax-h3-regeneration-am";
 
 const MODELS = new Map([
   ["grok-imagine-1.5-video-am", {
@@ -23,6 +26,21 @@ const MODELS = new Map([
     ratios: new Set(["16:9", "9:16", "1:1"]), firstFrame: true,
     fields: new Set(["model", "prompt", "nsfw_check", "duration", "resolution", "aspect_ratio", "first_frame_image", "watermark"]),
   }],
+  ["minimax-h3-am", {
+    upstream: "MiniMax-H3", h3: "standard", seconds: [4, 15, 5], resolutions: ["768p", "2k"], defaultResolution: "2k",
+    ratios: new Set(["21:9", "16:9", "4:3", "1:1", "3:4", "9:16", "adaptive"]), images: 9, videos: 3, audios: 3,
+    fields: new Set(["model", "prompt", "nsfw_check", "duration", "resolution", "aspect_ratio", "watermark", "first_frame_image", "last_frame_image", "image_urls", "image_with_roles", "video_urls", "audio_urls"]),
+  }],
+  ["minimax-h3-max-am", {
+    upstream: "MiniMax-H3-Max", h3: "max", seconds: [5, 15, 5], resolutions: ["480p", "768p", "1080p"], defaultResolution: "768p",
+    ratios: new Set(["21:9", "16:9", "4:3", "1:1", "3:4", "9:16", "adaptive"]), images: 9, videos: 3, audios: 3,
+    fields: new Set(["model", "prompt", "nsfw_check", "duration", "resolution", "aspect_ratio", "watermark", "first_frame_image", "last_frame_image", "image_urls", "image_with_roles", "video_urls", "audio_urls"]),
+  }],
+  [H3_CONTEXT_MODEL, {
+    upstream: "MiniMax-H3-Context-IR", h3Context: true,
+    fields: new Set(["model", "prompt", "nsfw_check", "duration", "aspect_ratio", "first_frame_image", "last_frame_image", "image_urls", "image_with_roles", "video_urls", "audio_urls"]),
+  }],
+  [H3_REGENERATION_MODEL, { upstream: "MiniMax-H3-Regeneration", h3Regeneration: true, fields: new Set(["source_task_id", "nsfw_check"]) }],
   ["minimax-hailuo-2.3-am", {
     upstream: "MiniMax-Hailuo-2.3", durations: [6, 10], defaultDuration: 6, resolutions: ["768p", "1080p"], firstFrame: true,
     fields: new Set(["model", "prompt", "nsfw_check", "duration", "resolution", "first_frame_image", "prompt_optimizer", "watermark"]),
@@ -91,6 +109,16 @@ const SEEDANCE_CREDITS_PER_SECOND = {
 };
 
 function usageSchema(model) {
+  if (model === H3_CONTEXT_MODEL) return {
+    input_tokens: { type: "number", unit: "token", description: { en: "Input token unit price", zh: "输入 Token 单价" } },
+    output_tokens: { type: "number", unit: "token", description: { en: "Output token unit price", zh: "输出 Token 单价" } },
+  };
+  if (model === H3_REGENERATION_MODEL) return {
+    upstream_credits: { type: "number", unit: "credit", description: { en: "AM settlement credit unit price", zh: "AM 结算积分单价" } },
+  };
+  if (model === "minimax-h3-am" || model === "minimax-h3-max-am") return {
+    upstream_credits: { type: "number", unit: "credit", description: { en: "AM settlement credit unit price", zh: "AM 结算积分单价" } },
+  };
   const schema = {
     seconds: { type: "number", unit: "second", description: { en: "Video generation unit price", zh: "视频生成单价" } },
     resolution: { enum: MODELS.get(model).resolutions, description: { en: "Output resolution", zh: "输出分辨率" } },
@@ -112,9 +140,15 @@ const schemas = {};
 const examples = {};
 for (const [model, spec] of MODELS) {
   schemas[model] = usageSchema(model);
-  const facts = model.startsWith("veo3.1-")
-    ? { requests: 1, resolution: spec.defaultResolution || spec.resolutions[0] }
-    : { seconds: spec.defaultDuration || spec.seconds[2], resolution: spec.defaultResolution || spec.resolutions[0] };
+  const facts = model === H3_CONTEXT_MODEL
+    ? { input_tokens: 5600, output_tokens: 3400 }
+    : model === H3_REGENERATION_MODEL
+      ? { upstream_credits: 2.25 }
+      : (model === "minimax-h3-am" || model === "minimax-h3-max-am")
+        ? { upstream_credits: 2.856 }
+        : model.startsWith("veo3.1-")
+          ? { requests: 1, resolution: spec.defaultResolution || spec.resolutions[0] }
+          : { seconds: spec.defaultDuration || spec.seconds[2], resolution: spec.defaultResolution || spec.resolutions[0] };
   if (model === "pixverse-v6-am") facts.audio = "off";
   if (model.startsWith("seedance-")) {
     examples[model] = Object.entries(SEEDANCE_CREDITS_PER_SECOND[model]).map(function (entry) {
@@ -129,7 +163,7 @@ export const meta = {
   name: "AM Video",
   icon: "text:AV",
   description: { en: "Validated AM asynchronous video generation tasks.", zh: "经过逐模型校验的 AM 异步视频生成任务。" },
-  version: "0.4.0",
+  version: "0.5.0",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   allowedHosts: ["api.apib.ai", "api.apimart.ai", "upload.apimart.ai", "cdn.apimart.ai"],
@@ -139,6 +173,8 @@ export const meta = {
   }),
   routes: [
     { method: "POST", path: "/am/video/v1/videos/generations", type: "submit", action: "video_generation", decode: "decodeVideoGeneration", render: "renderSubmitted" },
+    { method: "POST", path: "/am/video/v1/h3/context-ir", type: "submit", action: "context_ir", decode: "decodeH3ContextIR", render: "renderSubmitted" },
+    { method: "POST", path: "/am/video/v1/h3/regeneration", type: "submit", action: "regeneration", decode: "decodeH3Regeneration", render: "renderSubmitted" },
     { method: "GET", path: "/am/video/v1/tasks/:task_id", type: "query", render: "renderTask" },
     { method: "POST", path: "/am/video/v1/seedance/assets", type: "submit", action: "asset", decode: "decodeSeedanceAssets", render: "renderSubmitted" },
   ],
@@ -328,10 +364,79 @@ function normalizeAssets(request) {
   return body;
 }
 
+function h3Role(entry) {
+  object(entry, "image_with_roles entries must be objects");
+  if (!Object.keys(entry).every(function (key) { return key === "url" || key === "role"; })) throw new Error("unsupported image_with_roles field");
+  const aliases = { first: "first_frame", first_frame: "first_frame", last: "last_frame", last_frame: "last_frame", reference: "reference_image", reference_image: "reference_image" };
+  const role = aliases[text(entry.role).toLowerCase()];
+  if (!role) throw new Error("invalid image role");
+  return { url: mediaURL(entry.url, "image_with_roles.url", false), role: role };
+}
+
+function normalizeH3(model, request) {
+  const spec = MODELS.get(model);
+  for (const field of Object.keys(request)) {
+    if (!spec.fields.has(field)) throw new Error("unsupported field for " + model + ": " + field);
+  }
+  if (request.model !== undefined && request.model !== model) throw new Error("model must be " + model);
+  const prompt = text(request.prompt);
+  if (!prompt || prompt.length > 7000) throw new Error("prompt is required and must be at most 7000 characters");
+  const body = { model: model, prompt: prompt, duration: integer(request.duration === undefined ? spec.seconds[2] : request.duration, "duration", spec.seconds[0], spec.seconds[1]), resolution: normalizedResolution(request.resolution, spec) };
+  if (request.first_frame_image !== undefined) body.first_frame_image = mediaURL(request.first_frame_image, "first_frame_image", false);
+  if (request.last_frame_image !== undefined) body.last_frame_image = mediaURL(request.last_frame_image, "last_frame_image", false);
+  if (request.image_urls !== undefined) body.image_urls = urlArray(request.image_urls, "image_urls", 9);
+  if (request.video_urls !== undefined) body.video_urls = urlArray(request.video_urls, "video_urls", 3);
+  if (request.audio_urls !== undefined) body.audio_urls = urlArray(request.audio_urls, "audio_urls", 3);
+  if (request.image_with_roles !== undefined) {
+    if (!Array.isArray(request.image_with_roles) || !request.image_with_roles.length) throw new Error("image_with_roles must not be empty");
+    body.image_with_roles = request.image_with_roles.map(h3Role);
+  }
+  const roles = body.image_with_roles || [];
+  const firstFrames = (body.first_frame_image ? 1 : 0) + roles.filter(function (entry) { return entry.role === "first_frame"; }).length;
+  const lastFrames = (body.last_frame_image ? 1 : 0) + roles.filter(function (entry) { return entry.role === "last_frame"; }).length;
+  const referenceImages = (body.image_urls || []).length + roles.filter(function (entry) { return entry.role === "reference_image"; }).length;
+  if (firstFrames > 1 || lastFrames > 1 || referenceImages > 9) throw new Error("invalid H3 image inputs");
+  const hasFrames = firstFrames > 0 || lastFrames > 0;
+  const hasReferences = referenceImages > 0 || (body.video_urls || []).length > 0 || (body.audio_urls || []).length > 0;
+  if (hasFrames && hasReferences) throw new Error("frame images and reference media are mutually exclusive");
+  if (body.audio_urls && !referenceImages && !(body.video_urls || []).length) throw new Error("audio_urls requires reference image or video");
+  const ratio = text(request.aspect_ratio || (hasFrames || hasReferences ? "adaptive" : "16:9"));
+  if (!spec.ratios.has(ratio) || (!hasFrames && !hasReferences && ratio === "adaptive")) throw new Error("invalid aspect_ratio");
+  if (!hasFrames) body.aspect_ratio = ratio;
+  if (request.nsfw_check !== undefined) body.nsfw_check = boolean(request.nsfw_check, "nsfw_check");
+  if (request.watermark !== undefined) {
+    if (spec.h3 === "max" && body.resolution === "1080p") throw new Error("1080p H3-Max must omit watermark");
+    body.watermark = boolean(request.watermark, "watermark");
+  }
+  return body;
+}
+
+function normalizeH3Context(request) {
+  object(request, "Context-IR request must be an object");
+  const body = normalizeH3("minimax-h3-am", Object.assign({}, request, { model: "minimax-h3-am", resolution: "768p" }));
+  delete body.resolution;
+  body.model = H3_CONTEXT_MODEL;
+  return body;
+}
+
+function normalizeH3Regeneration(request) {
+  object(request, "regeneration request must be an object");
+  if (!Object.keys(request).every(function (key) { return key === "model" || key === "source_task_id" || key === "nsfw_check"; })) throw new Error("unsupported regeneration field");
+  if (request.model !== undefined && request.model !== H3_REGENERATION_MODEL) throw new Error("model must be " + H3_REGENERATION_MODEL);
+  const sourceTaskID = text(request.source_task_id);
+  if (!/^task_[A-Za-z0-9_-]+$/.test(sourceTaskID)) throw new Error("source_task_id must be a public gateway task ID");
+  const body = { model: H3_REGENERATION_MODEL, source_task_id: sourceTaskID };
+  if (request.nsfw_check !== undefined) body.nsfw_check = boolean(request.nsfw_check, "nsfw_check");
+  return body;
+}
+
 function normalize(model, request) {
   object(request, "video generation request must be an object");
   const spec = MODELS.get(model);
   if (!spec) throw new Error("unsupported AM video model");
+  if (spec.h3Context) return normalizeH3Context(request);
+  if (spec.h3Regeneration) return normalizeH3Regeneration(request);
+  if (spec.h3) return normalizeH3(model, request);
   if (model.startsWith("seedance-")) return normalizeSeedance(model, request);
   for (const field of Object.keys(request)) {
     if (!VIDEO_FIELDS.has(field) || !spec.fields.has(field)) throw new Error("unsupported field for " + model + ": " + field);
@@ -463,6 +568,14 @@ export function buildSubmitRequest(ctx) {
   const upstream = text(ctx.upstreamModel);
   if (upstream && upstream !== publicModel && upstream !== spec.upstream) throw new Error("upstream model does not match the public video model");
   const body = ctx.action === "asset" ? normalizeAssets(request) : normalize(publicModel, request);
+  if (publicModel === H3_REGENERATION_MODEL) {
+    const origin = (ctx.originTasks || []).find(function (task) { return task.taskId === body.source_task_id; });
+    const facts = origin && origin.state && origin.state.h3Source;
+    if (!origin || origin.model !== "minimax-h3-am" || origin.action !== "video_generation" || origin.status !== "SUCCESS" || !facts || facts.resolution !== "768p" || !text(origin.upstreamTaskId)) {
+      throw new Error("source_task_id must reference your successful MiniMax-H3 768P task");
+    }
+    body.source_task_id = origin.upstreamTaskId;
+  }
   body.model = upstream && upstream !== publicModel ? upstream : spec.upstream;
   if (body.draft_task_id) body.draft_task_id = seedanceDraftOrigin(ctx, body).upstreamTaskId;
   if (publicModel.startsWith("seedance-") && ctx.action !== "asset") {
@@ -498,6 +611,10 @@ export function parseSubmitResponse(ctx, response) {
   const taskId = text(ctx.action === "asset" ? entry.id : entry.task_id);
   if (!taskId) throw new Error("AM submit response is missing task_id");
   const result = { taskId: taskId, taskData: body };
+  if (ctx.model === "minimax-h3-am" && ctx.action === "video_generation") {
+    const request = normalize(ctx.model, ctx.requestBody || {});
+    result.state = { h3Source: { version: 1, resolution: request.resolution, duration: request.duration } };
+  }
   if (ctx.model === "seedance-2.5-am" && ctx.action !== "asset" && ctx.requestBody && ctx.requestBody.draft === true) {
     const request = normalizeSeedance(ctx.model, ctx.requestBody);
     result.state = { seedanceDraft: { version: 1, draft: true, duration: request.duration, upstreamModel: ctx.upstreamModel && ctx.upstreamModel !== ctx.model ? ctx.upstreamModel : "seedance-2.5" } };
@@ -505,10 +622,21 @@ export function parseSubmitResponse(ctx, response) {
   return result;
 }
 
+function amTaskCredits(data) {
+  const cost = data && data.cost;
+  const credits = data && data.credits_cost;
+  if (typeof cost !== "number" || !Number.isFinite(cost) || cost < 0 || cost > 100) throw new Error("AM completed task has invalid cost");
+  if (credits !== undefined && (typeof credits !== "number" || !Number.isFinite(credits) || Math.abs(credits - cost * 10) > 0.00001)) throw new Error("AM cost and credits_cost disagree");
+  return Math.round((credits === undefined ? cost * 10 : credits) * 1e8) / 1e8;
+}
+
 export function extractUsage(ctx) {
   if (ctx.usagePurpose === "billing_ratios") return null;
   const request = ctx.requestBody || {};
   const model = text(ctx.model || request.model);
+  if (model === H3_CONTEXT_MODEL) return { input_tokens: 100000, output_tokens: 10000 };
+  if (model === H3_REGENERATION_MODEL) return { upstream_credits: 10 };
+  if (model === "minimax-h3-am" || model === "minimax-h3-max-am") return { upstream_credits: 30 };
   if (model.startsWith("seedance-")) {
     const asset = ctx.action === "asset";
     const body = asset ? normalizeAssets(request) : normalize(model, request);
@@ -546,9 +674,17 @@ function seedanceCost(data) {
 }
 
 export function extractUsageOnComplete(ctx, result, body) {
-  if (!String(ctx.model || "").startsWith("seedance-") || ctx.action === "asset") return null;
   if (result.status !== "SUCCESS") return null;
-  return { upstream_credits: seedanceCost(object(body.data, "missing AM task data")) };
+  const model = String(ctx.model || "");
+  const data = object(body.data, "missing AM task data");
+  if (model === H3_CONTEXT_MODEL) {
+    const usage = object(data.usage, "missing Context-IR usage");
+    if (!Number.isInteger(usage.input_tokens) || usage.input_tokens < 0 || !Number.isInteger(usage.output_tokens) || usage.output_tokens < 0) throw new Error("invalid Context-IR usage");
+    return { input_tokens: usage.input_tokens, output_tokens: usage.output_tokens };
+  }
+  if (model === "minimax-h3-am" || model === "minimax-h3-max-am" || model === H3_REGENERATION_MODEL) return { upstream_credits: amTaskCredits(data) };
+  if (!model.startsWith("seedance-") || ctx.action === "asset") return null;
+  return { upstream_credits: seedanceCost(data) };
 }
 
 export function buildQueryRequest(ctx) {
@@ -587,6 +723,15 @@ export const native = {
     if (!ctx.body || ctx.body.kind !== "json") throw new Error("JSON body required");
     const body = normalizeAssets(ctx.body.value);
     return { kind: "submit", model: body.model, action: "asset", requestBody: body };
+  },
+  decodeH3ContextIR: function (ctx) {
+    if (!ctx.body || ctx.body.kind !== "json") throw new Error("JSON body required");
+    return { kind: "submit", model: H3_CONTEXT_MODEL, action: "context_ir", requestBody: normalizeH3Context(ctx.body.value) };
+  },
+  decodeH3Regeneration: function (ctx) {
+    if (!ctx.body || ctx.body.kind !== "json") throw new Error("JSON body required");
+    const body = normalizeH3Regeneration(ctx.body.value);
+    return { kind: "submit", model: H3_REGENERATION_MODEL, action: "regeneration", requestBody: body, originTaskIds: [body.source_task_id] };
   },
   decodeVideoGeneration: function (ctx) {
     if (!ctx.body || ctx.body.kind !== "json") throw new Error("JSON body required");

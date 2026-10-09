@@ -222,6 +222,24 @@
       "member": "renderTask",
       "args": [{}, {"task_id":"public-task-1","status":"SUCCESS","progress":"100%","data":{"response":{"code":200,"data":{"task_id":"vendor-task-1","status":"completed","result":{"video_url":"https://cdn.example/out.mp4"}}}}}],
       "expected": {"code":200,"data":{"id":"public-task-1","status":"completed","progress":100,"result":{"video_url":"https://cdn.example/out.mp4"}}}
+    },
+    {
+      "name": "H3 Context-IR normalizes a prompt task without a video resolution",
+      "hook": "native", "member": "decodeH3ContextIR",
+      "args": [{"body":{"kind":"json","value":{"prompt":"ocean sunrise","duration":5,"aspect_ratio":"16:9"}}}],
+      "expected": {"kind":"submit","model":"minimax-h3-context-ir-am","action":"context_ir","requestBody":{"model":"minimax-h3-context-ir-am","prompt":"ocean sunrise","duration":5,"aspect_ratio":"16:9"}}
+    },
+    {
+      "name": "H3 regeneration only accepts a public source task and records it as an origin",
+      "hook": "native", "member": "decodeH3Regeneration",
+      "args": [{"body":{"kind":"json","value":{"source_task_id":"task_source"}}}],
+      "expected": {"kind":"submit","model":"minimax-h3-regeneration-am","action":"regeneration","requestBody":{"model":"minimax-h3-regeneration-am","source_task_id":"task_source"},"originTaskIds":["task_source"]}
+    },
+    {
+      "name": "H3 regeneration resolves only the trusted upstream source ID",
+      "hook": "buildSubmitRequest",
+      "args": [{"model":"minimax-h3-regeneration-am","baseUrl":"https://api.apimart.ai","apiKey":"fixture","requestBody":{"model":"minimax-h3-regeneration-am","source_task_id":"task_source"},"originTasks":[{"taskId":"task_source","upstreamTaskId":"vendor-source","model":"minimax-h3-am","action":"video_generation","status":"SUCCESS","state":{"h3Source":{"version":1,"resolution":"768p","duration":5}}}]}],
+      "expected": {"url":"https://api.apimart.ai/v1/videos/generations","method":"POST","headers":{"Accept":"application/json","Content-Type":"application/json","Authorization":"Bearer fixture"},"body":{"model":"MiniMax-H3-Regeneration","source_task_id":"vendor-source"},"action":"video_generation"}
     }
   ]
 }
