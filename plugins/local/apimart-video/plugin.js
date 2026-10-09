@@ -65,6 +65,10 @@ const MODELS = new Map([
     upstream: "viduq3-turbo", seconds: [1, 16, 5], resolutions: ["540p", "720p", "1080p"], defaultResolution: "720p", ratios: RATIOS, images: 2, audio: true,
     fields: new Set(["model", "prompt", "nsfw_check", "duration", "resolution", "aspect_ratio", "image_urls", "audio", "seed"]),
   }],
+  ["viduq4-preview-am", {
+    upstream: "viduq4-preview", viduQ4: true, seconds: [3, 16, 5], resolutions: ["540p", "720p", "1080p", "2k", "4k"], defaultResolution: "720p", ratios: RATIOS, images: 15, audios: 3,
+    fields: new Set(["model", "prompt", "duration", "resolution", "aspect_ratio", "size", "first_frame_image", "image_urls", "image_with_roles", "audio_url", "audio_urls", "audio", "seed"]),
+  }],
   ["wan2.7-am", {
     upstream: "wan2.7", seconds: [2, 15, 5], resolutions: ["720p", "1080p"], defaultResolution: "1080p", ratios: RATIOS, images: 2, videos: 1,
     fields: new Set(["model", "prompt", "nsfw_check", "duration", "resolution", "size", "image_urls", "image_with_roles", "video_urls", "audio_url", "negative_prompt", "prompt_extend", "watermark", "seed"]),
@@ -183,7 +187,7 @@ export const meta = {
   name: "AM Video",
   icon: "text:AV",
   description: { en: "Validated AM asynchronous video generation tasks.", zh: "经过逐模型校验的 AM 异步视频生成任务。" },
-  version: "0.5.2",
+  version: "0.5.4",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   allowedHosts: ["api.apib.ai", "api.apimart.ai", "upload.apimart.ai", "cdn.apimart.ai"],
@@ -450,10 +454,68 @@ function normalizeH3Regeneration(request) {
   return body;
 }
 
+function normalizeViduQ4(model, request) {
+  const spec = MODELS.get(model);
+  for (const field of Object.keys(request)) if (!spec.fields.has(field)) throw new Error("unsupported field for " + model + ": " + field);
+  if (request.model !== undefined && request.model !== model) throw new Error("model must be " + model);
+  if (request.size !== undefined && request.aspect_ratio !== undefined && request.size !== request.aspect_ratio) throw new Error("size and aspect_ratio conflict");
+
+  const body = {
+    model: model,
+    duration: integer(request.duration === undefined ? spec.seconds[2] : request.duration, "duration", 3, 16),
+    resolution: normalizedResolution(request.resolution, spec),
+    audio: request.audio === undefined ? true : boolean(request.audio, "audio"),
+  };
+  const prompt = text(request.prompt);
+  if (prompt.length > 20000) throw new Error("prompt is too long");
+  if (prompt) body.prompt = prompt;
+
+  if (request.first_frame_image !== undefined) {
+    if (request.image_urls !== undefined || request.image_with_roles !== undefined || request.audio_url !== undefined || request.audio_urls !== undefined) throw new Error("first_frame_image cannot be combined with reference media");
+    body.first_frame_image = mediaURL(request.first_frame_image, "first_frame_image", true);
+    return body;
+  }
+
+  const images = request.image_urls === undefined ? [] : (function () {
+    if (!Array.isArray(request.image_urls) || request.image_urls.length < 1 || request.image_urls.length > 15) throw new Error("image_urls must contain 1 to 15 URLs");
+    return request.image_urls.map(function (url) { return mediaURL(url, "image_urls", true); });
+  })();
+  const roles = request.image_with_roles === undefined ? [] : request.image_with_roles.map(function (entry) {
+    object(entry, "image_with_roles entries must be objects");
+    if (!Object.keys(entry).every(function (key) { return key === "url" || key === "role"; })) throw new Error("unsupported image_with_roles field");
+    const role = text(entry.role).toLowerCase();
+    if (role && !["first_frame", "reference_image", "reference"].includes(role)) throw new Error("unsupported image role");
+    return { url: mediaURL(entry.url, "image_with_roles.url", true), role: role === "reference" ? "reference_image" : role };
+  });
+  if (images.length + roles.length < 1 || images.length + roles.length > 15) throw new Error("Vidu Q4 requires 1 to 15 images");
+  const audios = [];
+  if (request.audio_url !== undefined) audios.push(mediaURL(request.audio_url, "audio_url", false));
+  if (request.audio_urls !== undefined) audios.push.apply(audios, urlArray(request.audio_urls, "audio_urls", 3));
+  if (audios.length > 3) throw new Error("audio_urls must contain at most 3 URLs");
+
+  const firstFrames = roles.filter(function (entry) { return entry.role === "first_frame"; }).length;
+  if (firstFrames > 1) throw new Error("Vidu Q4 accepts one first frame");
+  const referenceMode = audios.length > 0 || roles.some(function (entry) { return entry.role === "reference_image"; }) || (firstFrames === 0 && images.length + roles.length > 1);
+  if (firstFrames && (images.length || roles.length !== 1 || audios.length)) throw new Error("first frame cannot be combined with reference media");
+  if (referenceMode && !prompt) throw new Error("prompt is required for reference video");
+  if (!referenceMode && (images.length + roles.length !== 1 || audios.length)) throw new Error("invalid Vidu Q4 image-to-video input");
+  if (images.length) body.image_urls = images;
+  if (roles.length) body.image_with_roles = roles;
+  if (audios.length) body.audio_urls = audios;
+  if (referenceMode) {
+    const ratio = text(request.aspect_ratio === undefined ? (request.size === undefined ? "16:9" : request.size) : request.aspect_ratio);
+    if (!spec.ratios.has(ratio)) throw new Error("unsupported aspect ratio");
+    body.aspect_ratio = ratio;
+  }
+  if (request.seed !== undefined) body.seed = integer(request.seed, "seed", 0, 4294967295);
+  return body;
+}
+
 function normalize(model, request) {
   object(request, "video generation request must be an object");
   const spec = MODELS.get(model);
   if (!spec) throw new Error("unsupported AM video model");
+  if (spec.viduQ4) return normalizeViduQ4(model, request);
   if (spec.h3Context) return normalizeH3Context(request);
   if (spec.h3Regeneration) return normalizeH3Regeneration(request);
   if (spec.h3) return normalizeH3(model, request);
@@ -654,7 +716,9 @@ export function extractUsage(ctx) {
   if (ctx.usagePurpose === "billing_ratios") return null;
   const request = ctx.requestBody || {};
   const model = text(ctx.model || request.model);
-  if (model === H3_CONTEXT_MODEL) return { upstream_credits: 10 };
+  // APIMart preauthorizes Context-IR at ¥0.8. Completion still replaces this
+  // estimate with the validated upstream cost/credits_cost fact below.
+  if (model === H3_CONTEXT_MODEL) return { upstream_credits: 0.8 };
   if (model === H3_REGENERATION_MODEL) return { upstream_credits: 10 };
   if (model === "minimax-h3-am") return { upstream_credits: 30 };
   if (model === "minimax-h3-max-am") return { upstream_credits: 40 };

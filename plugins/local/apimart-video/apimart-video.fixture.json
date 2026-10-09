@@ -151,6 +151,40 @@
       "expected": {"kind":"submit","model":"viduq3-pro-am","action":"video_generation","requestBody":{"model":"viduq3-pro-am","duration":16,"resolution":"720p","image_urls":["https://media.example/a.png","https://media.example/b.png"],"audio":false}}
     },
     {
+      "name": "accepts Vidu Q4 image-to-video without a prompt",
+      "hook": "native",
+      "member": "decodeVideoGeneration",
+      "args": [{"body":{"kind":"json","value":{"model":"viduq4-preview-am","image_urls":["https://media.example/first.png"],"duration":8,"resolution":"4K","audio":false}}}],
+      "expected": {"kind":"submit","model":"viduq4-preview-am","action":"video_generation","requestBody":{"model":"viduq4-preview-am","duration":8,"resolution":"4k","audio":false,"image_urls":["https://media.example/first.png"]}}
+    },
+    {
+      "name": "accepts Vidu Q4 reference media with its required prompt",
+      "hook": "native",
+      "member": "decodeVideoGeneration",
+      "args": [{"body":{"kind":"json","value":{"model":"viduq4-preview-am","prompt":"two people talk","image_with_roles":[{"url":"https://media.example/person.png","role":"reference"}],"audio_urls":["https://media.example/line.mp3"],"aspect_ratio":"9:16"}}}],
+      "expected": {"kind":"submit","model":"viduq4-preview-am","action":"video_generation","requestBody":{"model":"viduq4-preview-am","duration":5,"resolution":"720p","audio":true,"prompt":"two people talk","image_with_roles":[{"url":"https://media.example/person.png","role":"reference_image"}],"audio_urls":["https://media.example/line.mp3"],"aspect_ratio":"9:16"}}
+    },
+    {
+      "name": "rejects Vidu Q4 reference media without a prompt",
+      "hook": "native",
+      "member": "decodeVideoGeneration",
+      "args": [{"body":{"kind":"json","value":{"model":"viduq4-preview-am","image_urls":["https://media.example/a.png","https://media.example/b.png"]}}}],
+      "expectedError": "prompt is required for reference video"
+    },
+    {
+      "name": "rejects Vidu Q4 text-only generation",
+      "hook": "native",
+      "member": "decodeVideoGeneration",
+      "args": [{"body":{"kind":"json","value":{"model":"viduq4-preview-am","prompt":"ocean"}}}],
+      "expectedError": "requires 1 to 15 images"
+    },
+    {
+      "name": "extracts bounded Vidu Q4 billing facts",
+      "hook": "extractUsage",
+      "args": [{"model":"viduq4-preview-am","requestBody":{"model":"viduq4-preview-am","image_urls":["https://media.example/first.png"],"duration":16,"resolution":"2K"}}],
+      "expected": {"resolution":"2k","seconds":16}
+    },
+    {
       "name": "accepts Wan role-based first and last frames",
       "hook": "native",
       "member": "decodeVideoGeneration",
@@ -228,6 +262,18 @@
       "hook": "native", "member": "decodeH3ContextIR",
       "args": [{"body":{"kind":"json","value":{"prompt":"ocean sunrise","duration":5,"aspect_ratio":"16:9"}}}],
       "expected": {"kind":"submit","model":"minimax-h3-context-ir-am","action":"context_ir","requestBody":{"model":"minimax-h3-context-ir-am","prompt":"ocean sunrise","duration":5,"aspect_ratio":"16:9"}}
+    },
+    {
+      "name": "H3 Context-IR reserves the observed ¥0.8 preauthorization",
+      "hook": "extractUsage",
+      "args": [{"model":"minimax-h3-context-ir-am","requestBody":{"model":"minimax-h3-context-ir-am","prompt":"ocean sunrise","duration":5,"aspect_ratio":"16:9"}}],
+      "expected": {"upstream_credits":0.8}
+    },
+    {
+      "name": "H3 Context-IR completion replaces the reservation with validated upstream credits",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model":"minimax-h3-context-ir-am"},{"status":"SUCCESS"},{"code":200,"data":{"status":"completed","cost":0.1265,"credits_cost":1.265}}],
+      "expected": {"upstream_credits":1.265}
     },
     {
       "name": "H3 regeneration only accepts a public source task and records it as an origin",
