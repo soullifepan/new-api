@@ -265,7 +265,11 @@ func RechargeAlipayNative(tradeNo string, sandbox bool, callerIP string) (alread
 	if err != nil || alreadyDone {
 		return alreadyDone, err
 	}
-	syncCreditUserQuotaCache(topUp.UserId, quotaToAdd, "alipay native topup")
-	RecordTopupLog(topUp.UserId, fmt.Sprintf("支付宝当面付充值成功，充值金额: %v，支付金额：%f", logger.LogQuota(quotaToAdd), topUp.Money), callerIP, topUp.PaymentMethod, PaymentProviderAlipayNative)
+	syncCreditUserQuotaCache(topUp.UserId, quotaToAdd, common.LogText("alipay native topup"))
+	RecordTopupLog(topUp.UserId, common.NewMessage("{{provider}} top-up succeeded, amount added: {{quota}}, payment amount: {{amount}}", map[string]any{
+		"provider": "Alipay",
+		"quota":    logger.FormatQuota(quotaToAdd),
+		"amount":   fmt.Sprintf("%.2f", topUp.Money),
+	}), callerIP, topUp.PaymentMethod, PaymentProviderAlipayNative)
 	return false, nil
 }

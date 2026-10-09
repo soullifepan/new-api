@@ -7,8 +7,10 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
@@ -53,6 +55,30 @@ func TestTapComfyCatalogRoutesRegister(t *testing.T) {
 	}
 }
 
+func TestTapComfyAccessTokenRouteScopes(t *testing.T) {
+	for _, testCase := range []struct {
+		key, kind, scope string
+	}{
+		{"GET /api/tapcomfy/v1/storage/sts", "scope", "storage:read"},
+		{"GET /api/tapcomfy/v1/wallet", "scope", "wallet:read"},
+		{"POST /api/tapcomfy/v1/wallet/transfers", "scope", "wallet:write"},
+		{"GET /api/tapcomfy/v1/invitations", "scope", "wallet:read"},
+		{"GET /api/tapcomfy/v1/partner", "scope", "partner:read"},
+		{"POST /api/tapcomfy/v1/partner/payouts", "scope", "partner:write"},
+		{"GET /api/tapcomfy/v1/admin/partners", "scope", "billing:read"},
+		{"POST /api/tapcomfy/v1/admin/wallet/transfers", "scope", "billing:write"},
+		{"POST /api/tapcomfy/v1/admin/assets", "scope", "model:write"},
+		{"GET /api/tapcomfy/v1/admin/models", "scope", "model:read"},
+	} {
+		t.Run(testCase.key, func(t *testing.T) {
+			rule, ok := middleware.AccessTokenRouteRule(testCase.key)
+			require.True(t, ok)
+			assert.Equal(t, testCase.kind, rule.Kind())
+			assert.Equal(t, testCase.scope, rule.Scope())
+		})
+	}
+}
+
 func TestTapComfyInvitationsReturnOnlyCurrentUsersInvitees(t *testing.T) {
 	for _, database := range []struct {
 		name, env string
@@ -78,8 +104,9 @@ func TestTapComfyInvitationsReturnOnlyCurrentUsersInvitees(t *testing.T) {
 			sqlDB, err := db.DB()
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = sqlDB.Close() })
-			require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.AuditLog{}))
+			require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.AuditLog{}, &model.Option{}))
 			model.DB, model.LOG_DB, common.RedisEnabled = db, db, false
+			require.NoError(t, model.EnsureLegacyAccessTokenRetireAt(time.Now().Unix()))
 			t.Cleanup(func() { model.DB, model.LOG_DB, common.RedisEnabled = previousDB, previousLogDB, previousRedis })
 			ownerToken, otherToken := "invite-owner-pat", "invite-other-pat"
 			owner := model.User{Username: "invite-owner", Password: "placeholder", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, Group: "default", AffCode: "owner-aff", AccessToken: &ownerToken, AuthVersion: 1}
@@ -142,8 +169,9 @@ func TestTapComfyWalletTransferWithPAT(t *testing.T) {
 	previousBatch, previousUnit := common.BatchUpdateEnabled, common.QuotaPerUnit
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.AuditLog{}, &model.WalletTransfer{}, &model.WalletBatchMarker{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.AuditLog{}, &model.Option{}, &model.WalletTransfer{}, &model.WalletBatchMarker{}))
 	model.DB, model.LOG_DB = db, db
+	require.NoError(t, model.EnsureLegacyAccessTokenRetireAt(time.Now().Unix()))
 	common.RedisEnabled, common.BatchUpdateEnabled, common.QuotaPerUnit = false, false, 500000
 	t.Cleanup(func() {
 		model.DB, model.LOG_DB, common.RedisEnabled = previousDB, previousLogDB, previousRedis
@@ -240,8 +268,9 @@ func TestTapComfyRouteRolesReachOnlyAuthorizedHandlers(t *testing.T) {
 	previousDB, previousLogDB, previousRedis := model.DB, model.LOG_DB, common.RedisEnabled
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.AuditLog{}, &model.TapComfyModel{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.AuditLog{}, &model.Option{}, &model.TapComfyModel{}))
 	model.DB, model.LOG_DB, common.RedisEnabled = db, db, false
+	require.NoError(t, model.EnsureLegacyAccessTokenRetireAt(time.Now().Unix()))
 	t.Cleanup(func() { model.DB, model.LOG_DB, common.RedisEnabled = previousDB, previousLogDB, previousRedis })
 	t.Setenv("TAPCOMFY_OSS_ENDPOINT", "")
 	commonToken, adminToken := "tapcomfy-common-token", "tapcomfy-admin-token"
@@ -305,6 +334,7 @@ func TestPartnerAPIContractAndOwnerIsolation(t *testing.T) {
 			require.NoError(t, db.Migrator().DropTable(tables...))
 			require.NoError(t, db.AutoMigrate(tables...))
 			model.DB, model.LOG_DB, common.RedisEnabled = db, db, false
+			require.NoError(t, model.EnsureLegacyAccessTokenRetireAt(time.Now().Unix()))
 			common.OptionMap = map[string]string{"PartnerProgram": `{"enabled":true,"min_payout_cents":1}`}
 			t.Cleanup(func() {
 				require.NoError(t, db.Migrator().DropTable(tables...))
