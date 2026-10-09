@@ -110,8 +110,7 @@ const SEEDANCE_CREDITS_PER_SECOND = {
 
 function usageSchema(model) {
   if (model === H3_CONTEXT_MODEL) return {
-    input_tokens: { type: "number", unit: "token", description: { en: "Input token unit price", zh: "输入 Token 单价" } },
-    output_tokens: { type: "number", unit: "token", description: { en: "Output token unit price", zh: "输出 Token 单价" } },
+    upstream_credits: { type: "number", unit: "credit", description: { en: "AM settlement credit unit price", zh: "AM 结算积分单价" } },
   };
   if (model === H3_REGENERATION_MODEL) return {
     upstream_credits: { type: "number", unit: "credit", description: { en: "AM settlement credit unit price", zh: "AM 结算积分单价" } },
@@ -141,7 +140,7 @@ const examples = {};
 for (const [model, spec] of MODELS) {
   schemas[model] = usageSchema(model);
   const facts = model === H3_CONTEXT_MODEL
-    ? { input_tokens: 5600, output_tokens: 3400 }
+    ? { upstream_credits: 0.167 }
     : model === H3_REGENERATION_MODEL
       ? { upstream_credits: 2.25 }
       : (model === "minimax-h3-am" || model === "minimax-h3-max-am")
@@ -163,7 +162,7 @@ export const meta = {
   name: "AM Video",
   icon: "text:AV",
   description: { en: "Validated AM asynchronous video generation tasks.", zh: "经过逐模型校验的 AM 异步视频生成任务。" },
-  version: "0.5.0",
+  version: "0.5.1",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   allowedHosts: ["api.apib.ai", "api.apimart.ai", "upload.apimart.ai", "cdn.apimart.ai"],
@@ -634,9 +633,10 @@ export function extractUsage(ctx) {
   if (ctx.usagePurpose === "billing_ratios") return null;
   const request = ctx.requestBody || {};
   const model = text(ctx.model || request.model);
-  if (model === H3_CONTEXT_MODEL) return { input_tokens: 100000, output_tokens: 10000 };
+  if (model === H3_CONTEXT_MODEL) return { upstream_credits: 10 };
   if (model === H3_REGENERATION_MODEL) return { upstream_credits: 10 };
-  if (model === "minimax-h3-am" || model === "minimax-h3-max-am") return { upstream_credits: 30 };
+  if (model === "minimax-h3-am") return { upstream_credits: 30 };
+  if (model === "minimax-h3-max-am") return { upstream_credits: 40 };
   if (model.startsWith("seedance-")) {
     const asset = ctx.action === "asset";
     const body = asset ? normalizeAssets(request) : normalize(model, request);
@@ -677,12 +677,7 @@ export function extractUsageOnComplete(ctx, result, body) {
   if (result.status !== "SUCCESS") return null;
   const model = String(ctx.model || "");
   const data = object(body.data, "missing AM task data");
-  if (model === H3_CONTEXT_MODEL) {
-    const usage = object(data.usage, "missing Context-IR usage");
-    if (!Number.isInteger(usage.input_tokens) || usage.input_tokens < 0 || !Number.isInteger(usage.output_tokens) || usage.output_tokens < 0) throw new Error("invalid Context-IR usage");
-    return { input_tokens: usage.input_tokens, output_tokens: usage.output_tokens };
-  }
-  if (model === "minimax-h3-am" || model === "minimax-h3-max-am" || model === H3_REGENERATION_MODEL) return { upstream_credits: amTaskCredits(data) };
+  if (model === H3_CONTEXT_MODEL || model === "minimax-h3-am" || model === "minimax-h3-max-am" || model === H3_REGENERATION_MODEL) return { upstream_credits: amTaskCredits(data) };
   if (!model.startsWith("seedance-") || ctx.action === "asset") return null;
   return { upstream_credits: seedanceCost(data) };
 }
