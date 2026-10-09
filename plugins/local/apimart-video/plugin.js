@@ -149,11 +149,32 @@ for (const [model, spec] of MODELS) {
           ? { requests: 1, resolution: spec.defaultResolution || spec.resolutions[0] }
           : { seconds: spec.defaultDuration || spec.seconds[2], resolution: spec.defaultResolution || spec.resolutions[0] };
   if (model === "pixverse-v6-am") facts.audio = "off";
-  if (model.startsWith("seedance-")) {
+  if (model === "minimax-h3-am") {
+    examples[model] = [
+      { label: "768P · 5s", facts: { upstream_credits: 2.856 } },
+      { label: "2K · 5s", facts: { upstream_credits: 4.572 } },
+      { label: "768P · 5s · 6 images", facts: { upstream_credits: 3.0848 } },
+      { label: "2K · 5s · 15s reference video", facts: { upstream_credits: 18.288 } },
+    ];
+  } else if (model === "minimax-h3-max-am") {
+    examples[model] = [
+      { label: "480P · 5s", facts: { upstream_credits: 1.884 } },
+      { label: "768P · 5s", facts: { upstream_credits: 2.856 } },
+      { label: "1080P · 5s", facts: { upstream_credits: 6.4 } },
+      { label: "1080P · 5s · 15s reference video", facts: { upstream_credits: 24.304 } },
+    ];
+  } else if (model === H3_CONTEXT_MODEL) {
+    examples[model] = [{ label: "Typical text request", facts: { upstream_credits: 0.1265 } }];
+  } else if (model === H3_REGENERATION_MODEL) {
+    examples[model] = [
+      { label: "5s source", facts: { upstream_credits: 1.716 } },
+      { label: "10s source", facts: { upstream_credits: 3.432 } },
+    ];
+  } else if (model.startsWith("seedance-")) {
     examples[model] = Object.entries(SEEDANCE_CREDITS_PER_SECOND[model]).map(function (entry) {
       return { label: entry[0] + " · 5s", facts: { upstream_credits: Math.round(entry[1][0] * 5 * 1e8) / 1e8 } };
     });
-  } else examples[model] = [{ label: "Default", facts: facts }];
+  } else if (!examples[model]) examples[model] = [{ label: "Default", facts: facts }];
 }
 
 export const meta = {
@@ -162,7 +183,7 @@ export const meta = {
   name: "AM Video",
   icon: "text:AV",
   description: { en: "Validated AM asynchronous video generation tasks.", zh: "经过逐模型校验的 AM 异步视频生成任务。" },
-  version: "0.5.1",
+  version: "0.5.2",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   allowedHosts: ["api.apib.ai", "api.apimart.ai", "upload.apimart.ai", "cdn.apimart.ai"],
