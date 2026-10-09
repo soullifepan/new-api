@@ -73,6 +73,14 @@ const MODELS = new Map([
     upstream: "wan2.7", seconds: [2, 15, 5], resolutions: ["720p", "1080p"], defaultResolution: "1080p", ratios: RATIOS, images: 2, videos: 1,
     fields: new Set(["model", "prompt", "nsfw_check", "duration", "resolution", "size", "image_urls", "image_with_roles", "video_urls", "audio_url", "negative_prompt", "prompt_extend", "watermark", "seed"]),
   }],
+  ["wan3.0-video-am", {
+    upstream: "wan3.0-video", wan3: true, seconds: [2, 30, 5], resolutions: ["480p", "720p", "1080p"], defaultResolution: "1080p", ratios: new Set(["adaptive", ...RATIOS]),
+    fields: new Set(["model", "prompt", "nsfw_check", "duration", "resolution", "size", "aspect_ratio", "image_urls", "image_with_roles", "video_urls", "audio_url", "audio_urls", "file_url", "link_url", "watermark", "audio", "seed", "generation_type"]),
+  }],
+  ["wan3.0-video-prime-am", {
+    upstream: "wan3.0-video-prime", wan3: true, seconds: [2, 30, 5], resolutions: ["480p", "720p", "1080p"], defaultResolution: "1080p", ratios: new Set(["adaptive", ...RATIOS]),
+    fields: new Set(["model", "prompt", "nsfw_check", "duration", "resolution", "size", "aspect_ratio", "image_urls", "image_with_roles", "video_urls", "audio_url", "audio_urls", "file_url", "link_url", "watermark", "audio", "seed", "generation_type"]),
+  }],
   ["happyhorse-1.0-am", {
     upstream: "happyhorse-1.0", seconds: [3, 15, 5], resolutions: ["720p", "1080p"], defaultResolution: "1080p", ratios: RATIOS, images: 9, firstFrame: true,
     fields: new Set(["model", "prompt", "nsfw_check", "duration", "resolution", "size", "first_frame_image", "image_urls", "watermark", "seed"]),
@@ -112,7 +120,15 @@ const SEEDANCE_CREDITS_PER_SECOND = {
   "seedance-2.5-am": { "480p": [0.9608, 0.576], "720p": [2.16, 1.296], "1080p": [3.8488, 2.2992] },
 };
 
+const WAN3_CREDITS_PER_SECOND = {
+  "wan3.0-video-am": { "480p": 0.3288, "720p": 0.6575, "1080p": 1.315 },
+  "wan3.0-video-prime-am": { "480p": 0.5143, "720p": 1.0286, "1080p": 2.0571 },
+};
+
 function usageSchema(model) {
+  if (model.startsWith("wan3.0-video")) return {
+    upstream_credits: { type: "number", unit: "credit", description: { en: "AM settlement credit unit price", zh: "AM 结算积分单价" } },
+  };
   if (model === H3_CONTEXT_MODEL) return {
     upstream_credits: { type: "number", unit: "credit", description: { en: "AM settlement credit unit price", zh: "AM 结算积分单价" } },
   };
@@ -178,6 +194,10 @@ for (const [model, spec] of MODELS) {
     examples[model] = Object.entries(SEEDANCE_CREDITS_PER_SECOND[model]).map(function (entry) {
       return { label: entry[0] + " · 5s", facts: { upstream_credits: Math.round(entry[1][0] * 5 * 1e8) / 1e8 } };
     });
+  } else if (model.startsWith("wan3.0-video")) {
+    examples[model] = Object.entries(WAN3_CREDITS_PER_SECOND[model]).map(function (entry) {
+      return { label: entry[0].toUpperCase() + " · 5s estimate", facts: { upstream_credits: Math.round(entry[1] * 5 * 1e8) / 1e8 } };
+    });
   } else if (!examples[model]) examples[model] = [{ label: "Default", facts: facts }];
 }
 
@@ -187,7 +207,7 @@ export const meta = {
   name: "AM Video",
   icon: "text:AV",
   description: { en: "Validated AM asynchronous video generation tasks.", zh: "经过逐模型校验的 AM 异步视频生成任务。" },
-  version: "0.5.4",
+  version: "0.5.5",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   allowedHosts: ["api.apib.ai", "api.apimart.ai", "upload.apimart.ai", "cdn.apimart.ai"],
@@ -511,11 +531,77 @@ function normalizeViduQ4(model, request) {
   return body;
 }
 
+function normalizeWan3(model, request) {
+  const spec = MODELS.get(model);
+  for (const field of Object.keys(request)) {
+    if (!spec.fields.has(field)) throw new Error("unsupported field for " + model + ": " + field);
+  }
+  if (request.model !== undefined && request.model !== model) throw new Error("model must be " + model);
+
+  const body = { model: model };
+  const prompt = text(request.prompt);
+  if (prompt.length > 20000) throw new Error("prompt is too long");
+  const images = request.image_urls === undefined ? [] : urlArray(request.image_urls, "image_urls", 10);
+  const roles = request.image_with_roles === undefined ? [] : request.image_with_roles.map(function (entry) {
+    object(entry, "image_with_roles entries must be objects");
+    if (!Object.keys(entry).every(function (key) { return key === "url" || key === "role"; })) throw new Error("unsupported image_with_roles field");
+    const aliases = { reference: "reference_image", first: "first_frame", last: "last_frame" };
+    const role = aliases[text(entry.role).toLowerCase()] || text(entry.role).toLowerCase();
+    if (!["first_frame", "last_frame", "reference_image"].includes(role)) throw new Error("unsupported image role");
+    return { url: mediaURL(entry.url, "image_with_roles.url", false), role: role };
+  });
+  if (images.length && roles.length) throw new Error("image_urls and image_with_roles are mutually exclusive");
+  const videos = request.video_urls === undefined ? [] : urlArray(request.video_urls, "video_urls", 5);
+  const audios = [];
+  if (request.audio_url !== undefined) audios.push(mediaURL(request.audio_url, "audio_url", false));
+  if (request.audio_urls !== undefined) audios.push.apply(audios, urlArray(request.audio_urls, "audio_urls", 5));
+  if (audios.length > 5) throw new Error("audio_urls must contain at most 5 URLs");
+  const fileURL = request.file_url === undefined ? "" : mediaURL(request.file_url, "file_url", false);
+  const linkURL = request.link_url === undefined ? "" : mediaURL(request.link_url, "link_url", false);
+  if (fileURL && linkURL) throw new Error("file_url and link_url are mutually exclusive");
+  if (!prompt && !images.length && !roles.length && !videos.length && !audios.length && !fileURL && !linkURL) throw new Error("prompt or reference media is required");
+  if (prompt) body.prompt = prompt;
+
+  const frames = roles.filter(function (entry) { return entry.role === "first_frame" || entry.role === "last_frame"; });
+  const references = roles.filter(function (entry) { return entry.role === "reference_image"; });
+  if (frames.length > 2 || new Set(frames.map(function (entry) { return entry.role; })).size !== frames.length) throw new Error("Wan3 accepts at most one first frame and one last frame");
+  if (references.length > 10) throw new Error("Wan3 accepts at most 10 reference images");
+  if (frames.length && (references.length || videos.length || audios.length || fileURL || linkURL)) throw new Error("first and last frames cannot be combined with reference media");
+  const generationType = request.generation_type === undefined ? "" : text(request.generation_type).toLowerCase();
+  if (generationType && !["frame", "reference"].includes(generationType)) throw new Error("generation_type must be frame or reference");
+  const hasReference = references.length || videos.length || audios.length || fileURL || linkURL;
+  const imageFamily = generationType || (hasReference ? "reference" : "frame");
+  if (imageFamily === "frame" && hasReference) throw new Error("first and last frames cannot be combined with reference media");
+  if (imageFamily === "frame" && images.length > 2) throw new Error("Wan3 accepts at most two frame images");
+  if (imageFamily === "reference" && images.length > 10) throw new Error("Wan3 accepts at most 10 reference images");
+  if (images.length) body.image_urls = images;
+  if (roles.length) body.image_with_roles = roles;
+  if (videos.length) body.video_urls = videos;
+  if (audios.length) body.audio_urls = audios;
+  if (fileURL) body.file_url = fileURL;
+  if (linkURL) body.link_url = linkURL;
+  if (generationType) body.generation_type = generationType;
+
+  const duration = request.duration === undefined ? spec.seconds[2] : request.duration;
+  if (duration !== -1) integer(duration, "duration", spec.seconds[0], spec.seconds[1]);
+  body.duration = duration;
+  body.resolution = normalizedResolution(request.resolution, spec);
+  const size = text(request.size === undefined ? (request.aspect_ratio === undefined ? "adaptive" : request.aspect_ratio) : request.size);
+  if (!spec.ratios.has(size)) throw new Error("unsupported aspect ratio");
+  body.size = size;
+  for (const field of ["nsfw_check", "watermark", "audio"]) {
+    if (request[field] !== undefined) body[field] = boolean(request[field], field);
+  }
+  if (request.seed !== undefined) body.seed = integer(request.seed, "seed", 0, 2147483647);
+  return body;
+}
+
 function normalize(model, request) {
   object(request, "video generation request must be an object");
   const spec = MODELS.get(model);
   if (!spec) throw new Error("unsupported AM video model");
   if (spec.viduQ4) return normalizeViduQ4(model, request);
+  if (spec.wan3) return normalizeWan3(model, request);
   if (spec.h3Context) return normalizeH3Context(request);
   if (spec.h3Regeneration) return normalizeH3Regeneration(request);
   if (spec.h3) return normalizeH3(model, request);
@@ -722,6 +808,11 @@ export function extractUsage(ctx) {
   if (model === H3_REGENERATION_MODEL) return { upstream_credits: 10 };
   if (model === "minimax-h3-am") return { upstream_credits: 30 };
   if (model === "minimax-h3-max-am") return { upstream_credits: 40 };
+  if (model.startsWith("wan3.0-video")) {
+    const body = normalizeWan3(model, request);
+    const seconds = body.duration === -1 ? 30 : body.duration;
+    return { upstream_credits: Math.round(WAN3_CREDITS_PER_SECOND[model][body.resolution] * seconds * 1e8) / 1e8 };
+  }
   if (model.startsWith("seedance-")) {
     const asset = ctx.action === "asset";
     const body = asset ? normalizeAssets(request) : normalize(model, request);
@@ -749,6 +840,18 @@ export function extractUsage(ctx) {
   return usage;
 }
 
+function wan3Cost(data) {
+  const credits = data && data.credits_cost;
+  const cost = data && data.cost;
+  if (credits !== undefined) {
+    if (typeof credits !== "number" || !Number.isFinite(credits) || credits < 0 || credits > 100) throw new Error("AM completed Wan3 task has invalid credits_cost");
+    if (cost !== undefined && (typeof cost !== "number" || !Number.isFinite(cost) || cost < 0 || cost > 10 || Math.abs(credits - cost * 10) > 0.00001)) throw new Error("AM Wan3 cost and credits_cost disagree");
+    return Math.round(credits * 1e8) / 1e8;
+  }
+  if (typeof cost !== "number" || !Number.isFinite(cost) || cost < 0 || cost > 10) throw new Error("AM completed Wan3 task has invalid cost");
+  return Math.round(cost * 10 * 1e8) / 1e8;
+}
+
 function seedanceCost(data) {
   // Only the authenticated upstream response is accepted. $100 is a safety
   // ceiling above the documented single-task maximum, not a pricing rate.
@@ -763,6 +866,7 @@ export function extractUsageOnComplete(ctx, result, body) {
   const model = String(ctx.model || "");
   const data = object(body.data, "missing AM task data");
   if (model === H3_CONTEXT_MODEL || model === "minimax-h3-am" || model === "minimax-h3-max-am" || model === H3_REGENERATION_MODEL) return { upstream_credits: amTaskCredits(data) };
+  if (model.startsWith("wan3.0-video")) return { upstream_credits: wan3Cost(data) };
   if (!model.startsWith("seedance-") || ctx.action === "asset") return null;
   return { upstream_credits: seedanceCost(data) };
 }

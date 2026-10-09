@@ -286,6 +286,45 @@
       "hook": "buildSubmitRequest",
       "args": [{"model":"minimax-h3-regeneration-am","baseUrl":"https://api.apimart.ai","apiKey":"fixture","requestBody":{"model":"minimax-h3-regeneration-am","source_task_id":"task_source"},"originTasks":[{"taskId":"task_source","upstreamTaskId":"vendor-source","model":"minimax-h3-am","action":"video_generation","status":"SUCCESS","state":{"h3Source":{"version":1,"resolution":"768p","duration":5}}}]}],
       "expected": {"url":"https://api.apimart.ai/v1/videos/generations","method":"POST","headers":{"Accept":"application/json","Content-Type":"application/json","Authorization":"Bearer fixture"},"body":{"model":"MiniMax-H3-Regeneration","source_task_id":"vendor-source"},"action":"video_generation"}
+    },
+    {
+      "name": "Wan3 standard normalizes a frame request",
+      "hook": "native",
+      "member": "decodeVideoGeneration",
+      "args": [{"body":{"kind":"json","value":{"model":"wan3.0-video-am","prompt":"animate this","image_urls":["https://media.example/first.png"],"resolution":"720P","duration":5,"size":"16:9","audio":false}}}],
+      "expected": {"kind":"submit","model":"wan3.0-video-am","action":"video_generation","requestBody":{"model":"wan3.0-video-am","prompt":"animate this","image_urls":["https://media.example/first.png"],"duration":5,"resolution":"720p","size":"16:9","audio":false}}
+    },
+    {
+      "name": "Wan3 reference file permits an omitted prompt and automatic duration",
+      "hook": "native",
+      "member": "decodeVideoGeneration",
+      "args": [{"body":{"kind":"json","value":{"model":"wan3.0-video-prime-am","file_url":"https://media.example/story.pdf","duration":-1}}}],
+      "expected": {"kind":"submit","model":"wan3.0-video-prime-am","action":"video_generation","requestBody":{"model":"wan3.0-video-prime-am","file_url":"https://media.example/story.pdf","duration":-1,"resolution":"1080p","size":"adaptive"}}
+    },
+    {
+      "name": "Wan3 rejects mixed frame and reference families",
+      "hook": "native",
+      "member": "decodeVideoGeneration",
+      "args": [{"body":{"kind":"json","value":{"model":"wan3.0-video-am","prompt":"continue","image_with_roles":[{"url":"https://media.example/first.png","role":"first_frame"}],"audio_urls":["https://media.example/sound.mp3"]}}}],
+      "expectedError": "first and last frames cannot be combined with reference media"
+    },
+    {
+      "name": "Wan3 reserves the documented Prime 720P estimate",
+      "hook": "extractUsage",
+      "args": [{"model":"wan3.0-video-prime-am","requestBody":{"model":"wan3.0-video-prime-am","prompt":"test","resolution":"720P","duration":5}}],
+      "expected": {"upstream_credits":5.143}
+    },
+    {
+      "name": "Wan3 settles validated upstream credits",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model":"wan3.0-video-am"},{"status":"SUCCESS"},{"data":{"status":"completed","cost":0.2,"credits_cost":2}}],
+      "expected": {"upstream_credits":2}
+    },
+    {
+      "name": "Wan3 rejects inconsistent upstream cost",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model":"wan3.0-video-am"},{"status":"SUCCESS"},{"data":{"status":"completed","cost":0.2,"credits_cost":3}}],
+      "expectedError": "disagree"
     }
   ]
 }
