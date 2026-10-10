@@ -15,6 +15,14 @@ const VIDEO_FIELDS = new Set([
 const H3_CONTEXT_MODEL = "minimax-h3-context-ir-am";
 const H3_REGENERATION_MODEL = "minimax-h3-regeneration-am";
 
+// Documented MiniMax-H3-Max credits. Reference-video URLs do not expose a
+// trustworthy duration at submission, so reserve the documented 15-second
+// maximum per input; completion replaces this estimate with upstream cost.
+const H3_MAX_CREDITS_PER_SECOND = { "480p": 0.3768, "768p": 0.5712, "1080p": 1.28 };
+const H3_MAX_REFERENCE_IMAGE_CREDITS = 0.5712;
+const H3_MAX_REFERENCE_VIDEO_CREDITS_PER_SECOND = { "480p": 0.4232, "768p": 1.1088, "1080p": 1.1936 };
+const H3_MAX_REFERENCE_VIDEO_SECONDS = 15;
+
 const MODELS = new Map([
   ["grok-imagine-1.5-video-am", {
     upstream: "grok-imagine-1.5-video-ext", seconds: [6, 15, 6], resolutions: ["480p", "720p"],
@@ -207,7 +215,7 @@ export const meta = {
   name: "AM Video",
   icon: "text:AV",
   description: { en: "Validated AM asynchronous video generation tasks.", zh: "经过逐模型校验的 AM 异步视频生成任务。" },
-  version: "0.5.6",
+  version: "0.5.7",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   allowedHosts: ["api.apib.ai", "api.apimart.ai", "upload.apimart.ai", "cdn.apimart.ai"],
@@ -461,6 +469,19 @@ function normalizeH3Context(request) {
   delete body.resolution;
   body.model = H3_CONTEXT_MODEL;
   return body;
+}
+
+function h3MaxReservationCredits(request) {
+  const body = normalizeH3("minimax-h3-max-am", request);
+  const outputCredits = H3_MAX_CREDITS_PER_SECOND[body.resolution] * body.duration;
+  const referenceImageCount = (body.image_urls || []).length + (body.image_with_roles || []).filter(function (entry) {
+    return entry.role === "reference_image";
+  }).length;
+  const referenceImageCredits = Math.max(0, referenceImageCount - 2) * H3_MAX_REFERENCE_IMAGE_CREDITS;
+  // Input URLs do not expose their media duration. Use the provider's maximum
+  // supported input duration and reconcile to credits_cost on completion.
+  const referenceVideoCredits = (body.video_urls || []).length * H3_MAX_REFERENCE_VIDEO_SECONDS * H3_MAX_REFERENCE_VIDEO_CREDITS_PER_SECOND[body.resolution];
+  return Math.round((outputCredits + referenceImageCredits + referenceVideoCredits) * 1e8) / 1e8;
 }
 
 function normalizeH3Regeneration(request) {
@@ -807,7 +828,7 @@ export function extractUsage(ctx) {
   if (model === H3_CONTEXT_MODEL) return { upstream_credits: 0.8 };
   if (model === H3_REGENERATION_MODEL) return { upstream_credits: 10 };
   if (model === "minimax-h3-am") return { upstream_credits: 30 };
-  if (model === "minimax-h3-max-am") return { upstream_credits: 40 };
+  if (model === "minimax-h3-max-am") return { upstream_credits: h3MaxReservationCredits(request) };
   if (model.startsWith("wan3.0-video")) {
     const body = normalizeWan3(model, request);
     const seconds = body.duration === -1 ? 30 : body.duration;

@@ -258,6 +258,18 @@
       "expected": {"code":200,"data":{"id":"public-task-1","status":"completed","progress":100,"result":{"video_url":"https://cdn.example/out.mp4"}}}
     },
     {
+      "name": "H3 Max reserves the documented 480P output price instead of a fixed maximum",
+      "hook": "extractUsage",
+      "args": [{"model":"minimax-h3-max-am","requestBody":{"model":"minimax-h3-max-am","prompt":"ocean sunrise","duration":8,"resolution":"480p","image_urls":["https://media.example/reference.png"]}}],
+      "expected": {"upstream_credits":3.0144}
+    },
+    {
+      "name": "H3 Max reserves the documented maximum duration for each reference video",
+      "hook": "extractUsage",
+      "args": [{"model":"minimax-h3-max-am","requestBody":{"model":"minimax-h3-max-am","prompt":"ocean sunrise","duration":5,"resolution":"1080p","video_urls":["https://media.example/reference.mp4"]}}],
+      "expected": {"upstream_credits":24.304}
+    },
+    {
       "name": "H3 Context-IR normalizes a prompt task without a video resolution",
       "hook": "native", "member": "decodeH3ContextIR",
       "args": [{"body":{"kind":"json","value":{"prompt":"ocean sunrise","duration":5,"aspect_ratio":"16:9"}}}],
