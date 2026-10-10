@@ -116,7 +116,7 @@ for (const [model, resolutions] of [
 const SEEDANCE_CREDITS_PER_SECOND = {
   "seedance-2.0-am": { "480p": [0.66, 0.4], "720p": [1.42, 0.8584], "1080p": [3.544, 2.1568], "4k": [7.22, 4.4432] },
   "seedance-2.0-fast-am": { "480p": [0.3984, 0.2368], "720p": [0.856, 0.5128] },
-  "seedance-2.0-mini-am": { "480p": [0.1056, 0.064], "720p": [0.2288, 0.1384] },
+  "seedance-2.0-mini-am": { "480p": [0.1815, 0.1105], "720p": [0.3903, 0.2376] },
   "seedance-2.5-am": { "480p": [0.9608, 0.576], "720p": [2.16, 1.296], "1080p": [3.8488, 2.2992] },
 };
 
@@ -207,7 +207,7 @@ export const meta = {
   name: "AM Video",
   icon: "text:AV",
   description: { en: "Validated AM asynchronous video generation tasks.", zh: "经过逐模型校验的 AM 异步视频生成任务。" },
-  version: "0.5.5",
+  version: "0.5.6",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   allowedHosts: ["api.apib.ai", "api.apimart.ai", "upload.apimart.ai", "cdn.apimart.ai"],

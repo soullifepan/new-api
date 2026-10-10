@@ -325,6 +325,18 @@
       "hook": "extractUsageOnComplete",
       "args": [{"model":"wan3.0-video-am"},{"status":"SUCCESS"},{"data":{"status":"completed","cost":0.2,"credits_cost":3}}],
       "expectedError": "disagree"
+    },
+    {
+      "name": "Seedance Mini reserves the current 720P video estimate",
+      "hook": "extractUsage",
+      "args": [{"model":"seedance-2.0-mini-am","requestBody":{"model":"seedance-2.0-mini-am","prompt":"test","resolution":"720p","duration":5}}],
+      "expected": {"upstream_credits":1.9515}
+    },
+    {
+      "name": "Seedance Mini reserves input and output at the current 480P rate",
+      "hook": "extractUsage",
+      "args": [{"model":"seedance-2.0-mini-am","requestBody":{"model":"seedance-2.0-mini-am","prompt":"test","resolution":"480p","duration":5,"video_urls":["https://media.example/reference.mp4"]}}],
+      "expected": {"upstream_credits":2.2321}
     }
   ]
 }
