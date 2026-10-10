@@ -393,6 +393,18 @@
       "expected":{"url":"https://api.apimart.ai/v1/videos/generations","method":"POST","headers":{"Accept":"application/json","Content-Type":"application/json","Authorization":"Bearer fixture"},"body":{"model":"gemini-omni-1.1-flash","resolution":"720p","aspect_ratio":"16:9","prompt":"continue the scene","extend_from_task_id":"private-task"},"action":"video_generation"}
     },
     {
+      "name": "Gemini Omni EXT reserves the published 4K 8-second rate",
+      "hook": "extractUsage",
+      "args": [{"model":"gemini-omni-1.1-flash-ext-am","requestBody":{"model":"gemini-omni-1.1-flash-ext-am","prompt":"ocean","resolution":"4k","duration":8}}],
+      "expected":{"upstream_credits":10.625}
+    },
+    {
+      "name": "Gemini Omni EXT reserves the published 720P reference-video rate",
+      "hook": "extractUsage",
+      "args": [{"model":"gemini-omni-1.1-flash-ext-am","requestBody":{"model":"gemini-omni-1.1-flash-ext-am","prompt":"ocean","resolution":"720p","video_urls":["https://media.example/input.mp4"]}}],
+      "expected":{"upstream_credits":1}
+    },
+    {
       "name": "Gemini Omni settles authenticated upstream cost",
       "hook": "extractUsageOnComplete",
       "args": [{"model":"gemini-omni-1.1-flash-ext-am"},{"status":"SUCCESS"},{"data":{"cost":0.4,"credits_cost":4}}],

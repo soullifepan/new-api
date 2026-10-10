@@ -23,6 +23,15 @@ const H3_MAX_REFERENCE_IMAGE_CREDITS = 0.5712;
 const H3_MAX_REFERENCE_VIDEO_CREDITS_PER_SECOND = { "480p": 0.4232, "768p": 1.1088, "1080p": 1.1936 };
 const H3_MAX_REFERENCE_VIDEO_SECONDS = 15;
 
+// Gemini Omni Flash EXT published upstream credits. Completion replaces this
+// reservation with the authenticated credits_cost fact.
+const GEMINI_OMNI_EXT_CREDITS = {
+  "360p": { 4: 1.875, 6: 2.1875, 8: 2.5, 10: 2.8125, video: 0.5 },
+  "720p": { 4: 3.125, 6: 3.75, 8: 4.375, 10: 5, video: 1 },
+  "1080p": { 4: 3.125, 6: 3.75, 8: 4.375, 10: 5, video: 1 },
+  "4k": { 4: 9.375, 6: 10, 8: 10.625, 10: 11.25, video: 3 },
+};
+
 const MODELS = new Map([
   ["grok-imagine-1.5-video-am", {
     upstream: "grok-imagine-1.5-video-ext", seconds: [6, 15, 6], resolutions: ["480p", "720p"],
@@ -225,7 +234,7 @@ export const meta = {
   name: "AM Video",
   icon: "text:AV",
   description: { en: "Validated AM asynchronous video generation tasks.", zh: "经过逐模型校验的 AM 异步视频生成任务。" },
-  version: "0.5.9",
+  version: "0.5.10",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   allowedHosts: ["api.apib.ai", "api.apimart.ai", "upload.apimart.ai", "cdn.apimart.ai"],
@@ -488,6 +497,12 @@ function normalizeH3Context(request) {
   delete body.resolution;
   body.model = H3_CONTEXT_MODEL;
   return body;
+}
+
+function geminiOmniExtReservationCredits(request) {
+  const body = normalizeGeminiOmni("gemini-omni-1.1-flash-ext-am", request);
+  const rates = GEMINI_OMNI_EXT_CREDITS[body.resolution];
+  return body.video_urls ? rates.video : rates[body.duration];
 }
 
 function h3MaxReservationCredits(request) {
@@ -928,7 +943,8 @@ export function extractUsage(ctx) {
   if (model === H3_REGENERATION_MODEL) return { upstream_credits: 10 };
   if (model === "minimax-h3-am") return { upstream_credits: 30 };
   if (model === "minimax-h3-max-am") return { upstream_credits: h3MaxReservationCredits(request) };
-  if (model.startsWith("gemini-omni-1.1-flash")) return { upstream_credits: 0 };
+  if (model === "gemini-omni-1.1-flash-ext-am") return { upstream_credits: geminiOmniExtReservationCredits(request) };
+  if (model === "gemini-omni-1.1-flash-am") return { upstream_credits: 0 };
   if (model.startsWith("wan3.0-video")) {
     const body = normalizeWan3(model, request);
     const seconds = body.duration === -1 ? 30 : body.duration;
