@@ -17,7 +17,7 @@ const H3_REGENERATION_MODEL = "minimax-h3-regeneration-am";
 
 // Documented MiniMax-H3-Max credits. Reference-video URLs do not expose a
 // trustworthy duration at submission, so reserve the documented 15-second
-// maximum per input; completion replaces this estimate with upstream cost.
+// total maximum; completion replaces this estimate with upstream cost.
 const H3_MAX_CREDITS_PER_SECOND = { "480p": 0.3768, "768p": 0.5712, "1080p": 1.28 };
 const H3_MAX_REFERENCE_IMAGE_CREDITS = 0.5712;
 const H3_MAX_REFERENCE_VIDEO_CREDITS_PER_SECOND = { "480p": 0.4232, "768p": 1.1088, "1080p": 1.1936 };
@@ -42,7 +42,7 @@ const MODELS = new Map([
   ["minimax-h3-max-am", {
     upstream: "MiniMax-H3-Max", h3: "max", seconds: [5, 15, 5], resolutions: ["480p", "768p", "1080p"], defaultResolution: "768p",
     ratios: new Set(["21:9", "16:9", "4:3", "1:1", "3:4", "9:16", "adaptive"]), images: 9, videos: 3, audios: 3,
-    fields: new Set(["model", "prompt", "nsfw_check", "duration", "resolution", "aspect_ratio", "watermark", "first_frame_image", "last_frame_image", "image_urls", "image_with_roles", "video_urls", "audio_urls"]),
+    fields: new Set(["model", "prompt", "nsfw_check", "duration", "resolution", "aspect_ratio", "size", "ratio", "watermark", "aigc_watermark", "webhook", "first_frame_image", "last_frame_image", "image_urls", "image_with_roles", "video_url", "video_urls", "audio_url", "audio_urls"]),
   }],
   [H3_CONTEXT_MODEL, {
     upstream: "MiniMax-H3-Context-IR", h3Context: true,
@@ -215,7 +215,7 @@ export const meta = {
   name: "AM Video",
   icon: "text:AV",
   description: { en: "Validated AM asynchronous video generation tasks.", zh: "经过逐模型校验的 AM 异步视频生成任务。" },
-  version: "0.5.7",
+  version: "0.5.8",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   allowedHosts: ["api.apib.ai", "api.apimart.ai", "upload.apimart.ai", "cdn.apimart.ai"],
@@ -420,7 +420,7 @@ function h3Role(entry) {
   object(entry, "image_with_roles entries must be objects");
   if (!Object.keys(entry).every(function (key) { return key === "url" || key === "role"; })) throw new Error("unsupported image_with_roles field");
   const aliases = { first: "first_frame", first_frame: "first_frame", last: "last_frame", last_frame: "last_frame", reference: "reference_image", reference_image: "reference_image" };
-  const role = aliases[text(entry.role).toLowerCase()];
+  const role = entry.role === undefined ? "reference_image" : aliases[text(entry.role).toLowerCase()];
   if (!role) throw new Error("invalid image role");
   return { url: mediaURL(entry.url, "image_with_roles.url", false), role: role };
 }
@@ -437,8 +437,12 @@ function normalizeH3(model, request) {
   if (request.first_frame_image !== undefined) body.first_frame_image = mediaURL(request.first_frame_image, "first_frame_image", false);
   if (request.last_frame_image !== undefined) body.last_frame_image = mediaURL(request.last_frame_image, "last_frame_image", false);
   if (request.image_urls !== undefined) body.image_urls = urlArray(request.image_urls, "image_urls", 9);
-  if (request.video_urls !== undefined) body.video_urls = urlArray(request.video_urls, "video_urls", 3);
-  if (request.audio_urls !== undefined) body.audio_urls = urlArray(request.audio_urls, "audio_urls", 3);
+  if (request.video_url !== undefined && request.video_urls !== undefined) throw new Error("video_url and video_urls are mutually exclusive");
+  if (request.video_url !== undefined) body.video_urls = [mediaURL(request.video_url, "video_url", false)];
+  else if (request.video_urls !== undefined) body.video_urls = urlArray(request.video_urls, "video_urls", 3);
+  if (request.audio_url !== undefined && request.audio_urls !== undefined) throw new Error("audio_url and audio_urls are mutually exclusive");
+  if (request.audio_url !== undefined) body.audio_urls = [mediaURL(request.audio_url, "audio_url", false)];
+  else if (request.audio_urls !== undefined) body.audio_urls = urlArray(request.audio_urls, "audio_urls", 3);
   if (request.image_with_roles !== undefined) {
     if (!Array.isArray(request.image_with_roles) || !request.image_with_roles.length) throw new Error("image_with_roles must not be empty");
     body.image_with_roles = request.image_with_roles.map(h3Role);
@@ -452,14 +456,19 @@ function normalizeH3(model, request) {
   const hasReferences = referenceImages > 0 || (body.video_urls || []).length > 0 || (body.audio_urls || []).length > 0;
   if (hasFrames && hasReferences) throw new Error("frame images and reference media are mutually exclusive");
   if (body.audio_urls && !referenceImages && !(body.video_urls || []).length) throw new Error("audio_urls requires reference image or video");
-  const ratio = text(request.aspect_ratio || (hasFrames || hasReferences ? "adaptive" : "16:9"));
+  const ratioValues = [request.aspect_ratio, request.size, request.ratio].filter(function (value) { return value !== undefined; });
+  if (new Set(ratioValues).size > 1) throw new Error("aspect ratio aliases conflict");
+  const ratio = text(ratioValues[0] || (hasFrames || hasReferences ? "adaptive" : "16:9"));
   if (!spec.ratios.has(ratio) || (!hasFrames && !hasReferences && ratio === "adaptive")) throw new Error("invalid aspect_ratio");
   if (!hasFrames) body.aspect_ratio = ratio;
   if (request.nsfw_check !== undefined) body.nsfw_check = boolean(request.nsfw_check, "nsfw_check");
-  if (request.watermark !== undefined) {
+  if (request.watermark !== undefined && request.aigc_watermark !== undefined && request.watermark !== request.aigc_watermark) throw new Error("watermark aliases conflict");
+  const watermark = request.watermark === undefined ? request.aigc_watermark : request.watermark;
+  if (watermark !== undefined) {
     if (spec.h3 === "max" && body.resolution === "1080p") throw new Error("1080p H3-Max must omit watermark");
-    body.watermark = boolean(request.watermark, "watermark");
+    body.watermark = boolean(watermark, "watermark");
   }
+  if (request.webhook !== undefined) body.webhook = mediaURL(request.webhook, "webhook", false);
   return body;
 }
 
@@ -479,8 +488,8 @@ function h3MaxReservationCredits(request) {
   }).length;
   const referenceImageCredits = Math.max(0, referenceImageCount - 2) * H3_MAX_REFERENCE_IMAGE_CREDITS;
   // Input URLs do not expose their media duration. Use the provider's maximum
-  // supported input duration and reconcile to credits_cost on completion.
-  const referenceVideoCredits = (body.video_urls || []).length * H3_MAX_REFERENCE_VIDEO_SECONDS * H3_MAX_REFERENCE_VIDEO_CREDITS_PER_SECOND[body.resolution];
+  // total input duration and reconcile to credits_cost on completion.
+  const referenceVideoCredits = (body.video_urls || []).length ? H3_MAX_REFERENCE_VIDEO_SECONDS * H3_MAX_REFERENCE_VIDEO_CREDITS_PER_SECOND[body.resolution] : 0;
   return Math.round((outputCredits + referenceImageCredits + referenceVideoCredits) * 1e8) / 1e8;
 }
 

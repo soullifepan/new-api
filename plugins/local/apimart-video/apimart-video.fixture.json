@@ -258,6 +258,12 @@
       "expected": {"code":200,"data":{"id":"public-task-1","status":"completed","progress":100,"result":{"video_url":"https://cdn.example/out.mp4"}}}
     },
     {
+      "name": "H3 Max accepts documented R2V aliases without changing its reference mode",
+      "hook": "buildSubmitRequest",
+      "args": [{"model":"minimax-h3-max-am","baseUrl":"https://api.apimart.ai","apiKey":"fixture","requestBody":{"model":"minimax-h3-max-am","prompt":"ocean sunrise","duration":8,"resolution":"480p","size":"16:9","image_with_roles":[{"url":"https://media.example/reference.png"}],"video_url":"https://media.example/reference.mp4","audio_url":"https://media.example/reference.mp3","aigc_watermark":false,"webhook":"https://example.com/webhook"}}],
+      "expected": {"url":"https://api.apimart.ai/v1/videos/generations","method":"POST","headers":{"Accept":"application/json","Content-Type":"application/json","Authorization":"Bearer fixture"},"body":{"model":"MiniMax-H3-Max","prompt":"ocean sunrise","duration":8,"resolution":"480p","image_with_roles":[{"url":"https://media.example/reference.png","role":"reference_image"}],"video_urls":["https://media.example/reference.mp4"],"audio_urls":["https://media.example/reference.mp3"],"aspect_ratio":"16:9","watermark":false,"webhook":"https://example.com/webhook"},"action":"video_generation"}
+    },
+    {
       "name": "H3 Max R2V preserves reference images and aspect ratio upstream",
       "hook": "buildSubmitRequest",
       "args": [{"model":"minimax-h3-max-am","baseUrl":"https://api.apimart.ai","apiKey":"fixture","requestBody":{"model":"minimax-h3-max-am","prompt":"ocean sunrise","duration":8,"resolution":"480p","aspect_ratio":"16:9","image_urls":["https://media.example/reference.png"]}}],
