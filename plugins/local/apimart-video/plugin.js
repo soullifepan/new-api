@@ -32,6 +32,10 @@ const GEMINI_OMNI_EXT_CREDITS = {
   "4k": { 4: 9.375, 6: 10, 8: 10.625, 10: 11.25, video: 3 },
 };
 
+// Gemini Omni Flash does not accept duration. Reserve its documented ten-second
+// output ceiling and settle from the authenticated upstream credits_cost.
+const GEMINI_OMNI_CREDITS_PER_SECOND = { "360p": 0.37, "720p": 1.1, "1080p": 1.65, "4k": 3.3 };
+
 const MODELS = new Map([
   ["grok-imagine-1.5-video-am", {
     upstream: "grok-imagine-1.5-video-ext", seconds: [6, 15, 6], resolutions: ["480p", "720p"],
@@ -227,6 +231,18 @@ for (const [model, spec] of MODELS) {
     });
   } else if (!examples[model]) examples[model] = [{ label: "Default", facts: facts }];
 }
+// Plugin API v1 allows at most sixteen display examples. The complete rate map
+// above remains the reservation authority, while these cover every output tier.
+examples["gemini-omni-1.1-flash-ext-am"] = Object.entries(GEMINI_OMNI_EXT_CREDITS).flatMap(function (entry) {
+  const resolution = entry[0];
+  const rates = entry[1];
+  return [4, 6, 8, 10].map(function (duration) {
+    return { label: resolution.toUpperCase() + " · " + duration + "s", facts: { upstream_credits: rates[duration] } };
+  });
+});
+examples["gemini-omni-1.1-flash-am"] = Object.entries(GEMINI_OMNI_CREDITS_PER_SECOND).map(function (entry) {
+  return { label: entry[0].toUpperCase() + " · max 10s reservation", facts: { upstream_credits: entry[1] * 10 } };
+});
 
 export const meta = {
   apiVersion: 1,
@@ -234,7 +250,7 @@ export const meta = {
   name: "AM Video",
   icon: "text:AV",
   description: { en: "Validated AM asynchronous video generation tasks.", zh: "经过逐模型校验的 AM 异步视频生成任务。" },
-  version: "0.5.10",
+  version: "0.5.11",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   allowedHosts: ["api.apib.ai", "api.apimart.ai", "upload.apimart.ai", "cdn.apimart.ai"],
@@ -503,6 +519,11 @@ function geminiOmniExtReservationCredits(request) {
   const body = normalizeGeminiOmni("gemini-omni-1.1-flash-ext-am", request);
   const rates = GEMINI_OMNI_EXT_CREDITS[body.resolution];
   return body.video_urls ? rates.video : rates[body.duration];
+}
+
+function geminiOmniReservationCredits(request) {
+  const body = normalizeGeminiOmni("gemini-omni-1.1-flash-am", request);
+  return GEMINI_OMNI_CREDITS_PER_SECOND[body.resolution] * 10;
 }
 
 function h3MaxReservationCredits(request) {
@@ -944,7 +965,7 @@ export function extractUsage(ctx) {
   if (model === "minimax-h3-am") return { upstream_credits: 30 };
   if (model === "minimax-h3-max-am") return { upstream_credits: h3MaxReservationCredits(request) };
   if (model === "gemini-omni-1.1-flash-ext-am") return { upstream_credits: geminiOmniExtReservationCredits(request) };
-  if (model === "gemini-omni-1.1-flash-am") return { upstream_credits: 0 };
+  if (model === "gemini-omni-1.1-flash-am") return { upstream_credits: geminiOmniReservationCredits(request) };
   if (model.startsWith("wan3.0-video")) {
     const body = normalizeWan3(model, request);
     const seconds = body.duration === -1 ? 30 : body.duration;

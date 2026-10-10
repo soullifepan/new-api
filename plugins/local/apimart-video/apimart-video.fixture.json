@@ -405,6 +405,12 @@
       "expected":{"upstream_credits":1}
     },
     {
+      "name": "Gemini Omni reserves the documented 4K ten-second ceiling",
+      "hook": "extractUsage",
+      "args": [{"model":"gemini-omni-1.1-flash-am","requestBody":{"model":"gemini-omni-1.1-flash-am","prompt":"ocean","resolution":"4k"}}],
+      "expected":{"upstream_credits":33}
+    },
+    {
       "name": "Gemini Omni settles authenticated upstream cost",
       "hook": "extractUsageOnComplete",
       "args": [{"model":"gemini-omni-1.1-flash-ext-am"},{"status":"SUCCESS"},{"data":{"cost":0.4,"credits_cost":4}}],
