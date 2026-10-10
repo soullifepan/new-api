@@ -9,11 +9,32 @@ const VIDEO_FIELDS = new Set([
   "size", "aspect_ratio", "seed", "watermark", "prompt_optimizer",
   "first_frame_image", "last_frame_image", "image_urls", "image_with_roles",
   "video_urls", "audio_url", "audio_urls", "audio", "generate_audio", "generation_type",
-  "prompt_extend",
+  "prompt_extend", "metadata", "extend_from_task_id",
 ]);
 
 const H3_CONTEXT_MODEL = "minimax-h3-context-ir-am";
 const H3_REGENERATION_MODEL = "minimax-h3-regeneration-am";
+
+// Documented MiniMax-H3-Max credits. Reference-video URLs do not expose a
+// trustworthy duration at submission, so reserve the documented 15-second
+// total maximum; completion replaces this estimate with upstream cost.
+const H3_MAX_CREDITS_PER_SECOND = { "480p": 0.3768, "768p": 0.5712, "1080p": 1.28 };
+const H3_MAX_REFERENCE_IMAGE_CREDITS = 0.5712;
+const H3_MAX_REFERENCE_VIDEO_CREDITS_PER_SECOND = { "480p": 0.4232, "768p": 1.1088, "1080p": 1.1936 };
+const H3_MAX_REFERENCE_VIDEO_SECONDS = 15;
+
+// Gemini Omni Flash EXT published upstream credits. Completion replaces this
+// reservation with the authenticated credits_cost fact.
+const GEMINI_OMNI_EXT_CREDITS = {
+  "360p": { 4: 1.875, 6: 2.1875, 8: 2.5, 10: 2.8125, video: 0.5 },
+  "720p": { 4: 3.125, 6: 3.75, 8: 4.375, 10: 5, video: 1 },
+  "1080p": { 4: 3.125, 6: 3.75, 8: 4.375, 10: 5, video: 1 },
+  "4k": { 4: 9.375, 6: 10, 8: 10.625, 10: 11.25, video: 3 },
+};
+
+// Gemini Omni Flash does not accept duration. Reserve its documented ten-second
+// output ceiling and settle from the authenticated upstream credits_cost.
+const GEMINI_OMNI_CREDITS_PER_SECOND = { "360p": 0.37, "720p": 1.1, "1080p": 1.65, "4k": 3.3 };
 
 const MODELS = new Map([
   ["grok-imagine-1.5-video-am", {
@@ -34,13 +55,21 @@ const MODELS = new Map([
   ["minimax-h3-max-am", {
     upstream: "MiniMax-H3-Max", h3: "max", seconds: [5, 15, 5], resolutions: ["480p", "768p", "1080p"], defaultResolution: "768p",
     ratios: new Set(["21:9", "16:9", "4:3", "1:1", "3:4", "9:16", "adaptive"]), images: 9, videos: 3, audios: 3,
-    fields: new Set(["model", "prompt", "nsfw_check", "duration", "resolution", "aspect_ratio", "watermark", "first_frame_image", "last_frame_image", "image_urls", "image_with_roles", "video_urls", "audio_urls"]),
+    fields: new Set(["model", "prompt", "nsfw_check", "duration", "resolution", "aspect_ratio", "size", "ratio", "watermark", "aigc_watermark", "webhook", "first_frame_image", "last_frame_image", "image_urls", "image_with_roles", "video_url", "video_urls", "audio_url", "audio_urls"]),
   }],
   [H3_CONTEXT_MODEL, {
     upstream: "MiniMax-H3-Context-IR", h3Context: true,
     fields: new Set(["model", "prompt", "nsfw_check", "duration", "aspect_ratio", "first_frame_image", "last_frame_image", "image_urls", "image_with_roles", "video_urls", "audio_urls"]),
   }],
   [H3_REGENERATION_MODEL, { upstream: "MiniMax-H3-Regeneration", h3Regeneration: true, fields: new Set(["source_task_id", "nsfw_check"]) }],
+  ["gemini-omni-1.1-flash-ext-am", {
+    upstream: "gemini-omni-1.1-flash-ext", geminiOmni: "ext", resolutions: ["720p", "1080p", "4k"], defaultResolution: "720p",
+    fields: new Set(["model", "prompt", "nsfw_check", "duration", "resolution", "aspect_ratio", "size", "generation_type", "image_urls", "video_urls"]),
+  }],
+  ["gemini-omni-1.1-flash-am", {
+    upstream: "gemini-omni-1.1-flash", geminiOmni: "standard", resolutions: ["360p", "720p", "1080p", "4k"], defaultResolution: "720p",
+    fields: new Set(["model", "prompt", "resolution", "aspect_ratio", "image_urls", "first_frame_image", "last_frame_image", "image_with_roles", "video_urls", "metadata", "extend_from_task_id"]),
+  }],
   ["minimax-hailuo-2.3-am", {
     upstream: "MiniMax-Hailuo-2.3", durations: [6, 10], defaultDuration: 6, resolutions: ["768p", "1080p"], firstFrame: true,
     fields: new Set(["model", "prompt", "nsfw_check", "duration", "resolution", "first_frame_image", "prompt_optimizer", "watermark"]),
@@ -132,7 +161,7 @@ function usageSchema(model) {
   if (model === H3_CONTEXT_MODEL) return {
     upstream_credits: { type: "number", unit: "credit", description: { en: "AM settlement credit unit price", zh: "AM 结算积分单价" } },
   };
-  if (model === H3_REGENERATION_MODEL) return {
+  if (model === H3_REGENERATION_MODEL || model.startsWith("gemini-omni-1.1-flash")) return {
     upstream_credits: { type: "number", unit: "credit", description: { en: "AM settlement credit unit price", zh: "AM 结算积分单价" } },
   };
   if (model === "minimax-h3-am" || model === "minimax-h3-max-am") return {
@@ -163,7 +192,9 @@ for (const [model, spec] of MODELS) {
     ? { upstream_credits: 0.167 }
     : model === H3_REGENERATION_MODEL
       ? { upstream_credits: 2.25 }
-      : (model === "minimax-h3-am" || model === "minimax-h3-max-am")
+      : model.startsWith("gemini-omni-1.1-flash")
+        ? { upstream_credits: 0 }
+        : (model === "minimax-h3-am" || model === "minimax-h3-max-am")
         ? { upstream_credits: 2.856 }
         : model.startsWith("veo3.1-")
           ? { requests: 1, resolution: spec.defaultResolution || spec.resolutions[0] }
@@ -200,6 +231,18 @@ for (const [model, spec] of MODELS) {
     });
   } else if (!examples[model]) examples[model] = [{ label: "Default", facts: facts }];
 }
+// Plugin API v1 allows at most sixteen display examples. The complete rate map
+// above remains the reservation authority, while these cover every output tier.
+examples["gemini-omni-1.1-flash-ext-am"] = Object.entries(GEMINI_OMNI_EXT_CREDITS).flatMap(function (entry) {
+  const resolution = entry[0];
+  const rates = entry[1];
+  return [4, 6, 8, 10].map(function (duration) {
+    return { label: resolution.toUpperCase() + " · " + duration + "s", facts: { upstream_credits: rates[duration] } };
+  });
+});
+examples["gemini-omni-1.1-flash-am"] = Object.entries(GEMINI_OMNI_CREDITS_PER_SECOND).map(function (entry) {
+  return { label: entry[0].toUpperCase() + " · max 10s reservation", facts: { upstream_credits: entry[1] * 10 } };
+});
 
 export const meta = {
   apiVersion: 1,
@@ -207,7 +250,7 @@ export const meta = {
   name: "AM Video",
   icon: "text:AV",
   description: { en: "Validated AM asynchronous video generation tasks.", zh: "经过逐模型校验的 AM 异步视频生成任务。" },
-  version: "0.5.6",
+  version: "0.5.11",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   allowedHosts: ["api.apib.ai", "api.apimart.ai", "upload.apimart.ai", "cdn.apimart.ai"],
@@ -412,7 +455,7 @@ function h3Role(entry) {
   object(entry, "image_with_roles entries must be objects");
   if (!Object.keys(entry).every(function (key) { return key === "url" || key === "role"; })) throw new Error("unsupported image_with_roles field");
   const aliases = { first: "first_frame", first_frame: "first_frame", last: "last_frame", last_frame: "last_frame", reference: "reference_image", reference_image: "reference_image" };
-  const role = aliases[text(entry.role).toLowerCase()];
+  const role = entry.role === undefined ? "reference_image" : aliases[text(entry.role).toLowerCase()];
   if (!role) throw new Error("invalid image role");
   return { url: mediaURL(entry.url, "image_with_roles.url", false), role: role };
 }
@@ -429,8 +472,12 @@ function normalizeH3(model, request) {
   if (request.first_frame_image !== undefined) body.first_frame_image = mediaURL(request.first_frame_image, "first_frame_image", false);
   if (request.last_frame_image !== undefined) body.last_frame_image = mediaURL(request.last_frame_image, "last_frame_image", false);
   if (request.image_urls !== undefined) body.image_urls = urlArray(request.image_urls, "image_urls", 9);
-  if (request.video_urls !== undefined) body.video_urls = urlArray(request.video_urls, "video_urls", 3);
-  if (request.audio_urls !== undefined) body.audio_urls = urlArray(request.audio_urls, "audio_urls", 3);
+  if (request.video_url !== undefined && request.video_urls !== undefined) throw new Error("video_url and video_urls are mutually exclusive");
+  if (request.video_url !== undefined) body.video_urls = [mediaURL(request.video_url, "video_url", false)];
+  else if (request.video_urls !== undefined) body.video_urls = urlArray(request.video_urls, "video_urls", 3);
+  if (request.audio_url !== undefined && request.audio_urls !== undefined) throw new Error("audio_url and audio_urls are mutually exclusive");
+  if (request.audio_url !== undefined) body.audio_urls = [mediaURL(request.audio_url, "audio_url", false)];
+  else if (request.audio_urls !== undefined) body.audio_urls = urlArray(request.audio_urls, "audio_urls", 3);
   if (request.image_with_roles !== undefined) {
     if (!Array.isArray(request.image_with_roles) || !request.image_with_roles.length) throw new Error("image_with_roles must not be empty");
     body.image_with_roles = request.image_with_roles.map(h3Role);
@@ -444,14 +491,19 @@ function normalizeH3(model, request) {
   const hasReferences = referenceImages > 0 || (body.video_urls || []).length > 0 || (body.audio_urls || []).length > 0;
   if (hasFrames && hasReferences) throw new Error("frame images and reference media are mutually exclusive");
   if (body.audio_urls && !referenceImages && !(body.video_urls || []).length) throw new Error("audio_urls requires reference image or video");
-  const ratio = text(request.aspect_ratio || (hasFrames || hasReferences ? "adaptive" : "16:9"));
+  const ratioValues = [request.aspect_ratio, request.size, request.ratio].filter(function (value) { return value !== undefined; });
+  if (new Set(ratioValues).size > 1) throw new Error("aspect ratio aliases conflict");
+  const ratio = text(ratioValues[0] || (hasFrames || hasReferences ? "adaptive" : "16:9"));
   if (!spec.ratios.has(ratio) || (!hasFrames && !hasReferences && ratio === "adaptive")) throw new Error("invalid aspect_ratio");
   if (!hasFrames) body.aspect_ratio = ratio;
   if (request.nsfw_check !== undefined) body.nsfw_check = boolean(request.nsfw_check, "nsfw_check");
-  if (request.watermark !== undefined) {
+  if (request.watermark !== undefined && request.aigc_watermark !== undefined && request.watermark !== request.aigc_watermark) throw new Error("watermark aliases conflict");
+  const watermark = request.watermark === undefined ? request.aigc_watermark : request.watermark;
+  if (watermark !== undefined) {
     if (spec.h3 === "max" && body.resolution === "1080p") throw new Error("1080p H3-Max must omit watermark");
-    body.watermark = boolean(request.watermark, "watermark");
+    body.watermark = boolean(watermark, "watermark");
   }
+  if (request.webhook !== undefined) body.webhook = mediaURL(request.webhook, "webhook", false);
   return body;
 }
 
@@ -461,6 +513,30 @@ function normalizeH3Context(request) {
   delete body.resolution;
   body.model = H3_CONTEXT_MODEL;
   return body;
+}
+
+function geminiOmniExtReservationCredits(request) {
+  const body = normalizeGeminiOmni("gemini-omni-1.1-flash-ext-am", request);
+  const rates = GEMINI_OMNI_EXT_CREDITS[body.resolution];
+  return body.video_urls ? rates.video : rates[body.duration];
+}
+
+function geminiOmniReservationCredits(request) {
+  const body = normalizeGeminiOmni("gemini-omni-1.1-flash-am", request);
+  return GEMINI_OMNI_CREDITS_PER_SECOND[body.resolution] * 10;
+}
+
+function h3MaxReservationCredits(request) {
+  const body = normalizeH3("minimax-h3-max-am", request);
+  const outputCredits = H3_MAX_CREDITS_PER_SECOND[body.resolution] * body.duration;
+  const referenceImageCount = (body.image_urls || []).length + (body.image_with_roles || []).filter(function (entry) {
+    return entry.role === "reference_image";
+  }).length;
+  const referenceImageCredits = Math.max(0, referenceImageCount - 2) * H3_MAX_REFERENCE_IMAGE_CREDITS;
+  // Input URLs do not expose their media duration. Use the provider's maximum
+  // total input duration and reconcile to credits_cost on completion.
+  const referenceVideoCredits = (body.video_urls || []).length ? H3_MAX_REFERENCE_VIDEO_SECONDS * H3_MAX_REFERENCE_VIDEO_CREDITS_PER_SECOND[body.resolution] : 0;
+  return Math.round((outputCredits + referenceImageCredits + referenceVideoCredits) * 1e8) / 1e8;
 }
 
 function normalizeH3Regeneration(request) {
@@ -596,6 +672,80 @@ function normalizeWan3(model, request) {
   return body;
 }
 
+function normalizeGeminiOmni(model, request) {
+  const spec = MODELS.get(model);
+  for (const field of Object.keys(request)) if (!spec.fields.has(field)) throw new Error("unsupported field for " + model + ": " + field);
+  if (request.model !== undefined && request.model !== model) throw new Error("model must be " + model);
+
+  const body = { model: model, resolution: normalizedResolution(request.resolution, spec) };
+  const prompt = text(request.prompt);
+  if (spec.geminiOmni === "ext" && request.size !== undefined && request.aspect_ratio !== undefined && text(request.size) !== text(request.aspect_ratio)) throw new Error("size and aspect_ratio conflict");
+  const ratio = text(request.aspect_ratio === undefined ? (spec.geminiOmni === "ext" && request.size !== undefined ? request.size : "16:9") : request.aspect_ratio);
+  if (!new Set(["16:9", "9:16"]).has(ratio)) throw new Error("unsupported aspect ratio");
+  body.aspect_ratio = ratio;
+
+  if (spec.geminiOmni === "ext") {
+    if (!prompt || prompt.length > 5000) throw new Error("prompt is required and must be at most 5000 characters");
+    body.prompt = prompt;
+    const images = request.image_urls === undefined ? [] : urlArray(request.image_urls, "image_urls", 3);
+    if (images.length && ![1, 3].includes(images.length)) throw new Error("image_urls must contain 1 or 3 URLs");
+    const videos = request.video_urls === undefined ? [] : urlArray(request.video_urls, "video_urls", 1);
+    const generationType = request.generation_type === undefined ? "" : text(request.generation_type);
+    if (generationType && !["frame", "reference"].includes(generationType)) throw new Error("unsupported generation_type");
+    if (generationType === "frame" && images.length !== 1) throw new Error("frame mode requires exactly 1 image");
+    if (generationType === "reference" && ![1, 3].includes(images.length)) throw new Error("reference mode requires 1 or 3 images");
+    if (images.length === 3 && generationType !== "reference") throw new Error("3 images require reference mode");
+    if (images.length) body.image_urls = images;
+    if (videos.length) body.video_urls = videos;
+    if (videos.length && request.duration !== undefined) throw new Error("duration cannot be combined with video_urls");
+    if (!videos.length) {
+      const duration = request.duration === undefined ? 6 : request.duration;
+      if (![4, 6, 8, 10].includes(duration)) throw new Error("unsupported duration");
+      body.duration = duration;
+    }
+    if (generationType) body.generation_type = generationType;
+    if (request.nsfw_check !== undefined) body.nsfw_check = boolean(request.nsfw_check, "nsfw_check");
+    return body;
+  }
+
+  const images = request.image_urls === undefined ? [] : urlArray(request.image_urls, "image_urls", 10);
+  const first = request.first_frame_image === undefined ? "" : mediaURL(request.first_frame_image, "first_frame_image", false);
+  const last = request.last_frame_image === undefined ? "" : mediaURL(request.last_frame_image, "last_frame_image", false);
+  if (last && !first) throw new Error("last_frame_image requires first_frame_image");
+  const roles = request.image_with_roles === undefined ? [] : request.image_with_roles.map(function (entry) {
+    object(entry, "image_with_roles entries must be objects");
+    if (!Object.keys(entry).every(function (key) { return key === "url" || key === "role"; })) throw new Error("unsupported image_with_roles field");
+    const role = text(entry.role);
+    if (!new Set(["first_frame", "last_frame", "reference"]).has(role)) throw new Error("unsupported image role");
+    return { url: mediaURL(entry.url, "image_with_roles.url", false), role: role };
+  });
+  const roleFirst = roles.filter(function (entry) { return entry.role === "first_frame"; }).length;
+  const roleLast = roles.filter(function (entry) { return entry.role === "last_frame"; }).length;
+  if (roleFirst > 1 || roleLast > 1 || (roleLast && !roleFirst) || (first && roleFirst) || (last && roleLast)) throw new Error("invalid frame images");
+  if (images.length + roles.length + (first ? 1 : 0) + (last ? 1 : 0) > 10) throw new Error("image input limit exceeded");
+  const videos = request.video_urls === undefined ? [] : urlArray(request.video_urls, "video_urls", 1);
+  if (request.extend_from_task_id !== undefined && videos.length) throw new Error("extend_from_task_id and video_urls are mutually exclusive");
+  if (request.metadata !== undefined) {
+    object(request.metadata, "metadata must be an object");
+    if (!Object.keys(request.metadata).every(function (key) { return key === "task"; }) || !["text_to_video", "image_to_video", "reference_to_video", "edit", "extend"].includes(text(request.metadata.task))) throw new Error("invalid metadata.task");
+    body.metadata = { task: text(request.metadata.task) };
+  }
+  if (!prompt && !(images.length || roles.length || first || videos.length || request.extend_from_task_id !== undefined)) throw new Error("prompt or media is required");
+  if (prompt.length > 5000) throw new Error("prompt is too long");
+  if (prompt) body.prompt = prompt;
+  if (images.length) body.image_urls = images;
+  if (first) body.first_frame_image = first;
+  if (last) body.last_frame_image = last;
+  if (roles.length) body.image_with_roles = roles;
+  if (videos.length) body.video_urls = videos;
+  if (request.extend_from_task_id !== undefined) {
+    const taskID = text(request.extend_from_task_id);
+    if (!/^task_[A-Za-z0-9_-]+$/.test(taskID)) throw new Error("extend_from_task_id must be a public gateway task ID");
+    body.extend_from_task_id = taskID;
+  }
+  return body;
+}
+
 function normalize(model, request) {
   object(request, "video generation request must be an object");
   const spec = MODELS.get(model);
@@ -605,6 +755,7 @@ function normalize(model, request) {
   if (spec.h3Context) return normalizeH3Context(request);
   if (spec.h3Regeneration) return normalizeH3Regeneration(request);
   if (spec.h3) return normalizeH3(model, request);
+  if (spec.geminiOmni) return normalizeGeminiOmni(model, request);
   if (model.startsWith("seedance-")) return normalizeSeedance(model, request);
   for (const field of Object.keys(request)) {
     if (!VIDEO_FIELDS.has(field) || !spec.fields.has(field)) throw new Error("unsupported field for " + model + ": " + field);
@@ -745,6 +896,11 @@ export function buildSubmitRequest(ctx) {
     body.source_task_id = origin.upstreamTaskId;
   }
   body.model = upstream && upstream !== publicModel ? upstream : spec.upstream;
+  if (publicModel === "gemini-omni-1.1-flash-am" && body.extend_from_task_id) {
+    const origin = (ctx.originTasks || []).find(function (task) { return task.taskId === body.extend_from_task_id; });
+    if (!origin || origin.model !== publicModel || origin.action !== "video_generation" || origin.status !== "SUCCESS" || !text(origin.upstreamTaskId)) throw new Error("extend_from_task_id must reference your successful Gemini Omni task");
+    body.extend_from_task_id = origin.upstreamTaskId;
+  }
   if (body.draft_task_id) body.draft_task_id = seedanceDraftOrigin(ctx, body).upstreamTaskId;
   if (publicModel.startsWith("seedance-") && ctx.action !== "asset") {
     for (const field of ["image_urls", "video_urls", "audio_urls", "image_with_roles"]) {
@@ -807,7 +963,9 @@ export function extractUsage(ctx) {
   if (model === H3_CONTEXT_MODEL) return { upstream_credits: 0.8 };
   if (model === H3_REGENERATION_MODEL) return { upstream_credits: 10 };
   if (model === "minimax-h3-am") return { upstream_credits: 30 };
-  if (model === "minimax-h3-max-am") return { upstream_credits: 40 };
+  if (model === "minimax-h3-max-am") return { upstream_credits: h3MaxReservationCredits(request) };
+  if (model === "gemini-omni-1.1-flash-ext-am") return { upstream_credits: geminiOmniExtReservationCredits(request) };
+  if (model === "gemini-omni-1.1-flash-am") return { upstream_credits: geminiOmniReservationCredits(request) };
   if (model.startsWith("wan3.0-video")) {
     const body = normalizeWan3(model, request);
     const seconds = body.duration === -1 ? 30 : body.duration;
@@ -865,7 +1023,7 @@ export function extractUsageOnComplete(ctx, result, body) {
   if (result.status !== "SUCCESS") return null;
   const model = String(ctx.model || "");
   const data = object(body.data, "missing AM task data");
-  if (model === H3_CONTEXT_MODEL || model === "minimax-h3-am" || model === "minimax-h3-max-am" || model === H3_REGENERATION_MODEL) return { upstream_credits: amTaskCredits(data) };
+  if (model === H3_CONTEXT_MODEL || model === "minimax-h3-am" || model === "minimax-h3-max-am" || model === H3_REGENERATION_MODEL || model.startsWith("gemini-omni-1.1-flash")) return { upstream_credits: amTaskCredits(data) };
   if (model.startsWith("wan3.0-video")) return { upstream_credits: wan3Cost(data) };
   if (!model.startsWith("seedance-") || ctx.action === "asset") return null;
   return { upstream_credits: seedanceCost(data) };
@@ -923,6 +1081,7 @@ export const native = {
     const model = text(request.model);
     const body = normalize(model, request);
     const intent = { kind: "submit", model: model, action: "video_generation", requestBody: body };
+    if (model === "gemini-omni-1.1-flash-am" && body.extend_from_task_id) intent.originTaskIds = [body.extend_from_task_id];
     if (model.startsWith("seedance-")) {
       const refs = body.draft_task_id ? [body.draft_task_id] : assetReferences(body);
       if (refs.length) intent.originTaskIds = refs;
