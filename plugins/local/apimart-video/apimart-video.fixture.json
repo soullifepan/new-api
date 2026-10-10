@@ -361,6 +361,42 @@
       "hook": "extractUsage",
       "args": [{"model":"seedance-2.0-mini-am","requestBody":{"model":"seedance-2.0-mini-am","prompt":"test","resolution":"480p","duration":5,"video_urls":["https://media.example/reference.mp4"]}}],
       "expected": {"upstream_credits":2.2321}
+    },
+    {
+      "name": "Gemini Omni EXT maps three reference images and the size alias",
+      "hook": "native", "member": "decodeVideoGeneration",
+      "args": [{"body":{"kind":"json","value":{"model":"gemini-omni-1.1-flash-ext-am","prompt":"combine the references","duration":8,"resolution":"1080p","size":"9:16","generation_type":"reference","image_urls":["https://media.example/a.png","https://media.example/b.png","https://media.example/c.png"]}}}],
+      "expected":{"kind":"submit","model":"gemini-omni-1.1-flash-ext-am","action":"video_generation","requestBody":{"model":"gemini-omni-1.1-flash-ext-am","resolution":"1080p","aspect_ratio":"9:16","prompt":"combine the references","image_urls":["https://media.example/a.png","https://media.example/b.png","https://media.example/c.png"],"duration":8,"generation_type":"reference"}}
+    },
+    {
+      "name": "Gemini Omni EXT omits duration for a reference video",
+      "hook": "native", "member": "decodeVideoGeneration",
+      "args": [{"body":{"kind":"json","value":{"model":"gemini-omni-1.1-flash-ext-am","prompt":"match the motion","video_urls":["https://media.example/input.mp4"]}}}],
+      "expected":{"kind":"submit","model":"gemini-omni-1.1-flash-ext-am","action":"video_generation","requestBody":{"model":"gemini-omni-1.1-flash-ext-am","resolution":"720p","aspect_ratio":"16:9","prompt":"match the motion","video_urls":["https://media.example/input.mp4"]}}
+    },
+    {
+      "name": "Gemini Omni supports image references without a prompt",
+      "hook": "native", "member": "decodeVideoGeneration",
+      "args": [{"body":{"kind":"json","value":{"model":"gemini-omni-1.1-flash-am","resolution":"4k","aspect_ratio":"9:16","image_urls":["https://media.example/a.png","https://media.example/b.png"],"metadata":{"task":"reference_to_video"}}}}],
+      "expected":{"kind":"submit","model":"gemini-omni-1.1-flash-am","action":"video_generation","requestBody":{"model":"gemini-omni-1.1-flash-am","resolution":"4k","aspect_ratio":"9:16","metadata":{"task":"reference_to_video"},"image_urls":["https://media.example/a.png","https://media.example/b.png"]}}
+    },
+    {
+      "name": "Gemini Omni records an extension origin task",
+      "hook": "native", "member": "decodeVideoGeneration",
+      "args": [{"body":{"kind":"json","value":{"model":"gemini-omni-1.1-flash-am","extend_from_task_id":"task_public"}}}],
+      "expected":{"kind":"submit","model":"gemini-omni-1.1-flash-am","action":"video_generation","requestBody":{"model":"gemini-omni-1.1-flash-am","resolution":"720p","aspect_ratio":"16:9","extend_from_task_id":"task_public"},"originTaskIds":["task_public"]}
+    },
+    {
+      "name": "Gemini Omni resolves an owned extension task",
+      "hook": "buildSubmitRequest",
+      "args": [{"baseUrl":"https://api.apimart.ai","apiKey":"fixture","model":"gemini-omni-1.1-flash-am","requestBody":{"model":"gemini-omni-1.1-flash-am","prompt":"continue the scene","extend_from_task_id":"task_public"},"originTasks":[{"taskId":"task_public","upstreamTaskId":"private-task","model":"gemini-omni-1.1-flash-am","action":"video_generation","status":"SUCCESS"}]}],
+      "expected":{"url":"https://api.apimart.ai/v1/videos/generations","method":"POST","headers":{"Accept":"application/json","Content-Type":"application/json","Authorization":"Bearer fixture"},"body":{"model":"gemini-omni-1.1-flash","resolution":"720p","aspect_ratio":"16:9","prompt":"continue the scene","extend_from_task_id":"private-task"},"action":"video_generation"}
+    },
+    {
+      "name": "Gemini Omni settles authenticated upstream cost",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model":"gemini-omni-1.1-flash-ext-am"},{"status":"SUCCESS"},{"data":{"cost":0.4,"credits_cost":4}}],
+      "expected":{"upstream_credits":4}
     }
   ]
 }
