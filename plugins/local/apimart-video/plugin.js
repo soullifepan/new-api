@@ -250,7 +250,7 @@ export const meta = {
   name: "AM Video",
   icon: "text:AV",
   description: { en: "Validated AM asynchronous video generation tasks.", zh: "经过逐模型校验的 AM 异步视频生成任务。" },
-  version: "0.5.11",
+  version: "0.5.12",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   allowedHosts: ["api.apib.ai", "api.apimart.ai", "upload.apimart.ai", "cdn.apimart.ai"],
@@ -828,8 +828,8 @@ function normalize(model, request) {
     body.generation_type = request.generation_type;
   }
   if (model === "pixverse-v6-am" && body.image_urls && body.image_urls.length === 2 && ![5, 8].includes(duration)) throw new Error("Pixverse first/last-frame mode requires 5 or 8 seconds");
-  if (model.startsWith("veo3.1-") && body.generation_type === "frame" && (!body.image_urls || body.image_urls.length !== 2)) throw new Error("Veo frame mode requires exactly 2 images");
-  if (model === "veo3.1-fast-am" && body.generation_type === "reference" && (!body.image_urls || body.image_urls.length !== 3)) throw new Error("Veo reference mode requires exactly 3 images");
+  if (model.startsWith("veo3.1-") && body.generation_type === "frame" && (!body.image_urls || body.image_urls.length < 1 || body.image_urls.length > 2)) throw new Error("Veo frame mode requires 1 to 2 images");
+  if (model === "veo3.1-fast-am" && body.generation_type === "reference" && (!body.image_urls || body.image_urls.length < 1 || body.image_urls.length > 3)) throw new Error("Veo reference mode requires 1 to 3 images");
   return body;
 }
 

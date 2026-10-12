@@ -226,11 +226,18 @@
       "expected": {"resolution":"4k","requests":1}
     },
     {
-      "name": "enforces Veo frame image count",
+      "name": "accepts one-image Veo frame mode",
       "hook": "native",
       "member": "decodeVideoGeneration",
       "args": [{"body":{"kind":"json","value":{"model":"veo3.1-fast-am","prompt":"transition","generation_type":"frame","image_urls":["https://media.example/a.png"]}}}],
-      "expectedError": "Veo frame mode requires exactly 2 images"
+      "expected": {"kind":"submit","model":"veo3.1-fast-am","action":"video_generation","requestBody":{"model":"veo3.1-fast-am","prompt":"transition","duration":8,"resolution":"720p","aspect_ratio":"16:9","image_urls":["https://media.example/a.png"],"generation_type":"frame"}}
+    },
+    {
+      "name": "accepts one-image Veo reference mode",
+      "hook": "native",
+      "member": "decodeVideoGeneration",
+      "args": [{"body":{"kind":"json","value":{"model":"veo3.1-fast-am","prompt":"transition","generation_type":"reference","image_urls":["https://media.example/a.png"]}}}],
+      "expected": {"kind":"submit","model":"veo3.1-fast-am","action":"video_generation","requestBody":{"model":"veo3.1-fast-am","prompt":"transition","duration":8,"resolution":"720p","aspect_ratio":"16:9","image_urls":["https://media.example/a.png"],"generation_type":"reference"}}
     },
     {
       "name": "parses a documented submission envelope",
