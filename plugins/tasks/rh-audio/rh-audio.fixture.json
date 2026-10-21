@@ -1,0 +1,727 @@
+{
+  "cases": [
+    {
+      "name": "constructs the confirmed Qwen TTS request",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "model": "qwen3-tts-flash",
+          "upstreamModel": "qwen3-tts-flash",
+          "baseUrl": "https://www.runninghub.cn",
+          "apiKey": "fixture-channel-key",
+          "requestBody": {
+            "text": "Hello from the fixture",
+            "voice": "Cherry",
+            "languageType": "Auto"
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://www.runninghub.cn/openapi/v2/alibaba/qwen3-tts-flash",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-channel-key"
+        },
+        "body": {
+          "text": "Hello from the fixture",
+          "voice": "Cherry",
+          "languageType": "Auto"
+        },
+        "action": "audio_generation"
+      }
+    },
+    {
+      "name": "constructs the documented MiniMax Speech 2.8 HD request",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "model": "minimax/speech-2.8-hd",
+          "upstreamModel": "minimax/speech-2.8-hd",
+          "baseUrl": "https://www.runninghub.cn",
+          "apiKey": "fixture-channel-key",
+          "requestBody": {
+            "text": "Hello from the fixture",
+            "pronunciation_dict": "ASAP/As soon as possible",
+            "voice_id": "Wise_Woman",
+            "speed": 1,
+            "volume": 1,
+            "pitch": 0,
+            "emotion": "happy",
+            "enable_base64_output": false,
+            "english_normalization": false
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://www.runninghub.cn/openapi/v2/rhart-audio/text-to-audio/speech-2.8-hd",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-channel-key"
+        },
+        "body": {
+          "text": "Hello from the fixture",
+          "pronunciation_dict": "ASAP/As soon as possible",
+          "voice_id": "Wise_Woman",
+          "speed": 1,
+          "volume": 1,
+          "pitch": 0,
+          "emotion": "happy",
+          "enable_base64_output": false,
+          "english_normalization": false
+        },
+        "action": "audio_generation"
+      }
+    },
+    {
+      "name": "requires a documented MiniMax Speech 2.8 HD voice",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "minimax/speech-2.8-hd",
+              "text": "narrator",
+              "voice_id": "unverified"
+            }
+          }
+        }
+      ],
+      "expectedError": "unsupported voice_id"
+    },
+    {
+      "name": "constructs Doubao TTS 2.0 with explicit zero controls",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "model": "bytedance/doubao-seed-tts-2.0",
+          "upstreamModel": "bytedance/doubao-seed-tts-2.0",
+          "baseUrl": "https://www.runninghub.cn",
+          "apiKey": "fixture-channel-key",
+          "requestBody": {
+            "text": "你好",
+            "speaker": "zh_female_example",
+            "format": "mp3",
+            "sample_rate": "24000",
+            "speech_rate": 0,
+            "loudness_rate": 0,
+            "bit_rate": 64000,
+            "pitch": 0
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://www.runninghub.cn/openapi/v2/bytedance/doubao-seed-tts-2.0",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-channel-key"
+        },
+        "body": {
+          "text": "你好",
+          "speaker": "zh_female_example",
+          "format": "mp3",
+          "sample_rate": "24000",
+          "speech_rate": 0,
+          "loudness_rate": 0,
+          "bit_rate": 64000,
+          "pitch": 0
+        },
+        "action": "audio_generation"
+      }
+    },
+    {
+      "name": "requires an explicit Doubao TTS speaker",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "bytedance/doubao-seed-tts-2.0",
+              "text": "narrator",
+              "speech_rate": 0
+            }
+          }
+        }
+      ],
+      "expectedError": "speaker must be a non-empty string"
+    },
+    {
+      "name": "rejects an unsupported Doubao TTS format",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "bytedance/doubao-seed-tts-2.0",
+              "text": "narrator",
+              "speaker": "voice-id",
+              "format": "aac"
+            }
+          }
+        }
+      ],
+      "expectedError": "format must be one of"
+    },
+    {
+      "name": "rejects an unsupported Doubao TTS sample rate",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "bytedance/doubao-seed-tts-2.0",
+              "text": "narrator",
+              "speaker": "voice-id",
+              "sample_rate": "12000"
+            }
+          }
+        }
+      ],
+      "expectedError": "sample_rate must be one of"
+    },
+    {
+      "name": "rejects a Doubao TTS rate below the documented range",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "bytedance/doubao-seed-tts-2.0",
+              "text": "narrator",
+              "speaker": "voice-id",
+              "speech_rate": -51
+            }
+          }
+        }
+      ],
+      "expectedError": "speech_rate must be an integer between -50 and 100"
+    },
+    {
+      "name": "accepts the upper Doubao TTS mp3 bit rate",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "bytedance/doubao-seed-tts-2.0",
+              "text": "narrator",
+              "speaker": "voice-id",
+              "format": "mp3",
+              "bit_rate": 160000
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "bytedance/doubao-seed-tts-2.0",
+        "action": "audio_generation",
+        "requestBody": {
+          "text": "narrator",
+          "speaker": "voice-id",
+          "format": "mp3",
+          "bit_rate": 160000
+        }
+      }
+    },
+    {
+      "name": "rejects a Doubao TTS bit rate below the documented range",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "bytedance/doubao-seed-tts-2.0",
+              "text": "narrator",
+              "speaker": "voice-id",
+              "bit_rate": 63999
+            }
+          }
+        }
+      ],
+      "expectedError": "bit_rate must be an integer between 64000 and 160000"
+    },
+    {
+      "name": "rejects a Doubao TTS bit rate above the documented range",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "bytedance/doubao-seed-tts-2.0",
+              "text": "narrator",
+              "speaker": "voice-id",
+              "bit_rate": 160001
+            }
+          }
+        }
+      ],
+      "expectedError": "bit_rate must be an integer between 64000 and 160000"
+    },
+    {
+      "name": "rejects a floating-point Doubao TTS bit rate",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "bytedance/doubao-seed-tts-2.0",
+              "text": "narrator",
+              "speaker": "voice-id",
+              "bit_rate": 128000.5
+            }
+          }
+        }
+      ],
+      "expectedError": "bit_rate must be an integer between 64000 and 160000"
+    },
+    {
+      "name": "rejects a string Doubao TTS bit rate",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "bytedance/doubao-seed-tts-2.0",
+              "text": "narrator",
+              "speaker": "voice-id",
+              "bit_rate": "128000"
+            }
+          }
+        }
+      ],
+      "expectedError": "bit_rate must be an integer between 64000 and 160000"
+    },
+    {
+      "name": "rejects a Doubao TTS bit rate for a non-mp3 format",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "bytedance/doubao-seed-tts-2.0",
+              "text": "narrator",
+              "speaker": "voice-id",
+              "format": "wav",
+              "bit_rate": 128000
+            }
+          }
+        }
+      ],
+      "expectedError": "bit_rate is supported only when format is mp3"
+    },
+    {
+      "name": "rejects Doubao TTS advanced clone controls",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "bytedance/doubao-seed-tts-2.0",
+              "text": "narrator",
+              "speaker": "voice-id",
+              "context_texts": ["private voice context"]
+            }
+          }
+        }
+      ],
+      "expectedError": "unsupported field for bytedance/doubao-seed-tts-2.0"
+    },
+    {
+      "name": "rejects the replaced Doubao Seed Audio 1.0 model",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "bytedance/doubao-seed-audio-1.0",
+              "text_prompt": "retired"
+            }
+          }
+        }
+      ],
+      "expectedError": "unsupported RunningHub audio model"
+    },
+    {
+      "name": "reserves the published Doubao character-cost estimate",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "model": "bytedance/doubao-seed-tts-2.0",
+          "requestBody": {
+            "text": "A你😀",
+            "speaker": "voice-id"
+          },
+          "usagePurpose": "facts"
+        }
+      ],
+      "expected": {
+        "upstream_cny": 0.00072
+      }
+    },
+    {
+      "name": "reserves the published MiniMax Speech 2.8 HD character-cost estimate",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "model": "minimax/speech-2.8-hd",
+          "requestBody": {
+            "text": "A你😀",
+            "voice_id": "Wise_Woman"
+          },
+          "usagePurpose": "facts"
+        }
+      ],
+      "expected": {
+        "upstream_cny": 0.00186
+      }
+    },
+    {
+      "name": "settles MiniMax Speech 2.8 HD from authoritative RunningHub usage charges",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "model": "minimax/speech-2.8-hd"
+        },
+        {
+          "status": "SUCCESS"
+        },
+        {
+          "taskId": "rh-task-1",
+          "status": "SUCCESS",
+          "usage": {
+            "consumeMoney": "0.62",
+            "thirdPartyConsumeMoney": "0",
+            "consumeCoins": "0"
+          },
+          "results": [
+            {
+              "url": "https://cdn.runninghub.example/tts.mp3",
+              "outputType": "mp3"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "upstream_cny": 0.62
+      }
+    },
+    {
+      "name": "settles Doubao TTS from all authoritative RunningHub usage charges",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "model": "bytedance/doubao-seed-tts-2.0"
+        },
+        {
+          "status": "SUCCESS"
+        },
+        {
+          "taskId": "rh-task-1",
+          "status": "SUCCESS",
+          "usage": {
+            "consumeMoney": "0.12",
+            "thirdPartyConsumeMoney": "0.24",
+            "consumeCoins": "2500",
+            "taskCostTime": "0"
+          },
+          "results": [
+            {
+              "url": "https://cdn.runninghub.example/tts.mp3",
+              "outputType": "mp3"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "upstream_cny": 10.36
+      }
+    },
+    {
+      "name": "settles null RunningHub Doubao usage as zero",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "model": "bytedance/doubao-seed-tts-2.0"
+        },
+        {
+          "status": "SUCCESS"
+        },
+        {
+          "taskId": "rh-task-1",
+          "status": "SUCCESS",
+          "usage": {
+            "consumeMoney": null,
+            "thirdPartyConsumeMoney": null,
+            "consumeCoins": null,
+            "taskCostTime": "0"
+          },
+          "results": [
+            {
+              "url": "https://cdn.runninghub.example/tts.mp3",
+              "outputType": "mp3"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "upstream_cny": 0
+      }
+    },
+    {
+      "name": "retains the Doubao reservation when RunningHub usage is malformed",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "model": "bytedance/doubao-seed-tts-2.0"
+        },
+        {
+          "status": "SUCCESS"
+        },
+        {
+          "taskId": "rh-task-1",
+          "status": "SUCCESS",
+          "usage": {
+            "consumeMoney": "0.24",
+            "consumeCoins": "2500 coins"
+          },
+          "results": [
+            {
+              "url": "https://cdn.runninghub.example/tts.mp3",
+              "outputType": "mp3"
+            }
+          ]
+        }
+      ],
+      "expected": null
+    },
+    {
+      "name": "refunds failed Doubao TTS tasks",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "model": "bytedance/doubao-seed-tts-2.0"
+        },
+        {
+          "status": "FAILURE"
+        },
+        {
+          "taskId": "rh-task-1",
+          "status": "FAILED",
+          "usage": {
+            "consumeMoney": "0.24"
+          }
+        }
+      ],
+      "expected": {
+        "upstream_cny": 0
+      }
+    },
+    {
+      "name": "reserves the published Qwen TTS character estimate",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "model": "qwen3-tts-flash",
+          "requestBody": {
+            "text": "narrator"
+          },
+          "usagePurpose": "facts"
+        }
+      ],
+      "expected": {
+        "upstream_cny": 0.000642
+      }
+    },
+    {
+      "name": "settles Qwen TTS from authoritative RunningHub usage",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "model": "qwen3-tts-flash"
+        },
+        {
+          "status": "SUCCESS"
+        },
+        {
+          "taskId": "rh-task-1",
+          "status": "SUCCESS",
+          "usage": {
+            "consumeMoney": "0.08029"
+          },
+          "results": [
+            {
+              "url": "https://cdn.runninghub.example/one.mp3",
+              "outputType": "mp3"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "upstream_cny": 0.08029
+      }
+    },
+    {
+      "name": "persists the top-level RunningHub task response",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {},
+        {
+          "statusCode": 200,
+          "body": {
+            "taskId": "rh-task-1",
+            "status": "RUNNING",
+            "results": null,
+            "errorCode": "",
+            "errorMessage": ""
+          }
+        }
+      ],
+      "expected": {
+        "taskId": "rh-task-1",
+        "taskData": {
+          "taskId": "rh-task-1",
+          "status": "RUNNING",
+          "results": null,
+          "errorCode": "",
+          "errorMessage": ""
+        }
+      }
+    },
+    {
+      "name": "maps a top-level failed query response",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "taskId": "rh-task-1",
+          "status": "FAILED",
+          "errorCode": "MODEL_ERROR",
+          "errorMessage": "model rejected input",
+          "results": null
+        },
+        {
+          "status": 200,
+          "headers": {}
+        }
+      ],
+      "expected": {
+        "status": "FAILURE",
+        "progress": "100%",
+        "reason": "model rejected input"
+      }
+    },
+    {
+      "name": "maps a successful query with an audio URL",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "taskId": "rh-task-1",
+          "status": "SUCCESS",
+          "results": [
+            {
+              "url": "https://cdn.runninghub.example/result.mp3",
+              "outputType": "mp3"
+            }
+          ]
+        },
+        {
+          "status": 200,
+          "headers": {}
+        }
+      ],
+      "expected": {
+        "status": "SUCCESS",
+        "progress": "100%",
+        "reason": ""
+      }
+    },
+    {
+      "name": "exposes successful query audio as a temporary upstream artifact",
+      "hook": "listArtifacts",
+      "args": [
+        {
+          "status": "SUCCESS",
+          "data": {
+            "taskId": "rh-task-1",
+            "status": "SUCCESS",
+            "results": [
+              {
+                "url": "https://cdn.runninghub.example/result.mp3",
+                "outputType": "mp3"
+              }
+            ]
+          }
+        }
+      ],
+      "expected": [
+        {
+          "key": "audio-0",
+          "type": "audio",
+          "mimeType": "audio/mpeg"
+        }
+      ]
+    },
+    {
+      "name": "proxies the successful query audio URL without credentials",
+      "hook": "buildContentRequest",
+      "args": [
+        {
+          "status": "SUCCESS",
+          "artifactKey": "audio-0",
+          "clientRequest": {
+            "method": "GET",
+            "headers": {}
+          },
+          "data": {
+            "taskId": "rh-task-1",
+            "status": "SUCCESS",
+            "results": [
+              {
+                "url": "https://cdn.runninghub.example/result.mp3",
+                "outputType": "mp3"
+              }
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://cdn.runninghub.example/result.mp3",
+        "method": "GET",
+        "credentialless": true
+      }
+    }
+  ]
+}
