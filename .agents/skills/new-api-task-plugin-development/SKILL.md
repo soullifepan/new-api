@@ -25,6 +25,8 @@ description: 开发或维护 New API 本地 Task Plugin（异步图片、视频�
 4. 异步图片/视频等按请求规格收费时，在 `meta.usageSchema` 声明经过验证的数值/枚举事实，并用 `extractUsage` 从请求提取。任务表达式使用 `u("field")`，输出值是单次请求的美元金额，**不除以一百万**。
 5. 默认用已验证的实测用量结算，上游成本仅作对账。用户明确选择按上游实际成本收费时，可通过已验证的 `cost` / `credits_cost` 实现该合同：明确币种和换算，校验类型、有限性、非负值、合理上限及两字段一致性，不重复折扣或叠加用量收费。缺失值不得强转为零；在提交成功终态前处理结算延迟或异常，不能将保留预扣冒称实际结算。
 6. 对所有会影响费用的请求参数先限制范围。复用现有上限或设定明确、保守的插件级校验；缺省规格必须映射到一个确定的计费档位。
+7. 按上游实扣结算的插件（如 RunningHub 的 `upstream_cny`，`unit: "credit"`）：`extractUsage` 用公开价常量（记录价格表版本）乘以已校验的数量预扣；输入时长无法在服务端探测时由客户端传入并按工具上限校验。完成时只认上游金额字段，严格匹配十进制字符串；字段全缺失、类型或格式异常时返回 `null` 保留预扣，不能当作 0；失败终态返回 0。用秒数等推算金额只作为经确认的单模型兜底。
+8. 提交响应没有任务 ID 但带业务错误码时，返回 `immediate: {status: "FAILURE", reason}`，而不是抛错（抛错会变成 502，并可能被重试重复提交）。任务 ID 用 `"<prefix>-" + (ctx.publicTaskId || utils.uuid())`，fixture 传 `publicTaskId` 才能精确断言。
 
 ## 别名、渠道与定价
 
@@ -41,6 +43,8 @@ u("resolution") == "4k"
   : tier("default", u("images") * 0.0085)
 ```
 
+- 使用可视化编辑器认识的规范形状 `tier("name", u("field") * <系数>)`。汇率与加价合成一个系数，例如 1 USD = 7 CNY、加价 1.1 时写 `u("upstream_cny") * 0.15714285714285714`；`u(...) / 7 * 1.1` 虽能求值，但价格页会按特殊表达式显示。
+- 在模型元数据里给新模型打类型标签（`video` / `audio` / `image`，与现网写法一致）。工具和音频模型不能打 `text`：客户端会把带 `text` 标签的未适配模型当作文本模型。
 - 不在插件原生端点上额外配置普通 `openai` 或 `image-generation` 端点元数据；原生端点由插件路由定义。
 
 ## 验证与交付
@@ -52,6 +56,7 @@ u("resolution") == "4k"
 - 固定规格覆盖所有对外售价档位，例如版本 × 分辨率；样例通常使用一张/一次。
 - 动态成本模型覆盖主要分辨率和质量档位，说明参考比例、数量、是否包含输入费用。仅输出成本必须明确标成“仅输出预估”，不能冒称整单总价或提交预扣金额。
 - 不把 `auto` 的最高档预扣标成实际价格；不为展示 Token 单价伪造实际 Token facts。
+- 按上游实扣结算的模型，示例 facts 取公开价 × 典型数量（如每个分辨率 × 10 秒、每个子模型一次），label 写规格加 `estimate`，页面金额即“上游成本 × 系数”。
 - 在本地核对样例计算值，发布后检查公开接口的模型级及 provider 级 `billing_usage_examples`，并验证实际价格页面。只有一个示例不等于规格覆盖完成。
 
 1. 先为新增行为补充或更新 `<provider>.fixture.json`，覆盖成功、映射、缺省计费规格和费用参数边界。
@@ -62,6 +67,7 @@ go run . plugin lint plugins/local/<provider>/plugin.js
 go run . plugin test plugins/local/<provider>/plugin.js --fixture plugins/local/<provider>/<provider>.fixture.json
 ```
 
+   fixture 是 JSON：每次修改后执行 `jq empty`，并 grep 新增行中的异常文本（代理生成的编辑偶尔会混入工具调用残片）。内置插件还要在 `plugins/builtin_plugins_test.go` 的目录断言中加入新 key，并回放自带 fixture。
 3. 涉及定价时验证普通/特殊规格（如 Max）、缺省值、显式零/false、预扣和完成事实覆盖。检查公开 `/api/pricing` 的实际 schema、提供方覆盖和表达式，并用真实页面验收价格表/估算器；仅表达式计算与 fixture 通过不能证明展示正常。出现原始公式兜底时先核对页面版本、接口数据和缓存，不直接推断为布尔条件不支持。
 4. 不在 `plugins/` 下创建 README、变更日志等文档；将路由、配置、映射及验证结果写入提交说明和交付消息。仓库规则禁止时也不新增 `docs/` 文件。
 5. 以独立、可回滚的提交保存插件变更。部署和激活使用 `new-api-test-server-deployment` skill。

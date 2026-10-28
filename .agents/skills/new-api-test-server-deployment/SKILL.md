@@ -93,6 +93,26 @@ HTTPS，或未明确授权将 Supabase service-role 凭据放入远端，不得�
 5. 查询公开 `/api/pricing`，检查目标模型及 provider 变体是否返回预期的 `billing_usage_schema`、`billing_expr`、`billing_usage_examples`，逐档计算并在页面确认展示；不能用 description 或数据库行代替运行时证据。任务规格表达式中 `u(...)` 只有在该 schema 出现后才可保存和估算。
 6. 以最低成本的真实请求验证提交、异步查询、状态、预扣费和完成结算；检查日志时只读取请求 ID、渠道 ID、模型、状态和扣费结果。
 
+### 无管理员令牌时的受限 SQL 发布
+
+经授权采用数据库兜底时，按以下顺序执行。所有查询都只选非敏感列。
+
+1. 只读核对：`docker exec tapcomfy-newapi-test /new-api --version` 与本地基线一致；`task_plugins` 的 key、版本、enabled、active；
+   type 61 渠道的 id、name、models、setting、status；对应 `abilities`；`options` 中 `billing_setting.billing_expr` /
+   `billing_mode` 的相关键；`models` 的 tags。全局 `RetryTimes` 未设置即为 0，它不是渠道字段。
+2. 备份：在 `backups/<任务>-<UTC 时间>/`（0700）中以 CSV（0600）导出受影响的插件行、渠道非敏感列、abilities、计费 options 和 models 行。
+3. 单事务 SQL：先用 `DO` 块断言前置条件（当前激活版本、目标版本不存在、渠道存在且 `task_plugin_key` 正确）。插件源码以 base64 写入，
+   在库内用 `sha256` 断言与本地哈希一致；同 key 先置 `active=false`，再插入 `enabled=active=true` 的新版本（`created_at` 用秒），旧版本保留。
+   给渠道追加模型时同步插入 `abilities`。新渠道用 `INSERT … SELECT key, other … FROM channels WHERE id=<已有渠道>` 在库内复制凭据，
+   再按 `RETURNING id` 插入 abilities。定价用 `value::jsonb || jsonb_build_object(...)` 同时写入表达式和 `tiered_expr` 模式。
+   先把 `COMMIT` 换成 `ROLLBACK` 演练一次（演练会消耗序列号），确认输出后再正式执行。
+4. 只重启 `tapcomfy-newapi-test`。数据库插件约 30 秒同步一次，定价缓存 1 分钟：重启后一分钟内 `billing_usage_schema` 仍可能为 null，
+   等缓存过期再判断。未授权 POST 原生路由返回 401 说明路由已注册；未知路径会返回前端页面 200。
+5. 标签：在 `models` 表插入元数据行（model_name、description、tags、`status=1`、`sync_official=0`），插入前断言该行不存在。
+6. 回滚：恢复旧版本 `active=true`、新版本 `active=false`，删除新增渠道及其 abilities，用备份恢复 options 和 models，然后重启主容器。
+
+价格页验收：在模型广场搜索每个模型，打开详情核对每一档示例金额并截图。站点按人民币展示时，示例金额为上游人民币成本乘以加价倍数。
+
 ## 已知故障特征
 
 - 定价页显示“Token 估算器”并报 `u is not defined`：该模型未从运行时获得 `billing_usage_schema`。依次检查活跃插件版本、渠道别名/映射、插件同步和一分钟定价缓存。
