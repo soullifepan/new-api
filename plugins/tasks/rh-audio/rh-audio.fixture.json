@@ -77,7 +77,7 @@
       }
     },
     {
-      "name": "requires a documented MiniMax Speech 2.8 HD voice",
+      "name": "accepts MiniMax voice IDs outside the official system list",
       "hook": "native",
       "member": "decodeSubmit",
       "args": [
@@ -87,12 +87,58 @@
             "value": {
               "model": "minimax/speech-2.8-hd",
               "text": "narrator",
-              "voice_id": "unverified"
+              "voice_id": "Cantonese_ProfessionalHost（F)"
             }
           }
         }
       ],
-      "expectedError": "unsupported voice_id"
+      "expected": {
+        "kind": "submit",
+        "model": "minimax/speech-2.8-hd",
+        "action": "audio_generation",
+        "requestBody": {
+          "text": "narrator",
+          "voice_id": "Cantonese_ProfessionalHost（F)",
+          "enable_base64_output": false,
+          "english_normalization": false
+        }
+      }
+    },
+    {
+      "name": "rejects a MiniMax voice ID with control characters",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "minimax/speech-2.8-hd",
+              "text": "narrator",
+              "voice_id": "Chinese (Mandarin)_Reliable\nExecutive"
+            }
+          }
+        }
+      ],
+      "expectedError": "voice_id must not contain control characters"
+    },
+    {
+      "name": "rejects a MiniMax voice ID longer than 128 characters",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "minimax/speech-2.8-hd",
+              "text": "narrator",
+              "voice_id": "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv"
+            }
+          }
+        }
+      ],
+      "expectedError": "voice_id must be a non-empty string of at most 128 characters"
     },
     {
       "name": "constructs Doubao TTS 2.0 with explicit zero controls",

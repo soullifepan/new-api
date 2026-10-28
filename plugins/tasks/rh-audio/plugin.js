@@ -28,25 +28,6 @@ const DOUBAO_TTS_EXPLICIT_LANGUAGES = [
   "ms",
   "ar",
 ];
-const MINIMAX_TTS_VOICES = new Set([
-  "Wise_Woman",
-  "Friendly_Person",
-  "Inspirational_girl",
-  "Deep_Voice_Man",
-  "Calm_Woman",
-  "Casual_Guy",
-  "Lively_Girl",
-  "Patient_Man",
-  "Young_Knight",
-  "Determined_Man",
-  "Lovely_Girl",
-  "Decent_Boy",
-  "Imposing_Manner",
-  "Elegant_Man",
-  "Abbess",
-  "Sweet_Girl_2",
-  "Exuberant_Girl",
-]);
 const MINIMAX_TTS_EMOTIONS = new Set(["happy", "sad", "angry", "fearful", "disgusted", "surprised", "neutral"]);
 const MAX_UPSTREAM_CREDITS = 2_147_483_647;
 const PROFILES = {
@@ -72,7 +53,7 @@ export const meta = {
     en: "Audio generation tasks",
     zh: "音频生成任务",
   },
-  version: "0.6.0",
+  version: "0.6.1",
   author: { name: "QuantumNous" },
   baseUrl: "https://www.runninghub.cn",
   models: Object.keys(PROFILES),
@@ -225,8 +206,10 @@ function minimaxTTSRequest(value) {
     "enable_base64_output",
     "english_normalization",
   ]);
-  const voiceID = requiredText(request.voice_id, "voice_id", 64);
-  if (!MINIMAX_TTS_VOICES.has(voiceID)) throw new Error("unsupported voice_id");
+  // System, cloned and designed voices share this field. The client catalog
+  // chooses which IDs to offer; RunningHub fails unknown IDs without a charge.
+  const voiceID = requiredText(request.voice_id, "voice_id", 128);
+  if (/[\u0000-\u001f\u007f-\u009f]/.test(voiceID)) throw new Error("voice_id must not contain control characters");
   const output = {
     text: requiredText(request.text, "text", 10000),
     voice_id: voiceID,
