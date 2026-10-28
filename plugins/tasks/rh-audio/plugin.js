@@ -3,10 +3,31 @@
 const QWEN_MODEL = "qwen3-tts-flash";
 const MINIMAX_TTS_MODEL = "minimax/speech-2.8-hd";
 const DOUBAO_TTS_MODEL = "bytedance/doubao-seed-tts-2.0";
+const DOUBAO_SEED_AUDIO_MODEL = "bytedance/doubao-seed-audio-1.0";
 const QWEN_TTS_CNY_PER_10000_BILLED_CHARACTERS = 0.8029;
 const DOUBAO_TTS_CNY_PER_1000_CHARACTERS = 0.24;
+const DOUBAO_SEED_AUDIO_CNY_PER_SECOND = 0.004;
 const MINIMAX_TTS_CNY_PER_1000_CHARACTERS = 0.62;
 const QWEN_TTS_LANGUAGES = ["Auto", "Chinese", "English", "German", "Italian", "Portuguese", "Spanish", "Japanese", "Korean", "French", "Russian"];
+const DOUBAO_TTS_EXPLICIT_LANGUAGES = [
+  "",
+  "zh-cn",
+  "en",
+  "ja",
+  "es-mx",
+  "id",
+  "pt-br",
+  "pt",
+  "ko",
+  "de",
+  "fr",
+  "th",
+  "vi",
+  "ru",
+  "fil",
+  "ms",
+  "ar",
+];
 const MINIMAX_TTS_VOICES = new Set([
   "Wise_Woman",
   "Friendly_Person",
@@ -32,6 +53,7 @@ const PROFILES = {
   [QWEN_MODEL]: { endpoint: "alibaba/qwen3-tts-flash" },
   [MINIMAX_TTS_MODEL]: { endpoint: "rhart-audio/text-to-audio/speech-2.8-hd" },
   [DOUBAO_TTS_MODEL]: { endpoint: "bytedance/doubao-seed-tts-2.0" },
+  [DOUBAO_SEED_AUDIO_MODEL]: { endpoint: "bytedance/doubao-seed-audio-1.0" },
 };
 const TTS_USAGE_SCHEMA = {
   upstream_cny: {
@@ -50,7 +72,7 @@ export const meta = {
     en: "Audio generation tasks",
     zh: "音频生成任务",
   },
-  version: "0.5.1",
+  version: "0.6.0",
   author: { name: "QuantumNous" },
   baseUrl: "https://www.runninghub.cn",
   models: Object.keys(PROFILES),
@@ -75,6 +97,15 @@ export const meta = {
         { label: "1,000 characters · estimate", facts: { upstream_cny: 0.24 } },
         { label: "5,000 characters · estimate", facts: { upstream_cny: 1.2 } },
         { label: "10,000 characters · estimate", facts: { upstream_cny: 2.4 } },
+      ],
+    },
+    {
+      models: [DOUBAO_SEED_AUDIO_MODEL],
+      schema: TTS_USAGE_SCHEMA,
+      examples: [
+        { label: "10 seconds · estimate", facts: { upstream_cny: 0.04 } },
+        { label: "30 seconds · estimate", facts: { upstream_cny: 0.12 } },
+        { label: "60 seconds · estimate", facts: { upstream_cny: 0.24 } },
       ],
     },
     {
@@ -217,21 +248,124 @@ function minimaxTTSRequest(value) {
 function doubaoTTSRequest(value) {
   const request = object(value, "request body must be an object");
   // model selects the gateway profile only; it is never forwarded upstream.
-  checkFields(request, DOUBAO_TTS_MODEL, ["model", "text", "speaker", "format", "sample_rate", "speech_rate", "loudness_rate", "bit_rate", "pitch"]);
+  checkFields(request, DOUBAO_TTS_MODEL, [
+    "model",
+    "text",
+    "speaker",
+    "format",
+    "sample_rate",
+    "speech_rate",
+    "loudness_rate",
+    "bit_rate",
+    "pitch",
+    "enable_subtitle",
+    "explicit_language",
+    "explicit_dialect",
+    "max_length_to_filter_parenthesis",
+    "silence_duration",
+    "disable_markdown_filter",
+    "disable_emoji_filter",
+    "enable_latex_tn",
+  ]);
   const output = {
     text: requiredText(request.text, "text", 10000),
     speaker: requiredText(request.speaker, "speaker", 256),
   };
-  if (hasOwn(request, "format")) output.format = oneOf(optionalText(request.format, "format", 64), "format", ["mp3", "wav", "ogg_opus", "pcm"]);
-  if (hasOwn(request, "sample_rate"))
-    output.sample_rate = oneOf(request.sample_rate, "sample_rate", ["8000", "16000", "22050", "24000", "32000", "44100", "48000"]);
+  if (hasOwn(request, "format")) {
+    output.format = oneOf(optionalText(request.format, "format", 64), "format", ["mp3", "wav", "ogg_opus", "pcm"]);
+  }
+  if (hasOwn(request, "sample_rate")) {
+    output.sample_rate = oneOf(
+      request.sample_rate,
+      "sample_rate",
+      ["8000", "16000", "22050", "24000", "32000", "44100", "48000"],
+    );
+  }
   if (hasOwn(request, "speech_rate")) output.speech_rate = integer(request.speech_rate, "speech_rate", -50, 100);
-  if (hasOwn(request, "loudness_rate")) output.loudness_rate = integer(request.loudness_rate, "loudness_rate", -50, 100);
+  if (hasOwn(request, "loudness_rate")) {
+    output.loudness_rate = integer(request.loudness_rate, "loudness_rate", -50, 100);
+  }
   if (hasOwn(request, "bit_rate")) {
     if (hasOwn(output, "format") && output.format !== "mp3") throw new Error("bit_rate is supported only when format is mp3");
     output.bit_rate = integer(request.bit_rate, "bit_rate", 64000, 160000);
   }
   if (hasOwn(request, "pitch")) output.pitch = integer(request.pitch, "pitch", -12, 12);
+  if (hasOwn(request, "enable_subtitle")) output.enable_subtitle = boolean(request.enable_subtitle, "enable_subtitle");
+  if (hasOwn(request, "explicit_language")) {
+    const language = oneOf(request.explicit_language, "explicit_language", DOUBAO_TTS_EXPLICIT_LANGUAGES);
+    if (language) output.explicit_language = language;
+  }
+  if (hasOwn(request, "explicit_dialect")) {
+    output.explicit_dialect = optionalText(request.explicit_dialect, "explicit_dialect", 64);
+  }
+  if (hasOwn(request, "max_length_to_filter_parenthesis")) {
+    output.max_length_to_filter_parenthesis = oneOf(
+      request.max_length_to_filter_parenthesis,
+      "max_length_to_filter_parenthesis",
+      [0, 100],
+    );
+  }
+  if (hasOwn(request, "silence_duration")) {
+    output.silence_duration = integer(request.silence_duration, "silence_duration", 0, 30000);
+  }
+  if (hasOwn(request, "disable_markdown_filter")) {
+    output.disable_markdown_filter = boolean(request.disable_markdown_filter, "disable_markdown_filter");
+  }
+  if (hasOwn(request, "disable_emoji_filter")) {
+    output.disable_emoji_filter = boolean(request.disable_emoji_filter, "disable_emoji_filter");
+  }
+  if (hasOwn(request, "enable_latex_tn")) output.enable_latex_tn = boolean(request.enable_latex_tn, "enable_latex_tn");
+  return output;
+}
+
+function httpsURL(value, field) {
+  if (typeof value !== "string" || value.length > 2048 || !/^https:\/\/[^/\s@?#]+(?:[/?#][^\s]*)?$/i.test(value)) {
+    throw new Error(field + " must be an absolute https URL without userinfo");
+  }
+  return value;
+}
+
+function seedAudioReference(request, output) {
+  const references = [];
+  for (const field of ["speaker", "audio_url", "image_url"]) {
+    if (!hasOwn(request, field)) continue;
+    if (typeof request[field] !== "string") throw new Error(field + " must be a string");
+    if (!trimmed(request[field])) continue;
+    references.push(field);
+  }
+  if (references.length !== 1) throw new Error("exactly one of speaker, audio_url, image_url is required");
+  const field = references[0];
+  if (field === "speaker") output.speaker = optionalText(request.speaker, "speaker", 256);
+  else output[field] = httpsURL(request[field], field);
+}
+
+function doubaoSeedAudioRequest(value) {
+  const request = object(value, "request body must be an object");
+  checkFields(request, DOUBAO_SEED_AUDIO_MODEL, [
+    "model",
+    "text_prompt",
+    "speaker",
+    "audio_url",
+    "image_url",
+    "format",
+    "sample_rate",
+    "speech_rate",
+    "loudness_rate",
+    "pitch_rate",
+  ]);
+  const output = { text_prompt: requiredText(request.text_prompt, "text_prompt", 3000) };
+  seedAudioReference(request, output);
+  output.speech_rate = integer(request.speech_rate, "speech_rate", -50, 100);
+  if (hasOwn(request, "format")) {
+    output.format = oneOf(optionalText(request.format, "format", 64), "format", ["wav", "mp3", "pcm", "ogg_opus"]);
+  }
+  if (hasOwn(request, "sample_rate")) {
+    output.sample_rate = oneOf(request.sample_rate, "sample_rate", ["8000", "16000", "24000", "32000", "44100"]);
+  }
+  if (hasOwn(request, "loudness_rate")) {
+    output.loudness_rate = integer(request.loudness_rate, "loudness_rate", -50, 100);
+  }
+  if (hasOwn(request, "pitch_rate")) output.pitch_rate = integer(request.pitch_rate, "pitch_rate", -12, 12);
   return output;
 }
 
@@ -239,6 +373,7 @@ function requestForModel(model, value) {
   if (model === QWEN_MODEL) return qwenRequest(value);
   if (model === MINIMAX_TTS_MODEL) return minimaxTTSRequest(value);
   if (model === DOUBAO_TTS_MODEL) return doubaoTTSRequest(value);
+  if (model === DOUBAO_SEED_AUDIO_MODEL) return doubaoSeedAudioRequest(value);
   throw new Error("unsupported RunningHub audio model");
 }
 
@@ -275,18 +410,21 @@ function upstreamCNY(body) {
   const usage = body && body.usage;
   if (!usage || typeof usage !== "object" || Array.isArray(usage)) return null;
   let total = 0;
+  let found = false;
   for (const field of ["consumeMoney", "thirdPartyConsumeMoney"]) {
     const value = usage[field];
     if (value === undefined || value === null) continue;
     if (typeof value !== "string" || !/^\d+(?:\.\d+)?$/.test(value)) return null;
+    found = true;
     total += Number(value);
   }
   const coins = usage.consumeCoins;
   if (coins !== undefined && coins !== null) {
     if (typeof coins !== "string" || !/^\d+(?:\.\d+)?$/.test(coins)) return null;
+    found = true;
     total += Number(coins) / 250;
   }
-  if (!Number.isFinite(total) || total < 0 || total > MAX_UPSTREAM_CREDITS) return null;
+  if (!found || !Number.isFinite(total) || total < 0 || total > MAX_UPSTREAM_CREDITS) return null;
   return total;
 }
 
@@ -351,11 +489,22 @@ export function buildSubmitRequest(ctx) {
   };
 }
 
-export function parseSubmitResponse(_ctx, response) {
-  const body = taskData(response && response.body, "invalid RunningHub submission response");
+export function parseSubmitResponse(ctx, response) {
+  const body = object(response && response.body, "invalid RunningHub submission response");
+  if (!trimmed(body.taskId) && trimmed(body.errorCode)) {
+    return {
+      taskId: "rh-rejected-" + (trimmed(ctx && ctx.publicTaskId) || utils.uuid()),
+      taskData: body,
+      immediate: {
+        status: "FAILURE",
+        reason: "RunningHub error " + trimmed(body.errorCode) + ": " + trimmed(body.errorMessage).slice(0, 300),
+      },
+    };
+  }
   // Model API responses are top-level {taskId, status, results}; do not apply
   // the legacy RunningHub Workflow {code, data, msg} envelope here.
-  return { taskId: trimmed(body.taskId), taskData: body };
+  const task = taskData(body, "invalid RunningHub submission response");
+  return { taskId: trimmed(task.taskId), taskData: task };
 }
 
 export function buildQueryRequest(ctx) {
@@ -376,9 +525,9 @@ export function buildQueryRequest(ctx) {
 export function parseTaskResult(_ctx, body) {
   const task = taskData(body, "invalid RunningHub task response");
   const status = trimmed(task.status).toUpperCase();
-  if (["PENDING", "QUEUED", "SUBMITTED"].includes(status)) return { status: "SUBMITTED", progress: "" };
+  if (["PENDING", "CREATE", "QUEUED", "SUBMITTED"].includes(status)) return { status: "SUBMITTED", progress: "" };
   if (["RUNNING", "PROCESSING", "IN_PROGRESS"].includes(status)) return { status: "IN_PROGRESS", progress: "" };
-  if (["FAILED", "FAILURE", "ERROR", "CANCELED", "CANCELLED"].includes(status)) {
+  if (["FAILED", "FAILURE", "ERROR", "CANCEL", "CANCELED", "CANCELLED"].includes(status)) {
     return { status: "FAILURE", progress: "100%", reason: failureReason(task) };
   }
   if (status === "SUCCESS") {
@@ -394,7 +543,12 @@ export function extractUsage(ctx) {
   const request = requestForModel(model, ctx.requestBody);
   let estimate;
   if (model === QWEN_MODEL) estimate = (qwenBilledCharacters(request.text) * QWEN_TTS_CNY_PER_10000_BILLED_CHARACTERS) / 10000;
-  else {
+  else if (model === DOUBAO_SEED_AUDIO_MODEL) {
+    const chars = Array.from(request.text_prompt).length;
+    const speedFactor = 1 + request.speech_rate / 100;
+    const seconds = Math.max(5, Math.ceil(chars / (2 * speedFactor)));
+    estimate = seconds * DOUBAO_SEED_AUDIO_CNY_PER_SECOND;
+  } else {
     const rate = model === DOUBAO_TTS_MODEL ? DOUBAO_TTS_CNY_PER_1000_CHARACTERS : MINIMAX_TTS_CNY_PER_1000_CHARACTERS;
     estimate = (Array.from(request.text).length * rate) / 1000;
   }
@@ -405,12 +559,32 @@ export function extractUsage(ctx) {
 
 export function extractUsageOnComplete(task, result, body) {
   const model = trimmed(task && (task.upstreamModel || task.model));
-  if ([QWEN_MODEL, DOUBAO_TTS_MODEL, MINIMAX_TTS_MODEL].includes(model)) {
+  if ([QWEN_MODEL, DOUBAO_TTS_MODEL, DOUBAO_SEED_AUDIO_MODEL, MINIMAX_TTS_MODEL].includes(model)) {
     const status = String((result && result.status) || "").toUpperCase();
-    if (["FAILURE", "CANCELLED", "CANCELED"].includes(status)) return { upstream_cny: 0 };
+    if (["FAILURE", "CANCEL", "CANCELLED", "CANCELED"].includes(status)) return { upstream_cny: 0 };
     if (status !== "SUCCESS") return null;
     const cny = upstreamCNY(body);
-    return cny === null ? null : { upstream_cny: cny };
+    if (cny !== null) return { upstream_cny: cny };
+    const usage = body && body.usage;
+    const seconds = usage && usage.billingSeconds;
+    const amountsMissing =
+      usage &&
+      typeof usage === "object" &&
+      !Array.isArray(usage) &&
+      ["consumeMoney", "thirdPartyConsumeMoney", "consumeCoins"].every(function (field) {
+        return usage[field] === undefined || usage[field] === null;
+      });
+    if (
+      model !== DOUBAO_SEED_AUDIO_MODEL ||
+      !amountsMissing ||
+      typeof seconds !== "string" ||
+      !/^\d+(?:\.\d+)?$/.test(seconds)
+    ) {
+      return null;
+    }
+    const value = Number(seconds);
+    if (!Number.isFinite(value) || value <= 0 || value > 3600) return null;
+    return { upstream_cny: Number((value * DOUBAO_SEED_AUDIO_CNY_PER_SECOND).toFixed(6)) };
   }
   return null;
 }

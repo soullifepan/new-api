@@ -349,7 +349,9 @@
               "model": "bytedance/doubao-seed-tts-2.0",
               "text": "narrator",
               "speaker": "voice-id",
-              "context_texts": ["private voice context"]
+              "context_texts": [
+                "private voice context"
+              ]
             }
           }
         }
@@ -357,7 +359,7 @@
       "expectedError": "unsupported field for bytedance/doubao-seed-tts-2.0"
     },
     {
-      "name": "rejects the replaced Doubao Seed Audio 1.0 model",
+      "name": "rejects Doubao Seed Audio 1.0 without a reference",
       "hook": "native",
       "member": "decodeSubmit",
       "args": [
@@ -371,7 +373,7 @@
           }
         }
       ],
-      "expectedError": "unsupported RunningHub audio model"
+      "expectedError": "exactly one of speaker, audio_url, image_url is required"
     },
     {
       "name": "reserves the published Doubao character-cost estimate",
@@ -469,7 +471,7 @@
       }
     },
     {
-      "name": "settles null RunningHub Doubao usage as zero",
+      "name": "retains the Doubao TTS reservation when RunningHub usage is all null",
       "hook": "extractUsageOnComplete",
       "args": [
         {
@@ -495,9 +497,7 @@
           ]
         }
       ],
-      "expected": {
-        "upstream_cny": 0
-      }
+      "expected": null
     },
     {
       "name": "retains the Doubao reservation when RunningHub usage is malformed",
@@ -721,6 +721,655 @@
         "url": "https://cdn.runninghub.example/result.mp3",
         "method": "GET",
         "credentialless": true
+      }
+    },
+    {
+      "name": "constructs Seed Audio with an audio reference",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "model": "bytedance/doubao-seed-audio-1.0",
+          "upstreamModel": "bytedance/doubao-seed-audio-1.0",
+          "baseUrl": "https://www.runninghub.cn",
+          "apiKey": "fixture-channel-key",
+          "requestBody": {
+            "text_prompt": "孩子，进来坐坐吧，蛋糕我们一起吃。",
+            "audio_url": "https://media.example/reference.mp3",
+            "speech_rate": 0,
+            "format": "mp3"
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://www.runninghub.cn/openapi/v2/bytedance/doubao-seed-audio-1.0",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-channel-key"
+        },
+        "body": {
+          "text_prompt": "孩子，进来坐坐吧，蛋糕我们一起吃。",
+          "audio_url": "https://media.example/reference.mp3",
+          "speech_rate": 0,
+          "format": "mp3"
+        },
+        "action": "audio_generation"
+      }
+    },
+    {
+      "name": "constructs Seed Audio with an image reference",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "model": "bytedance/doubao-seed-audio-1.0",
+          "upstreamModel": "bytedance/doubao-seed-audio-1.0",
+          "baseUrl": "https://www.runninghub.cn",
+          "apiKey": "fixture-channel-key",
+          "requestBody": {
+            "text_prompt": "孩子，进来坐坐吧，蛋糕我们一起吃。",
+            "image_url": "https://media.example/reference.png",
+            "speech_rate": 0
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://www.runninghub.cn/openapi/v2/bytedance/doubao-seed-audio-1.0",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-channel-key"
+        },
+        "body": {
+          "text_prompt": "孩子，进来坐坐吧，蛋糕我们一起吃。",
+          "image_url": "https://media.example/reference.png",
+          "speech_rate": 0
+        },
+        "action": "audio_generation"
+      }
+    },
+    {
+      "name": "constructs Seed Audio with a speaker",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "model": "bytedance/doubao-seed-audio-1.0",
+          "upstreamModel": "bytedance/doubao-seed-audio-1.0",
+          "baseUrl": "https://www.runninghub.cn",
+          "apiKey": "fixture-channel-key",
+          "requestBody": {
+            "text_prompt": "hello",
+            "speaker": "voice-id",
+            "speech_rate": 0
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://www.runninghub.cn/openapi/v2/bytedance/doubao-seed-audio-1.0",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-channel-key"
+        },
+        "body": {
+          "text_prompt": "hello",
+          "speaker": "voice-id",
+          "speech_rate": 0
+        },
+        "action": "audio_generation"
+      }
+    },
+    {
+      "name": "rejects Seed Audio multiple references",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "bytedance/doubao-seed-audio-1.0",
+              "text_prompt": "test",
+              "speaker": "voice",
+              "audio_url": "https://media.example/a.mp3",
+              "speech_rate": 0
+            }
+          }
+        }
+      ],
+      "expectedError": "exactly one of speaker, audio_url, image_url is required"
+    },
+    {
+      "name": "rejects Seed Audio array audio reference",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "bytedance/doubao-seed-audio-1.0",
+              "text_prompt": "test",
+              "audio_url": [
+                "https://media.example/a.mp3"
+              ],
+              "speech_rate": 0
+            }
+          }
+        }
+      ],
+      "expectedError": "audio_url must be a string"
+    },
+    {
+      "name": "requires Seed Audio speech rate",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "bytedance/doubao-seed-audio-1.0",
+              "text_prompt": "test",
+              "speaker": "voice"
+            }
+          }
+        }
+      ],
+      "expectedError": "speech_rate must be an integer between -50 and 100"
+    },
+    {
+      "name": "rejects Seed Audio out-of-range speech rate",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "bytedance/doubao-seed-audio-1.0",
+              "text_prompt": "test",
+              "speaker": "voice",
+              "speech_rate": 101
+            }
+          }
+        }
+      ],
+      "expectedError": "speech_rate must be an integer between -50 and 100"
+    },
+    {
+      "name": "rejects Seed Audio unsupported sample rate",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "bytedance/doubao-seed-audio-1.0",
+              "text_prompt": "test",
+              "speaker": "voice",
+              "speech_rate": 0,
+              "sample_rate": "48000"
+            }
+          }
+        }
+      ],
+      "expectedError": "sample_rate must be one of"
+    },
+    {
+      "name": "rejects Seed Audio pitch alias",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "bytedance/doubao-seed-audio-1.0",
+              "text_prompt": "test",
+              "speaker": "voice",
+              "speech_rate": 0,
+              "pitch": 0
+            }
+          }
+        }
+      ],
+      "expectedError": "unsupported field"
+    },
+    {
+      "name": "estimates Seed Audio at normal speed",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "model": "bytedance/doubao-seed-audio-1.0",
+          "requestBody": {
+            "text_prompt": "12345678901234567",
+            "speaker": "voice",
+            "speech_rate": 0
+          },
+          "usagePurpose": "facts"
+        }
+      ],
+      "expected": {
+        "upstream_cny": 0.036
+      }
+    },
+    {
+      "name": "estimates Seed Audio at half speed",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "model": "bytedance/doubao-seed-audio-1.0",
+          "requestBody": {
+            "text_prompt": "12345678901234567",
+            "speaker": "voice",
+            "speech_rate": -50
+          },
+          "usagePurpose": "facts"
+        }
+      ],
+      "expected": {
+        "upstream_cny": 0.068
+      }
+    },
+    {
+      "name": "applies Seed Audio minimum estimate",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "model": "bytedance/doubao-seed-audio-1.0",
+          "requestBody": {
+            "text_prompt": "a",
+            "speaker": "voice",
+            "speech_rate": 100
+          },
+          "usagePurpose": "facts"
+        }
+      ],
+      "expected": {
+        "upstream_cny": 0.02
+      }
+    },
+    {
+      "name": "settles Seed Audio audio reference response",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "model": "bytedance/doubao-seed-audio-1.0"
+        },
+        {
+          "status": "SUCCESS"
+        },
+        {
+          "taskId": "rh-task",
+          "status": "SUCCESS",
+          "usage": {
+            "consumeMoney": null,
+            "thirdPartyConsumeMoney": "0.02",
+            "consumeCoins": null,
+            "billingSeconds": "5.08"
+          },
+          "results": [
+            {
+              "url": "https://cdn.runninghub.example/audio.mp3",
+              "outputType": "mp3"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "upstream_cny": 0.02
+      }
+    },
+    {
+      "name": "settles Seed Audio image reference response",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "model": "bytedance/doubao-seed-audio-1.0"
+        },
+        {
+          "status": "SUCCESS"
+        },
+        {
+          "taskId": "rh-task",
+          "status": "SUCCESS",
+          "usage": {
+            "consumeMoney": null,
+            "thirdPartyConsumeMoney": "0.025",
+            "consumeCoins": null,
+            "billingSeconds": "6.18"
+          },
+          "results": [
+            {
+              "url": "https://cdn.runninghub.example/audio.mp3",
+              "outputType": "mp3"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "upstream_cny": 0.025
+      }
+    },
+    {
+      "name": "settles Seed Audio from billing seconds when money is absent",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "model": "bytedance/doubao-seed-audio-1.0"
+        },
+        {
+          "status": "SUCCESS"
+        },
+        {
+          "taskId": "rh-task",
+          "status": "SUCCESS",
+          "usage": {
+            "consumeMoney": null,
+            "thirdPartyConsumeMoney": null,
+            "consumeCoins": null,
+            "billingSeconds": "5.08"
+          },
+          "results": [
+            {
+              "url": "https://cdn.runninghub.example/audio.mp3",
+              "outputType": "mp3"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "upstream_cny": 0.02032
+      }
+    },
+    {
+      "name": "retains Seed Audio reservation without settlement usage",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "model": "bytedance/doubao-seed-audio-1.0"
+        },
+        {
+          "status": "SUCCESS"
+        },
+        {
+          "taskId": "rh-task",
+          "status": "SUCCESS",
+          "usage": {
+            "consumeMoney": null,
+            "thirdPartyConsumeMoney": null,
+            "consumeCoins": null
+          },
+          "results": [
+            {
+              "url": "https://cdn.runninghub.example/audio.mp3",
+              "outputType": "mp3"
+            }
+          ]
+        }
+      ],
+      "expected": null
+    },
+    {
+      "name": "forwards all optional Doubao TTS controls",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "model": "bytedance/doubao-seed-tts-2.0",
+          "upstreamModel": "bytedance/doubao-seed-tts-2.0",
+          "baseUrl": "https://www.runninghub.cn",
+          "apiKey": "fixture-channel-key",
+          "requestBody": {
+            "text": "Hello",
+            "speaker": "voice-id",
+            "enable_subtitle": true,
+            "explicit_language": "en",
+            "explicit_dialect": " yue ",
+            "max_length_to_filter_parenthesis": 100,
+            "silence_duration": 0,
+            "disable_markdown_filter": false,
+            "disable_emoji_filter": true,
+            "enable_latex_tn": false
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://www.runninghub.cn/openapi/v2/bytedance/doubao-seed-tts-2.0",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-channel-key"
+        },
+        "body": {
+          "text": "Hello",
+          "speaker": "voice-id",
+          "enable_subtitle": true,
+          "explicit_language": "en",
+          "explicit_dialect": "yue",
+          "max_length_to_filter_parenthesis": 100,
+          "silence_duration": 0,
+          "disable_markdown_filter": false,
+          "disable_emoji_filter": true,
+          "enable_latex_tn": false
+        },
+        "action": "audio_generation"
+      }
+    },
+    {
+      "name": "omits empty explicit language",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "model": "bytedance/doubao-seed-tts-2.0",
+          "upstreamModel": "bytedance/doubao-seed-tts-2.0",
+          "baseUrl": "https://www.runninghub.cn",
+          "apiKey": "fixture-channel-key",
+          "requestBody": {
+            "text": "Hello",
+            "speaker": "voice-id",
+            "explicit_language": ""
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://www.runninghub.cn/openapi/v2/bytedance/doubao-seed-tts-2.0",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-channel-key"
+        },
+        "body": {
+          "text": "Hello",
+          "speaker": "voice-id"
+        },
+        "action": "audio_generation"
+      }
+    },
+    {
+      "name": "rejects unsupported explicit language",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "bytedance/doubao-seed-tts-2.0",
+              "text": "Hello",
+              "speaker": "voice-id",
+              "explicit_language": "xx"
+            }
+          }
+        }
+      ],
+      "expectedError": "explicit_language must be one of"
+    },
+    {
+      "name": "rejects empty explicit dialect",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "bytedance/doubao-seed-tts-2.0",
+              "text": "Hello",
+              "speaker": "voice-id",
+              "explicit_dialect": ""
+            }
+          }
+        }
+      ],
+      "expectedError": "explicit_dialect must be a non-empty string"
+    },
+    {
+      "name": "rejects unsupported parenthesis filter length",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "bytedance/doubao-seed-tts-2.0",
+              "text": "Hello",
+              "speaker": "voice-id",
+              "max_length_to_filter_parenthesis": 50
+            }
+          }
+        }
+      ],
+      "expectedError": "max_length_to_filter_parenthesis must be one of"
+    },
+    {
+      "name": "rejects excessive silence duration",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "bytedance/doubao-seed-tts-2.0",
+              "text": "Hello",
+              "speaker": "voice-id",
+              "silence_duration": 30001
+            }
+          }
+        }
+      ],
+      "expectedError": "silence_duration must be an integer between 0 and 30000"
+    },
+    {
+      "name": "rejects non-boolean subtitle option",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "bytedance/doubao-seed-tts-2.0",
+              "text": "Hello",
+              "speaker": "voice-id",
+              "enable_subtitle": "true"
+            }
+          }
+        }
+      ],
+      "expectedError": "enable_subtitle must be a boolean"
+    },
+    {
+      "name": "maps RunningHub CREATE to submitted",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "taskId": "rh-task",
+          "status": "CREATE",
+          "results": null
+        },
+        {
+          "status": 200,
+          "headers": {}
+        }
+      ],
+      "expected": {
+        "status": "SUBMITTED",
+        "progress": ""
+      }
+    },
+    {
+      "name": "maps RunningHub CANCEL to failure",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "taskId": "rh-task",
+          "status": "CANCEL",
+          "results": null
+        },
+        {
+          "status": 200,
+          "headers": {}
+        }
+      ],
+      "expected": {
+        "status": "FAILURE",
+        "progress": "100%",
+        "reason": "RunningHub audio task failed"
+      }
+    },
+    {
+      "name": "maps RunningHub business rejection to immediate failure",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {
+          "publicTaskId": "task_fixture_rejected"
+        },
+        {
+          "statusCode": 200,
+          "body": {
+            "taskId": "",
+            "status": "",
+            "errorCode": "40310",
+            "errorMessage": "Due to compliance requirements, this model is no longer available on the CN endpoint. Please migrate to the AI endpoint (runninghub.ai). | 因合规要求，该模型在当前CN节点已下线，请前往全球站 (runninghub.ai) 接入使用。",
+            "results": null,
+            "clientId": "",
+            "promptTips": "",
+            "failedReason": {},
+            "usage": null,
+            "parentTaskId": null,
+            "taskUsageList": null
+          }
+        }
+      ],
+      "expected": {
+        "taskId": "rh-rejected-task_fixture_rejected",
+        "taskData": {
+          "taskId": "",
+          "status": "",
+          "errorCode": "40310",
+          "errorMessage": "Due to compliance requirements, this model is no longer available on the CN endpoint. Please migrate to the AI endpoint (runninghub.ai). | 因合规要求，该模型在当前CN节点已下线，请前往全球站 (runninghub.ai) 接入使用。",
+          "results": null,
+          "clientId": "",
+          "promptTips": "",
+          "failedReason": {},
+          "usage": null,
+          "parentTaskId": null,
+          "taskUsageList": null
+        },
+        "immediate": {
+          "status": "FAILURE",
+          "reason": "RunningHub error 40310: Due to compliance requirements, this model is no longer available on the CN endpoint. Please migrate to the AI endpoint (runninghub.ai). | 因合规要求，该模型在当前CN节点已下线，请前往全球站 (runninghub.ai) 接入使用。"
+        }
       }
     }
   ]
