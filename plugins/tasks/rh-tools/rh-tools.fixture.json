@@ -1,0 +1,869 @@
+{
+  "cases": [
+    {
+      "name": "builds subtitle erase request without envelope fields",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "model": "volc-subtitle-erase/video",
+          "baseUrl": "https://www.runninghub.cn",
+          "apiKey": "key",
+          "requestBody": {
+            "videoUrl": "https://media.example/a.mp4",
+            "duration_seconds": 12.4
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://www.runninghub.cn/openapi/v2/volc-subtitle-erase/video",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer key"
+        },
+        "body": {
+          "videoUrl": "https://media.example/a.mp4"
+        },
+        "action": "rh_tool"
+      }
+    },
+    {
+      "name": "builds subtitle erase pro request",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "model": "volc-subtitle-erase-pro/video",
+          "baseUrl": "https://www.runninghub.cn",
+          "apiKey": "key",
+          "requestBody": {
+            "videoUrl": "https://media.example/a.mp4",
+            "eraseType": "subtitle",
+            "encodeMode": "quality",
+            "duration_seconds": 10
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://www.runninghub.cn/openapi/v2/volc-subtitle-erase-pro/video",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer key"
+        },
+        "body": {
+          "videoUrl": "https://media.example/a.mp4",
+          "eraseType": "subtitle",
+          "encodeMode": "quality"
+        },
+        "action": "rh_tool"
+      }
+    },
+    {
+      "name": "renames stem song rh_model upstream",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "model": "mureka-ai/stem-song",
+          "baseUrl": "https://www.runninghub.cn",
+          "apiKey": "key",
+          "requestBody": {
+            "url": "https://media.example/a.mp3",
+            "rh_model": "audio-separation-1"
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://www.runninghub.cn/openapi/v2/mureka-ai/stem-song",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer key"
+        },
+        "body": {
+          "url": "https://media.example/a.mp3",
+          "model": "audio-separation-1"
+        },
+        "action": "rh_tool"
+      }
+    },
+    {
+      "name": "builds upscaler request",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "model": "rhart-video/video-upscaler",
+          "baseUrl": "https://www.runninghub.cn",
+          "apiKey": "key",
+          "requestBody": {
+            "videoUrl": "https://media.example/a.mp4",
+            "targetResolution": "2k",
+            "duration_seconds": 10
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://www.runninghub.cn/openapi/v2/rhart-video/video-upscaler",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer key"
+        },
+        "body": {
+          "videoUrl": "https://media.example/a.mp4",
+          "targetResolution": "2k"
+        },
+        "action": "rh_tool"
+      }
+    },
+    {
+      "name": "rejects unknown field",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "volc-subtitle-erase/video",
+              "videoUrl": "https://media.example/a.mp4",
+              "duration_seconds": 1,
+              "extra": true
+            }
+          }
+        }
+      ],
+      "expectedError": "unsupported field"
+    },
+    {
+      "name": "rejects clientToken",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "volc-subtitle-erase/video",
+              "videoUrl": "https://media.example/a.mp4",
+              "duration_seconds": 1,
+              "clientToken": "x"
+            }
+          }
+        }
+      ],
+      "expectedError": "unsupported field"
+    },
+    {
+      "name": "rejects invalid list",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "rhart-video/video-upscaler",
+              "videoUrl": "https://media.example/a.mp4",
+              "targetResolution": "3k",
+              "duration_seconds": 1
+            }
+          }
+        }
+      ],
+      "expectedError": "targetResolution must be one of"
+    },
+    {
+      "name": "rejects insecure URL",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "volc-subtitle-erase/video",
+              "videoUrl": "http://media.example/a.mp4",
+              "duration_seconds": 1
+            }
+          }
+        }
+      ],
+      "expectedError": "videoUrl must be an absolute https URL"
+    },
+    {
+      "name": "rejects stem duration",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "mureka-ai/stem-song",
+              "url": "https://media.example/a.mp3",
+              "rh_model": "audio-separation-1",
+              "duration_seconds": 1
+            }
+          }
+        }
+      ],
+      "expectedError": "duration_seconds is not supported"
+    },
+    {
+      "name": "requires duration",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "volc-subtitle-erase/video",
+              "videoUrl": "https://media.example/a.mp4"
+            }
+          }
+        }
+      ],
+      "expectedError": "duration_seconds must be"
+    },
+    {
+      "name": "bounds upscaler duration",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "rhart-video/video-upscaler",
+              "videoUrl": "https://media.example/a.mp4",
+              "targetResolution": "720p",
+              "duration_seconds": 601
+            }
+          }
+        }
+      ],
+      "expectedError": "at most 600"
+    },
+    {
+      "name": "keeps a RunningHub submission task",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {},
+        {
+          "body": {
+            "taskId": "task-submit",
+            "status": "CREATE",
+            "results": null
+          }
+        }
+      ],
+      "expected": {
+        "taskId": "task-submit",
+        "taskData": {
+          "taskId": "task-submit",
+          "status": "CREATE",
+          "results": null
+        }
+      }
+    },
+    {
+      "name": "maps create",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "taskId": "x",
+          "status": "CREATE"
+        }
+      ],
+      "expected": {
+        "status": "QUEUED",
+        "progress": ""
+      }
+    },
+    {
+      "name": "maps queued",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "taskId": "x",
+          "status": "QUEUED"
+        }
+      ],
+      "expected": {
+        "status": "QUEUED",
+        "progress": ""
+      }
+    },
+    {
+      "name": "maps running",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "taskId": "x",
+          "status": "RUNNING"
+        }
+      ],
+      "expected": {
+        "status": "IN_PROGRESS",
+        "progress": ""
+      }
+    },
+    {
+      "name": "maps failed",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "taskId": "x",
+          "status": "FAILED",
+          "errorCode": "BAD"
+        }
+      ],
+      "expected": {
+        "status": "FAILURE",
+        "progress": "100%",
+        "reason": "BAD"
+      }
+    },
+    {
+      "name": "maps cancel",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "taskId": "x",
+          "status": "CANCEL"
+        }
+      ],
+      "expected": {
+        "status": "FAILURE",
+        "progress": "100%",
+        "reason": "RunningHub task failed"
+      }
+    },
+    {
+      "name": "maps zip success",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "taskId": "x",
+          "status": "SUCCESS",
+          "results": [
+            {
+              "url": "https://cdn.example/result.zip",
+              "outputType": "zip"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "status": "SUCCESS",
+        "progress": "100%",
+        "reason": ""
+      }
+    },
+    {
+      "name": "maps missing success outputs",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "taskId": "x",
+          "status": "SUCCESS",
+          "results": null
+        }
+      ],
+      "expected": {
+        "status": "UNKNOWN",
+        "reason": "RunningHub success response is missing a result URL"
+      }
+    },
+    {
+      "name": "estimates subtitle erase",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "model": "volc-subtitle-erase/video",
+          "requestBody": {
+            "videoUrl": "https://media.example/a.mp4",
+            "duration_seconds": 12.4
+          }
+        }
+      ],
+      "expected": {
+        "upstream_cny": 0.062
+      }
+    },
+    {
+      "name": "estimates 4k upscale",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "model": "rhart-video/video-upscaler",
+          "requestBody": {
+            "videoUrl": "https://media.example/a.mp4",
+            "targetResolution": "4k",
+            "duration_seconds": 10
+          }
+        }
+      ],
+      "expected": {
+        "upstream_cny": 5.6
+      }
+    },
+    {
+      "name": "estimates separation two",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "model": "mureka-ai/stem-song",
+          "requestBody": {
+            "url": "https://media.example/a.mp3",
+            "rh_model": "audio-separation-2"
+          }
+        }
+      ],
+      "expected": {
+        "upstream_cny": 4.762
+      }
+    },
+    {
+      "name": "settles subtitle usage",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "model": "volc-subtitle-erase/video"
+        },
+        {
+          "status": "SUCCESS"
+        },
+        {
+          "usage": {
+            "thirdPartyConsumeMoney": "0.065"
+          }
+        }
+      ],
+      "expected": {
+        "upstream_cny": 0.065
+      }
+    },
+    {
+      "name": "settles stem usage",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "model": "mureka-ai/stem-song"
+        },
+        {
+          "status": "SUCCESS"
+        },
+        {
+          "usage": {
+            "thirdPartyConsumeMoney": "0.41"
+          }
+        }
+      ],
+      "expected": {
+        "upstream_cny": 0.41
+      }
+    },
+    {
+      "name": "settles upscaler usage",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "model": "rhart-video/video-upscaler"
+        },
+        {
+          "status": "SUCCESS"
+        },
+        {
+          "usage": {
+            "thirdPartyConsumeMoney": "1.68"
+          }
+        }
+      ],
+      "expected": {
+        "upstream_cny": 1.68
+      }
+    },
+    {
+      "name": "settles fps usage",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "model": "rhart-video/video-fps-increaser"
+        },
+        {
+          "status": "SUCCESS"
+        },
+        {
+          "usage": {
+            "thirdPartyConsumeMoney": "0.56"
+          }
+        }
+      ],
+      "expected": {
+        "upstream_cny": 0.56
+      }
+    },
+    {
+      "name": "keeps reservation for null usage",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "model": "volc-subtitle-erase/video"
+        },
+        {
+          "status": "SUCCESS"
+        },
+        {
+          "usage": {
+            "consumeMoney": null,
+            "thirdPartyConsumeMoney": null,
+            "consumeCoins": null
+          }
+        }
+      ],
+      "expected": null
+    },
+    {
+      "name": "keeps reservation for numeric usage",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "model": "volc-subtitle-erase/video"
+        },
+        {
+          "status": "SUCCESS"
+        },
+        {
+          "usage": {
+            "thirdPartyConsumeMoney": 0.5
+          }
+        }
+      ],
+      "expected": null
+    },
+    {
+      "name": "keeps reservation for negative usage",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "model": "volc-subtitle-erase/video"
+        },
+        {
+          "status": "SUCCESS"
+        },
+        {
+          "usage": {
+            "thirdPartyConsumeMoney": "-1"
+          }
+        }
+      ],
+      "expected": null
+    },
+    {
+      "name": "refunds failed task",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "model": "volc-subtitle-erase/video"
+        },
+        {
+          "status": "FAILURE"
+        },
+        {}
+      ],
+      "expected": {
+        "upstream_cny": 0
+      }
+    },
+    {
+      "name": "lists zip artifact",
+      "hook": "listArtifacts",
+      "args": [
+        {
+          "status": "SUCCESS",
+          "data": {
+            "results": [
+              {
+                "url": "https://cdn.example/result.zip",
+                "outputType": "zip"
+              }
+            ]
+          }
+        }
+      ],
+      "expected": [
+        {
+          "key": "output-0",
+          "type": "file",
+          "mimeType": "application/zip"
+        }
+      ]
+    },
+    {
+      "name": "builds mp4 artifact content",
+      "hook": "buildContentRequest",
+      "args": [
+        {
+          "status": "SUCCESS",
+          "artifactKey": "output-0",
+          "clientRequest": {
+            "method": "GET"
+          },
+          "data": {
+            "results": [
+              {
+                "url": "https://cdn.example/result.mp4",
+                "outputType": "mp4"
+              }
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://cdn.example/result.mp4",
+        "method": "GET",
+        "credentialless": true
+      }
+    },
+    {
+      "name": "rejects invalid artifact key",
+      "hook": "buildContentRequest",
+      "args": [
+        {
+          "status": "SUCCESS",
+          "artifactKey": "bad",
+          "data": {
+            "results": []
+          }
+        }
+      ],
+      "expectedError": "artifact_not_found"
+    },
+    {
+      "name": "renders success without usage fields",
+      "hook": "native",
+      "member": "renderTask",
+      "args": [
+        {},
+        {
+          "task_id": "x",
+          "status": "SUCCESS",
+          "data": {
+            "status": "SUCCESS",
+            "usage": {
+              "thirdPartyConsumeMoney": "0.1"
+            },
+            "taskUsageList": [],
+            "results": []
+          }
+        }
+      ],
+      "expected": {
+        "task_id": "x",
+        "status": "SUCCESS",
+        "progress": "",
+        "fail_reason": "",
+        "data": {
+          "status": "SUCCESS",
+          "results": []
+        },
+        "artifact_metadata": {
+          "source": "RunningHub temporary result URL"
+        }
+      }
+    },
+    {
+      "name": "turns S0 rejection into immediate failure",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {
+          "publicTaskId": "fixture-rejection"
+        },
+        {
+          "body": {
+            "taskId": "",
+            "status": "",
+            "errorCode": "40310",
+            "errorMessage": "Model unavailable",
+            "results": null,
+            "clientId": "",
+            "promptTips": "",
+            "failedReason": {},
+            "usage": null,
+            "parentTaskId": null,
+            "taskUsageList": null
+          }
+        }
+      ],
+      "expected": {
+        "taskId": "rh-rejected-fixture-rejection",
+        "taskData": {
+          "taskId": "",
+          "status": "",
+          "errorCode": "40310",
+          "errorMessage": "Model unavailable",
+          "results": null,
+          "clientId": "",
+          "promptTips": "",
+          "failedReason": {},
+          "usage": null,
+          "parentTaskId": null,
+          "taskUsageList": null
+        },
+        "immediate": {
+          "status": "FAILURE",
+          "reason": "RunningHub error 40310: Model unavailable"
+        }
+      }
+    },
+    {
+      "name": "maps S0 subtitle mp4 result to success",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "taskId": "2115419803530702850",
+          "status": "SUCCESS",
+          "errorCode": "",
+          "errorMessage": "",
+          "results": [
+            {
+              "url": "https://cdn.example/subtitle.mp4",
+              "outputType": "mp4",
+              "text": null,
+              "name": "volc_mediakit_subtitle_erase.mp4",
+              "zindex": null
+            }
+          ],
+          "clientId": "",
+          "promptTips": "",
+          "failedReason": {},
+          "usage": {
+            "consumeMoney": null,
+            "consumeCoins": null,
+            "taskCostTime": "0",
+            "thirdPartyConsumeMoney": "0.065",
+            "billingSeconds": "13.088"
+          },
+          "parentTaskId": null,
+          "taskUsageList": [
+            {
+              "taskId": "2115419803530702850",
+              "parentTaskId": null,
+              "taskStatus": "SUCCESS",
+              "usage": {
+                "consumeMoney": null,
+                "consumeCoins": null,
+                "taskCostTime": "0",
+                "thirdPartyConsumeMoney": "0.065",
+                "billingSeconds": "13.088"
+              }
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "status": "SUCCESS",
+        "progress": "100%",
+        "reason": ""
+      }
+    },
+    {
+      "name": "lists subtitle mp4 artifact",
+      "hook": "listArtifacts",
+      "args": [
+        {
+          "status": "SUCCESS",
+          "data": {
+            "taskId": "2115419803530702850",
+            "status": "SUCCESS",
+            "errorCode": "",
+            "errorMessage": "",
+            "results": [
+              {
+                "url": "https://cdn.example/subtitle.mp4",
+                "outputType": "mp4",
+                "text": null,
+                "name": "volc_mediakit_subtitle_erase.mp4",
+                "zindex": null
+              }
+            ],
+            "clientId": "",
+            "promptTips": "",
+            "failedReason": {},
+            "usage": {
+              "consumeMoney": null,
+              "consumeCoins": null,
+              "taskCostTime": "0",
+              "thirdPartyConsumeMoney": "0.065",
+              "billingSeconds": "13.088"
+            },
+            "parentTaskId": null,
+            "taskUsageList": [
+              {
+                "taskId": "2115419803530702850",
+                "parentTaskId": null,
+                "taskStatus": "SUCCESS",
+                "usage": {
+                  "consumeMoney": null,
+                  "consumeCoins": null,
+                  "taskCostTime": "0",
+                  "thirdPartyConsumeMoney": "0.065",
+                  "billingSeconds": "13.088"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "expected": [
+        {
+          "key": "output-0",
+          "type": "video",
+          "mimeType": "video/mp4"
+        }
+      ]
+    },
+    {
+      "name": "builds fps increaser request",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "model": "rhart-video/video-fps-increaser",
+          "baseUrl": "https://www.runninghub.cn",
+          "apiKey": "key",
+          "requestBody": {
+            "videoUrl": "https://media.example/a.mp4",
+            "duration_seconds": 10
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://www.runninghub.cn/openapi/v2/rhart-video/video-fps-increaser",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer key"
+        },
+        "body": {
+          "videoUrl": "https://media.example/a.mp4"
+        },
+        "action": "rh_tool"
+      }
+    }
+  ]
+}

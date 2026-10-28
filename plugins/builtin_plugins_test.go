@@ -103,7 +103,11 @@ func TestBuiltInTaskPluginResponsesAndUsageContracts(t *testing.T) {
 			actualKeys = append(actualKeys, entry.Name())
 		}
 	}
-	assert.Equal(t, []string{"alibaba", "doubao", "google", "hailuo", "jimeng", "kling", "rh-audio", "sora", "sunoapi", "vertex-ai", "vidu", "xai"}, actualKeys)
+	expectedTaskPluginKeys := []string{
+		"alibaba", "doubao", "google", "hailuo", "jimeng", "kling", "rh-audio", "rh-tools", "sora", "sunoapi",
+		"vertex-ai", "vidu", "xai",
+	}
+	assert.Equal(t, expectedTaskPluginKeys, actualKeys)
 
 	for _, key := range expectedKeys {
 		t.Run(key, func(t *testing.T) {
@@ -144,6 +148,90 @@ func TestBuiltInTaskPluginResponsesAndUsageContracts(t *testing.T) {
 			for usageKey, schema := range plugin.Meta.UsageSchema {
 				assert.NotEmpty(t, schema.Description, usageKey)
 			}
+		})
+	}
+}
+
+func TestBuiltInRunningHubPluginFixturesAndUsageBounds(t *testing.T) {
+	for _, key := range []string{"rh-audio", "rh-tools"} {
+		t.Run(key+" fixture", func(t *testing.T) {
+			source, err := Source(key)
+			require.NoError(t, err)
+			fixture, err := taskPlugins.ReadFile("tasks/" + key + "/" + key + ".fixture.json")
+			require.NoError(t, err)
+
+			report, err := jsplugin.ReplayFixture(t.Context(), source, fixture)
+			require.NoError(t, err)
+			assert.Positive(t, report.Total)
+			assert.Equal(t, report.Total, report.Passed)
+		})
+	}
+
+	for _, testCase := range []struct {
+		name      string
+		key       string
+		model     string
+		request   map[string]any
+		wantUsage float64
+		wantError bool
+	}{
+		{
+			name:  "seed audio maximum estimated reservation",
+			key:   "rh-audio",
+			model: "bytedance/doubao-seed-audio-1.0",
+			request: map[string]any{
+				"text_prompt": strings.Repeat("汉", 3000), "speaker": "voice-id", "speech_rate": -50,
+			},
+			wantUsage: 12,
+		},
+		{
+			name:  "seed audio rejects text above maximum reservation bound",
+			key:   "rh-audio",
+			model: "bytedance/doubao-seed-audio-1.0",
+			request: map[string]any{
+				"text_prompt": strings.Repeat("汉", 3001), "speaker": "voice-id", "speech_rate": -50,
+			},
+			wantError: true,
+		},
+		{
+			name:  "upscaler maximum duration reservation",
+			key:   "rh-tools",
+			model: "rhart-video/video-upscaler",
+			request: map[string]any{
+				"videoUrl": "https://media.example/video.mp4", "targetResolution": "4k", "duration_seconds": 600,
+			},
+			wantUsage: 336,
+		},
+		{
+			name:  "upscaler rejects duration above reservation bound",
+			key:   "rh-tools",
+			model: "rhart-video/video-upscaler",
+			request: map[string]any{
+				"videoUrl": "https://media.example/video.mp4", "targetResolution": "4k", "duration_seconds": 601,
+			},
+			wantError: true,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			source, err := Source(testCase.key)
+			require.NoError(t, err)
+			plugin, err := jsplugin.NewRegistry().Register(source, jsplugin.Options{})
+			require.NoError(t, err)
+
+			usage, err := plugin.Engine.Call(t.Context(), "extractUsage", map[string]any{
+				"model": testCase.model, "upstreamModel": testCase.model, "requestBody": testCase.request,
+			})
+			if testCase.wantError {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			encoded, err := common.Marshal(usage)
+			require.NoError(t, err)
+			var facts map[string]float64
+			require.NoError(t, common.Unmarshal(encoded, &facts))
+			assert.InDelta(t, testCase.wantUsage, facts["upstream_cny"], 0.000001)
 		})
 	}
 }
