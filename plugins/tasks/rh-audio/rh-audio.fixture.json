@@ -1417,6 +1417,670 @@
           "reason": "RunningHub error 40310: Due to compliance requirements, this model is no longer available on the CN endpoint. Please migrate to the AI endpoint (runninghub.ai). | 因合规要求，该模型在当前CN节点已下线，请前往全球站 (runninghub.ai) 接入使用。"
         }
       }
+    },
+    {
+      "name": "constructs Mureka v9 song generation with style and count",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "model": "mureka-ai/mureka-v9/generate-song",
+          "upstreamModel": "mureka-ai/mureka-v9/generate-song",
+          "baseUrl": "https://www.runninghub.cn",
+          "apiKey": "fixture-channel-key",
+          "requestBody": {
+            "model": "mureka-ai/mureka-v9/generate-song",
+            "lyrics": "[Verse]\n晚风吹过街角\n[Chorus]\n我们一起唱",
+            "prompt": "温暖流行",
+            "n": 3
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://www.runninghub.cn/openapi/v2/mureka-ai/mureka-v9/generate-song",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-channel-key"
+        },
+        "body": {
+          "lyrics": "[Verse]\n晚风吹过街角\n[Chorus]\n我们一起唱",
+          "prompt": "温暖流行",
+          "n": 3
+        },
+        "action": "audio_generation"
+      }
+    },
+    {
+      "name": "constructs Mureka v9 BGM generation with the default count",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "model": "mureka-ai/mureka-v9/generate-bgm",
+          "upstreamModel": "mureka-ai/mureka-v9/generate-bgm",
+          "baseUrl": "https://www.runninghub.cn",
+          "apiKey": "fixture-channel-key",
+          "requestBody": {
+            "model": "mureka-ai/mureka-v9/generate-bgm",
+            "prompt": "轻快钢琴，纯音乐"
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://www.runninghub.cn/openapi/v2/mureka-ai/mureka-v9/generate-bgm",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-channel-key"
+        },
+        "body": {
+          "prompt": "轻快钢琴，纯音乐",
+          "n": 1
+        },
+        "action": "audio_generation"
+      }
+    },
+    {
+      "name": "accepts Mureka v9 song lyrics without text or style",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "mureka-ai/mureka-v9/generate-song",
+              "lyrics": "[Verse]\nla la la",
+              "prompt": "  "
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "mureka-ai/mureka-v9/generate-song",
+        "action": "audio_generation",
+        "requestBody": {
+          "lyrics": "[Verse]\nla la la",
+          "n": 1
+        }
+      }
+    },
+    {
+      "name": "requires Mureka v9 song lyrics",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "mureka-ai/mureka-v9/generate-song",
+              "prompt": "pop",
+              "n": 1
+            }
+          }
+        }
+      ],
+      "expectedError": "lyrics must be a non-empty string of at most 3000 characters"
+    },
+    {
+      "name": "rejects Mureka v9 song lyrics above 3000 characters",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "mureka-ai/mureka-v9/generate-song",
+              "lyrics": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          }
+        }
+      ],
+      "expectedError": "lyrics must be a non-empty string of at most 3000 characters"
+    },
+    {
+      "name": "rejects a Mureka v9 song style above 1024 characters",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "mureka-ai/mureka-v9/generate-song",
+              "lyrics": "la",
+              "prompt": "ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp"
+            }
+          }
+        }
+      ],
+      "expectedError": "prompt must be a non-empty string of at most 1024 characters"
+    },
+    {
+      "name": "rejects Mureka v9 song reference audio in phase one",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "mureka-ai/mureka-v9/generate-song",
+              "lyrics": "la",
+              "referenceId": "ref-1"
+            }
+          }
+        }
+      ],
+      "expectedError": "unsupported field for mureka-ai/mureka-v9/generate-song: referenceId"
+    },
+    {
+      "name": "rejects Mureka v9 song vocal reference in phase one",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "mureka-ai/mureka-v9/generate-song",
+              "lyrics": "la",
+              "vocalId": "vocal-1"
+            }
+          }
+        }
+      ],
+      "expectedError": "unsupported field for mureka-ai/mureka-v9/generate-song: vocalId"
+    },
+    {
+      "name": "rejects Mureka v9 song melody reference in phase one",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "mureka-ai/mureka-v9/generate-song",
+              "lyrics": "la",
+              "melodyId": "melody-1"
+            }
+          }
+        }
+      ],
+      "expectedError": "unsupported field for mureka-ai/mureka-v9/generate-song: melodyId"
+    },
+    {
+      "name": "rejects Mureka v9 song streaming",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "mureka-ai/mureka-v9/generate-song",
+              "lyrics": "la",
+              "stream": false
+            }
+          }
+        }
+      ],
+      "expectedError": "unsupported field for mureka-ai/mureka-v9/generate-song: stream"
+    },
+    {
+      "name": "rejects a Mureka v9 song count above 3",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "mureka-ai/mureka-v9/generate-song",
+              "lyrics": "la",
+              "n": 4
+            }
+          }
+        }
+      ],
+      "expectedError": "n must be an integer between 1 and 3"
+    },
+    {
+      "name": "rejects a zero Mureka v9 song count",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "mureka-ai/mureka-v9/generate-song",
+              "lyrics": "la",
+              "n": 0
+            }
+          }
+        }
+      ],
+      "expectedError": "n must be an integer between 1 and 3"
+    },
+    {
+      "name": "rejects a fractional Mureka v9 BGM count",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "mureka-ai/mureka-v9/generate-bgm",
+              "prompt": "piano",
+              "n": 1.5
+            }
+          }
+        }
+      ],
+      "expectedError": "n must be an integer between 1 and 3"
+    },
+    {
+      "name": "requires a Mureka v9 BGM prompt",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "mureka-ai/mureka-v9/generate-bgm",
+              "n": 1
+            }
+          }
+        }
+      ],
+      "expectedError": "prompt must be a non-empty string of at most 1024 characters"
+    },
+    {
+      "name": "rejects Mureka v9 BGM instrumental reference in phase one",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "mureka-ai/mureka-v9/generate-bgm",
+              "prompt": "piano",
+              "instrumentalId": "inst-1"
+            }
+          }
+        }
+      ],
+      "expectedError": "unsupported field for mureka-ai/mureka-v9/generate-bgm: instrumentalId"
+    },
+    {
+      "name": "rejects Mureka v9 BGM streaming",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "mureka-ai/mureka-v9/generate-bgm",
+              "prompt": "piano",
+              "stream": true
+            }
+          }
+        }
+      ],
+      "expectedError": "unsupported field for mureka-ai/mureka-v9/generate-bgm: stream"
+    },
+    {
+      "name": "reserves Mureka v9 songs per generated song",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "model": "mureka-ai/mureka-v9/generate-song",
+          "requestBody": {
+            "lyrics": "la",
+            "n": 3
+          },
+          "usagePurpose": "facts"
+        }
+      ],
+      "expected": {
+        "upstream_cny": 1.02
+      }
+    },
+    {
+      "name": "reserves one Mureka v9 BGM track by default",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "model": "mureka-ai/mureka-v9/generate-bgm",
+          "requestBody": {
+            "prompt": "piano"
+          },
+          "usagePurpose": "facts"
+        }
+      ],
+      "expected": {
+        "upstream_cny": 0.34
+      }
+    },
+    {
+      "name": "settles Mureka v9 BGM from the RunningHub deduction",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "model": "mureka-ai/mureka-v9/generate-bgm"
+        },
+        {
+          "status": "SUCCESS"
+        },
+        {
+          "taskId": "rh-task-bgm",
+          "status": "SUCCESS",
+          "errorCode": "",
+          "errorMessage": "",
+          "results": [
+            {
+              "url": "https://cdn.runninghub.example/bgm-1.mp3",
+              "outputType": "mp3",
+              "text": null,
+              "zindex": null
+            },
+            {
+              "url": "https://cdn.runninghub.example/bgm-2.mp3",
+              "outputType": "mp3",
+              "text": null,
+              "zindex": null
+            },
+            {
+              "url": null,
+              "outputType": "text",
+              "text": "168944128491521",
+              "name": "songIds",
+              "zindex": null
+            },
+            {
+              "url": null,
+              "outputType": "text",
+              "text": "168944128491522",
+              "name": "songIds",
+              "zindex": null
+            }
+          ],
+          "usage": {
+            "consumeMoney": null,
+            "consumeCoins": null,
+            "taskCostTime": "0",
+            "thirdPartyConsumeMoney": "0.68",
+            "billingSeconds": "207870"
+          }
+        }
+      ],
+      "expected": {
+        "upstream_cny": 0.68
+      }
+    },
+    {
+      "name": "retains the Mureka v9 song reservation without RunningHub amounts",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "model": "mureka-ai/mureka-v9/generate-song"
+        },
+        {
+          "status": "SUCCESS"
+        },
+        {
+          "taskId": "rh-task-song",
+          "status": "SUCCESS",
+          "usage": {
+            "consumeMoney": null,
+            "consumeCoins": null,
+            "thirdPartyConsumeMoney": null,
+            "billingSeconds": "120000"
+          },
+          "results": [
+            {
+              "url": "https://cdn.runninghub.example/bgm-1.mp3",
+              "outputType": "mp3",
+              "text": null,
+              "zindex": null
+            }
+          ]
+        }
+      ],
+      "expected": null
+    },
+    {
+      "name": "refunds failed Mureka v9 songs",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "model": "mureka-ai/mureka-v9/generate-song"
+        },
+        {
+          "status": "FAILURE"
+        },
+        {
+          "taskId": "rh-task-song",
+          "status": "FAILED",
+          "errorMessage": "lyrics rejected"
+        }
+      ],
+      "expected": {
+        "upstream_cny": 0
+      }
+    },
+    {
+      "name": "maps a successful Mureka v9 query with song ID text results",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "taskId": "rh-task-bgm",
+          "status": "SUCCESS",
+          "errorCode": "",
+          "errorMessage": "",
+          "results": [
+            {
+              "url": "https://cdn.runninghub.example/bgm-1.mp3",
+              "outputType": "mp3",
+              "text": null,
+              "zindex": null
+            },
+            {
+              "url": "https://cdn.runninghub.example/bgm-2.mp3",
+              "outputType": "mp3",
+              "text": null,
+              "zindex": null
+            },
+            {
+              "url": null,
+              "outputType": "text",
+              "text": "168944128491521",
+              "name": "songIds",
+              "zindex": null
+            },
+            {
+              "url": null,
+              "outputType": "text",
+              "text": "168944128491522",
+              "name": "songIds",
+              "zindex": null
+            }
+          ],
+          "usage": {
+            "consumeMoney": null,
+            "consumeCoins": null,
+            "taskCostTime": "0",
+            "thirdPartyConsumeMoney": "0.68",
+            "billingSeconds": "207870"
+          }
+        }
+      ],
+      "expected": {
+        "status": "SUCCESS",
+        "progress": "100%",
+        "reason": ""
+      }
+    },
+    {
+      "name": "exposes every Mureka v9 audio result as an artifact",
+      "hook": "listArtifacts",
+      "args": [
+        {
+          "status": "SUCCESS",
+          "data": {
+            "taskId": "rh-task-bgm",
+            "status": "SUCCESS",
+            "errorCode": "",
+            "errorMessage": "",
+            "results": [
+              {
+                "url": "https://cdn.runninghub.example/bgm-1.mp3",
+                "outputType": "mp3",
+                "text": null,
+                "zindex": null
+              },
+              {
+                "url": "https://cdn.runninghub.example/bgm-2.mp3",
+                "outputType": "mp3",
+                "text": null,
+                "zindex": null
+              },
+              {
+                "url": null,
+                "outputType": "text",
+                "text": "168944128491521",
+                "name": "songIds",
+                "zindex": null
+              },
+              {
+                "url": null,
+                "outputType": "text",
+                "text": "168944128491522",
+                "name": "songIds",
+                "zindex": null
+              }
+            ],
+            "usage": {
+              "consumeMoney": null,
+              "consumeCoins": null,
+              "taskCostTime": "0",
+              "thirdPartyConsumeMoney": "0.68",
+              "billingSeconds": "207870"
+            }
+          }
+        }
+      ],
+      "expected": [
+        {
+          "key": "audio-0",
+          "type": "audio",
+          "mimeType": "audio/mpeg"
+        },
+        {
+          "key": "audio-1",
+          "type": "audio",
+          "mimeType": "audio/mpeg"
+        }
+      ]
+    },
+    {
+      "name": "returns only Mureka v9 audio URLs in query results",
+      "hook": "native",
+      "member": "renderTask",
+      "args": [
+        {},
+        {
+          "task_id": "task_public",
+          "status": "SUCCESS",
+          "progress": "100%",
+          "fail_reason": "",
+          "data": {
+            "taskId": "rh-task-bgm",
+            "status": "SUCCESS",
+            "errorCode": "",
+            "errorMessage": "",
+            "results": [
+              {
+                "url": "https://cdn.runninghub.example/bgm-1.mp3",
+                "outputType": "mp3",
+                "text": null,
+                "zindex": null
+              },
+              {
+                "url": "https://cdn.runninghub.example/bgm-2.mp3",
+                "outputType": "mp3",
+                "text": null,
+                "zindex": null
+              },
+              {
+                "url": null,
+                "outputType": "text",
+                "text": "168944128491521",
+                "name": "songIds",
+                "zindex": null
+              },
+              {
+                "url": null,
+                "outputType": "text",
+                "text": "168944128491522",
+                "name": "songIds",
+                "zindex": null
+              }
+            ],
+            "usage": {
+              "consumeMoney": null,
+              "consumeCoins": null,
+              "taskCostTime": "0",
+              "thirdPartyConsumeMoney": "0.68",
+              "billingSeconds": "207870"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "task_id": "task_public",
+        "status": "SUCCESS",
+        "progress": "100%",
+        "fail_reason": "",
+        "data": {
+          "taskId": "rh-task-bgm",
+          "status": "SUCCESS",
+          "errorCode": "",
+          "errorMessage": "",
+          "results": [
+            {
+              "url": "https://cdn.runninghub.example/bgm-1.mp3",
+              "outputType": "mp3"
+            },
+            {
+              "url": "https://cdn.runninghub.example/bgm-2.mp3",
+              "outputType": "mp3"
+            }
+          ],
+          "usage": {
+            "consumeMoney": null,
+            "consumeCoins": null,
+            "taskCostTime": "0",
+            "thirdPartyConsumeMoney": "0.68",
+            "billingSeconds": "207870"
+          }
+        },
+        "artifact_metadata": {
+          "source": "RunningHub temporary result URL",
+          "expires_in_hours": 24
+        }
+      }
     }
   ]
 }

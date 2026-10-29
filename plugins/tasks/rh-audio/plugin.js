@@ -4,10 +4,16 @@ const QWEN_MODEL = "qwen3-tts-flash";
 const MINIMAX_TTS_MODEL = "minimax/speech-2.8-hd";
 const DOUBAO_TTS_MODEL = "bytedance/doubao-seed-tts-2.0";
 const DOUBAO_SEED_AUDIO_MODEL = "bytedance/doubao-seed-audio-1.0";
+const MUREKA_SONG_MODEL = "mureka-ai/mureka-v9/generate-song";
+const MUREKA_BGM_MODEL = "mureka-ai/mureka-v9/generate-bgm";
 const QWEN_TTS_CNY_PER_10000_BILLED_CHARACTERS = 0.8029;
 const DOUBAO_TTS_CNY_PER_1000_CHARACTERS = 0.24;
 const DOUBAO_SEED_AUDIO_CNY_PER_SECOND = 0.004;
 const MINIMAX_TTS_CNY_PER_1000_CHARACTERS = 0.62;
+// The public list (public-2026-04-29) shows 0.28 per call, but RunningHub
+// deducted 0.68 for a v9 BGM call with n=2. Reserve the observed per-song
+// rate; completion settles on the actual deduction.
+const MUREKA_V9_CNY_PER_SONG = 0.34;
 const QWEN_TTS_LANGUAGES = ["Auto", "Chinese", "English", "German", "Italian", "Portuguese", "Spanish", "Japanese", "Korean", "French", "Russian"];
 const DOUBAO_TTS_EXPLICIT_LANGUAGES = [
   "",
@@ -35,6 +41,8 @@ const PROFILES = {
   [MINIMAX_TTS_MODEL]: { endpoint: "rhart-audio/text-to-audio/speech-2.8-hd" },
   [DOUBAO_TTS_MODEL]: { endpoint: "bytedance/doubao-seed-tts-2.0" },
   [DOUBAO_SEED_AUDIO_MODEL]: { endpoint: "bytedance/doubao-seed-audio-1.0" },
+  [MUREKA_SONG_MODEL]: { endpoint: "mureka-ai/mureka-v9/generate-song" },
+  [MUREKA_BGM_MODEL]: { endpoint: "mureka-ai/mureka-v9/generate-bgm" },
 };
 const TTS_USAGE_SCHEMA = {
   upstream_cny: {
@@ -53,7 +61,7 @@ export const meta = {
     en: "Audio generation tasks",
     zh: "音频生成任务",
   },
-  version: "0.6.1",
+  version: "0.7.0",
   author: { name: "QuantumNous" },
   baseUrl: "https://www.runninghub.cn",
   models: Object.keys(PROFILES),
@@ -96,6 +104,24 @@ export const meta = {
         { label: "1,000 characters · estimate", facts: { upstream_cny: 0.62 } },
         { label: "5,000 characters · estimate", facts: { upstream_cny: 3.1 } },
         { label: "10,000 characters · estimate", facts: { upstream_cny: 6.2 } },
+      ],
+    },
+    {
+      models: [MUREKA_SONG_MODEL],
+      schema: TTS_USAGE_SCHEMA,
+      examples: [
+        { label: "1 song · estimate", facts: { upstream_cny: 0.34 } },
+        { label: "2 songs · estimate", facts: { upstream_cny: 0.68 } },
+        { label: "3 songs · estimate", facts: { upstream_cny: 1.02 } },
+      ],
+    },
+    {
+      models: [MUREKA_BGM_MODEL],
+      schema: TTS_USAGE_SCHEMA,
+      examples: [
+        { label: "1 track · estimate", facts: { upstream_cny: 0.34 } },
+        { label: "2 tracks · estimate", facts: { upstream_cny: 0.68 } },
+        { label: "3 tracks · estimate", facts: { upstream_cny: 1.02 } },
       ],
     },
   ],
@@ -352,11 +378,37 @@ function doubaoSeedAudioRequest(value) {
   return output;
 }
 
+function murekaCount(request) {
+  return hasOwn(request, "n") ? integer(request.n, "n", 1, 3) : 1;
+}
+
+// Phase one is text-only: reference, vocal, melody and instrumental file IDs
+// and streaming are rejected by checkFields.
+function murekaSongRequest(value) {
+  const request = object(value, "request body must be an object");
+  checkFields(request, MUREKA_SONG_MODEL, ["model", "lyrics", "prompt", "n"]);
+  const output = { lyrics: requiredText(request.lyrics, "lyrics", 3000) };
+  if (hasOwn(request, "prompt")) {
+    if (typeof request.prompt !== "string") throw new Error("prompt must be a string");
+    if (request.prompt.trim()) output.prompt = optionalText(request.prompt, "prompt", 1024);
+  }
+  output.n = murekaCount(request);
+  return output;
+}
+
+function murekaBGMRequest(value) {
+  const request = object(value, "request body must be an object");
+  checkFields(request, MUREKA_BGM_MODEL, ["model", "prompt", "n"]);
+  return { prompt: requiredText(request.prompt, "prompt", 1024), n: murekaCount(request) };
+}
+
 function requestForModel(model, value) {
   if (model === QWEN_MODEL) return qwenRequest(value);
   if (model === MINIMAX_TTS_MODEL) return minimaxTTSRequest(value);
   if (model === DOUBAO_TTS_MODEL) return doubaoTTSRequest(value);
   if (model === DOUBAO_SEED_AUDIO_MODEL) return doubaoSeedAudioRequest(value);
+  if (model === MUREKA_SONG_MODEL) return murekaSongRequest(value);
+  if (model === MUREKA_BGM_MODEL) return murekaBGMRequest(value);
   throw new Error("unsupported RunningHub audio model");
 }
 
@@ -441,12 +493,18 @@ function mimeType(outputType) {
 
 function nativeTask(task) {
   const status = String(task.status || "").toUpperCase();
+  let data = task.data === undefined ? null : task.data;
+  // Mureka also lists song IDs as text results; clients receive one entry
+  // per audio file.
+  if (data && typeof data === "object" && !Array.isArray(data) && Array.isArray(data.results)) {
+    data = { ...data, results: audioEntries(data) };
+  }
   const output = {
     task_id: task.task_id || "",
     status: status,
     progress: task.progress || "",
     fail_reason: task.fail_reason || "",
-    data: task.data === undefined ? null : task.data,
+    data: data,
   };
   if (status === "SUCCESS") {
     output.artifact_metadata = {
@@ -531,6 +589,8 @@ export function extractUsage(ctx) {
     const speedFactor = 1 + request.speech_rate / 100;
     const seconds = Math.max(5, Math.ceil(chars / (2 * speedFactor)));
     estimate = seconds * DOUBAO_SEED_AUDIO_CNY_PER_SECOND;
+  } else if (model === MUREKA_SONG_MODEL || model === MUREKA_BGM_MODEL) {
+    estimate = request.n * MUREKA_V9_CNY_PER_SONG;
   } else {
     const rate = model === DOUBAO_TTS_MODEL ? DOUBAO_TTS_CNY_PER_1000_CHARACTERS : MINIMAX_TTS_CNY_PER_1000_CHARACTERS;
     estimate = (Array.from(request.text).length * rate) / 1000;
@@ -542,7 +602,7 @@ export function extractUsage(ctx) {
 
 export function extractUsageOnComplete(task, result, body) {
   const model = trimmed(task && (task.upstreamModel || task.model));
-  if ([QWEN_MODEL, DOUBAO_TTS_MODEL, DOUBAO_SEED_AUDIO_MODEL, MINIMAX_TTS_MODEL].includes(model)) {
+  if ([QWEN_MODEL, DOUBAO_TTS_MODEL, DOUBAO_SEED_AUDIO_MODEL, MINIMAX_TTS_MODEL, MUREKA_SONG_MODEL, MUREKA_BGM_MODEL].includes(model)) {
     const status = String((result && result.status) || "").toUpperCase();
     if (["FAILURE", "CANCEL", "CANCELLED", "CANCELED"].includes(status)) return { upstream_cny: 0 };
     if (status !== "SUCCESS") return null;
