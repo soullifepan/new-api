@@ -196,15 +196,15 @@ func TestBuiltInRunningHubPluginFixturesAndUsageBounds(t *testing.T) {
 		{
 			name:      "mureka v9 song maximum count reservation",
 			key:       "rh-audio",
-			model:     "mureka-ai/mureka-v9/generate-song",
-			request:   map[string]any{"lyrics": "[Verse] la", "n": 3},
+			model:     "mureka-ai/mureka-v9",
+			request:   map[string]any{"mode": "song", "lyrics": "[Verse] la", "n": 3},
 			wantUsage: 1.02,
 		},
 		{
-			name:      "mureka v9 bgm rejects count above reservation bound",
+			name:      "mureka v9 instrumental rejects count above reservation bound",
 			key:       "rh-audio",
-			model:     "mureka-ai/mureka-v9/generate-bgm",
-			request:   map[string]any{"prompt": "piano", "n": 4},
+			model:     "mureka-ai/mureka-v9",
+			request:   map[string]any{"mode": "instrumental", "prompt": "piano", "n": "4"},
 			wantError: true,
 		},
 		{

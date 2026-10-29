@@ -1419,17 +1419,17 @@
       }
     },
     {
-      "name": "constructs Mureka v9 song generation with style and count",
+      "name": "constructs Mureka v9 song mode with style and count",
       "hook": "buildSubmitRequest",
       "args": [
         {
-          "model": "mureka-ai/mureka-v9/generate-song",
-          "upstreamModel": "mureka-ai/mureka-v9/generate-song",
+          "model": "mureka-ai/mureka-v9",
+          "upstreamModel": "mureka-ai/mureka-v9",
           "baseUrl": "https://www.runninghub.cn",
           "apiKey": "fixture-channel-key",
           "requestBody": {
-            "model": "mureka-ai/mureka-v9/generate-song",
-            "lyrics": "[Verse]\n晚风吹过街角\n[Chorus]\n我们一起唱",
+            "mode": "song",
+            "lyrics": "[Verse]\n晚风吹过街角",
             "prompt": "温暖流行",
             "n": 3
           }
@@ -1444,7 +1444,7 @@
           "Authorization": "Bearer fixture-channel-key"
         },
         "body": {
-          "lyrics": "[Verse]\n晚风吹过街角\n[Chorus]\n我们一起唱",
+          "lyrics": "[Verse]\n晚风吹过街角",
           "prompt": "温暖流行",
           "n": 3
         },
@@ -1452,16 +1452,16 @@
       }
     },
     {
-      "name": "constructs Mureka v9 BGM generation with the default count",
+      "name": "constructs Mureka v9 instrumental mode with the default count",
       "hook": "buildSubmitRequest",
       "args": [
         {
-          "model": "mureka-ai/mureka-v9/generate-bgm",
-          "upstreamModel": "mureka-ai/mureka-v9/generate-bgm",
+          "model": "mureka-ai/mureka-v9",
+          "upstreamModel": "mureka-ai/mureka-v9",
           "baseUrl": "https://www.runninghub.cn",
           "apiKey": "fixture-channel-key",
           "requestBody": {
-            "model": "mureka-ai/mureka-v9/generate-bgm",
+            "mode": "instrumental",
             "prompt": "轻快钢琴，纯音乐"
           }
         }
@@ -1482,6 +1482,35 @@
       }
     },
     {
+      "name": "constructs Mureka lyrics mode as a lyrics task",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "model": "mureka-ai/mureka-v9",
+          "upstreamModel": "mureka-ai/mureka-v9",
+          "baseUrl": "https://www.runninghub.cn",
+          "apiKey": "fixture-channel-key",
+          "requestBody": {
+            "mode": "lyrics",
+            "prompt": "关于离别的流行歌"
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://www.runninghub.cn/openapi/v2/mureka-ai/generate-lyrics",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer fixture-channel-key"
+        },
+        "body": {
+          "prompt": "关于离别的流行歌"
+        },
+        "action": "lyrics_generation"
+      }
+    },
+    {
       "name": "accepts Mureka v9 song lyrics without text or style",
       "hook": "native",
       "member": "decodeSubmit",
@@ -1490,7 +1519,8 @@
           "body": {
             "kind": "json",
             "value": {
-              "model": "mureka-ai/mureka-v9/generate-song",
+              "model": "mureka-ai/mureka-v9",
+              "mode": "song",
               "lyrics": "[Verse]\nla la la",
               "prompt": "  "
             }
@@ -1499,13 +1529,103 @@
       ],
       "expected": {
         "kind": "submit",
-        "model": "mureka-ai/mureka-v9/generate-song",
+        "model": "mureka-ai/mureka-v9",
         "action": "audio_generation",
         "requestBody": {
+          "mode": "song",
           "lyrics": "[Verse]\nla la la",
           "n": 1
         }
       }
+    },
+    {
+      "name": "accepts a numeric string Mureka v9 count",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "mureka-ai/mureka-v9",
+              "mode": "instrumental",
+              "prompt": "piano",
+              "n": "2"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "mureka-ai/mureka-v9",
+        "action": "audio_generation",
+        "requestBody": {
+          "mode": "instrumental",
+          "prompt": "piano",
+          "n": 2
+        }
+      }
+    },
+    {
+      "name": "decodes Mureka lyrics mode as a lyrics task",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "mureka-ai/mureka-v9",
+              "mode": "lyrics",
+              "prompt": "离别"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "mureka-ai/mureka-v9",
+        "action": "lyrics_generation",
+        "requestBody": {
+          "mode": "lyrics",
+          "prompt": "离别"
+        }
+      }
+    },
+    {
+      "name": "requires a Mureka v9 mode",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "mureka-ai/mureka-v9",
+              "lyrics": "la"
+            }
+          }
+        }
+      ],
+      "expectedError": "mode must be one of song, instrumental, lyrics"
+    },
+    {
+      "name": "rejects an unknown Mureka v9 mode",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "mureka-ai/mureka-v9",
+              "mode": "bgm",
+              "prompt": "piano"
+            }
+          }
+        }
+      ],
+      "expectedError": "mode must be one of song, instrumental, lyrics"
     },
     {
       "name": "requires Mureka v9 song lyrics",
@@ -1516,7 +1636,8 @@
           "body": {
             "kind": "json",
             "value": {
-              "model": "mureka-ai/mureka-v9/generate-song",
+              "model": "mureka-ai/mureka-v9",
+              "mode": "song",
               "prompt": "pop",
               "n": 1
             }
@@ -1534,7 +1655,8 @@
           "body": {
             "kind": "json",
             "value": {
-              "model": "mureka-ai/mureka-v9/generate-song",
+              "model": "mureka-ai/mureka-v9",
+              "mode": "song",
               "lyrics": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
             }
           }
@@ -1551,7 +1673,8 @@
           "body": {
             "kind": "json",
             "value": {
-              "model": "mureka-ai/mureka-v9/generate-song",
+              "model": "mureka-ai/mureka-v9",
+              "mode": "song",
               "lyrics": "la",
               "prompt": "ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp"
             }
@@ -1569,14 +1692,15 @@
           "body": {
             "kind": "json",
             "value": {
-              "model": "mureka-ai/mureka-v9/generate-song",
+              "model": "mureka-ai/mureka-v9",
+              "mode": "song",
               "lyrics": "la",
               "referenceId": "ref-1"
             }
           }
         }
       ],
-      "expectedError": "unsupported field for mureka-ai/mureka-v9/generate-song: referenceId"
+      "expectedError": "unsupported field for mureka-ai/mureka-v9 song mode: referenceId"
     },
     {
       "name": "rejects Mureka v9 song vocal reference in phase one",
@@ -1587,14 +1711,15 @@
           "body": {
             "kind": "json",
             "value": {
-              "model": "mureka-ai/mureka-v9/generate-song",
+              "model": "mureka-ai/mureka-v9",
+              "mode": "song",
               "lyrics": "la",
               "vocalId": "vocal-1"
             }
           }
         }
       ],
-      "expectedError": "unsupported field for mureka-ai/mureka-v9/generate-song: vocalId"
+      "expectedError": "unsupported field for mureka-ai/mureka-v9 song mode: vocalId"
     },
     {
       "name": "rejects Mureka v9 song melody reference in phase one",
@@ -1605,14 +1730,15 @@
           "body": {
             "kind": "json",
             "value": {
-              "model": "mureka-ai/mureka-v9/generate-song",
+              "model": "mureka-ai/mureka-v9",
+              "mode": "song",
               "lyrics": "la",
               "melodyId": "melody-1"
             }
           }
         }
       ],
-      "expectedError": "unsupported field for mureka-ai/mureka-v9/generate-song: melodyId"
+      "expectedError": "unsupported field for mureka-ai/mureka-v9 song mode: melodyId"
     },
     {
       "name": "rejects Mureka v9 song streaming",
@@ -1623,14 +1749,15 @@
           "body": {
             "kind": "json",
             "value": {
-              "model": "mureka-ai/mureka-v9/generate-song",
+              "model": "mureka-ai/mureka-v9",
+              "mode": "song",
               "lyrics": "la",
               "stream": false
             }
           }
         }
       ],
-      "expectedError": "unsupported field for mureka-ai/mureka-v9/generate-song: stream"
+      "expectedError": "unsupported field for mureka-ai/mureka-v9 song mode: stream"
     },
     {
       "name": "rejects a Mureka v9 song count above 3",
@@ -1641,7 +1768,8 @@
           "body": {
             "kind": "json",
             "value": {
-              "model": "mureka-ai/mureka-v9/generate-song",
+              "model": "mureka-ai/mureka-v9",
+              "mode": "song",
               "lyrics": "la",
               "n": 4
             }
@@ -1659,7 +1787,8 @@
           "body": {
             "kind": "json",
             "value": {
-              "model": "mureka-ai/mureka-v9/generate-song",
+              "model": "mureka-ai/mureka-v9",
+              "mode": "song",
               "lyrics": "la",
               "n": 0
             }
@@ -1669,7 +1798,7 @@
       "expectedError": "n must be an integer between 1 and 3"
     },
     {
-      "name": "rejects a fractional Mureka v9 BGM count",
+      "name": "rejects a fractional Mureka v9 instrumental count",
       "hook": "native",
       "member": "decodeSubmit",
       "args": [
@@ -1677,7 +1806,8 @@
           "body": {
             "kind": "json",
             "value": {
-              "model": "mureka-ai/mureka-v9/generate-bgm",
+              "model": "mureka-ai/mureka-v9",
+              "mode": "instrumental",
               "prompt": "piano",
               "n": 1.5
             }
@@ -1687,7 +1817,7 @@
       "expectedError": "n must be an integer between 1 and 3"
     },
     {
-      "name": "requires a Mureka v9 BGM prompt",
+      "name": "rejects a non-numeric string Mureka v9 count",
       "hook": "native",
       "member": "decodeSubmit",
       "args": [
@@ -1695,7 +1825,46 @@
           "body": {
             "kind": "json",
             "value": {
-              "model": "mureka-ai/mureka-v9/generate-bgm",
+              "model": "mureka-ai/mureka-v9",
+              "mode": "instrumental",
+              "prompt": "piano",
+              "n": "two"
+            }
+          }
+        }
+      ],
+      "expectedError": "n must be an integer between 1 and 3"
+    },
+    {
+      "name": "rejects an out-of-range numeric string Mureka v9 count",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "mureka-ai/mureka-v9",
+              "mode": "instrumental",
+              "prompt": "piano",
+              "n": "4"
+            }
+          }
+        }
+      ],
+      "expectedError": "n must be an integer between 1 and 3"
+    },
+    {
+      "name": "requires a Mureka v9 instrumental prompt",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "mureka-ai/mureka-v9",
+              "mode": "instrumental",
               "n": 1
             }
           }
@@ -1704,7 +1873,7 @@
       "expectedError": "prompt must be a non-empty string of at most 1024 characters"
     },
     {
-      "name": "rejects Mureka v9 BGM instrumental reference in phase one",
+      "name": "rejects Mureka v9 instrumental reference in phase one",
       "hook": "native",
       "member": "decodeSubmit",
       "args": [
@@ -1712,17 +1881,18 @@
           "body": {
             "kind": "json",
             "value": {
-              "model": "mureka-ai/mureka-v9/generate-bgm",
+              "model": "mureka-ai/mureka-v9",
+              "mode": "instrumental",
               "prompt": "piano",
               "instrumentalId": "inst-1"
             }
           }
         }
       ],
-      "expectedError": "unsupported field for mureka-ai/mureka-v9/generate-bgm: instrumentalId"
+      "expectedError": "unsupported field for mureka-ai/mureka-v9 instrumental mode: instrumentalId"
     },
     {
-      "name": "rejects Mureka v9 BGM streaming",
+      "name": "rejects Mureka v9 instrumental streaming",
       "hook": "native",
       "member": "decodeSubmit",
       "args": [
@@ -1730,22 +1900,60 @@
           "body": {
             "kind": "json",
             "value": {
-              "model": "mureka-ai/mureka-v9/generate-bgm",
+              "model": "mureka-ai/mureka-v9",
+              "mode": "instrumental",
               "prompt": "piano",
               "stream": true
             }
           }
         }
       ],
-      "expectedError": "unsupported field for mureka-ai/mureka-v9/generate-bgm: stream"
+      "expectedError": "unsupported field for mureka-ai/mureka-v9 instrumental mode: stream"
     },
     {
-      "name": "reserves Mureka v9 songs per generated song",
+      "name": "rejects a count in Mureka lyrics mode",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "mureka-ai/mureka-v9",
+              "mode": "lyrics",
+              "prompt": "离别",
+              "n": 1
+            }
+          }
+        }
+      ],
+      "expectedError": "unsupported field for mureka-ai/mureka-v9 lyrics mode: n"
+    },
+    {
+      "name": "requires a Mureka lyrics prompt",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "mureka-ai/mureka-v9",
+              "mode": "lyrics"
+            }
+          }
+        }
+      ],
+      "expectedError": "prompt must be a non-empty string of at most 1024 characters"
+    },
+    {
+      "name": "reserves Mureka v9 songs per generated track",
       "hook": "extractUsage",
       "args": [
         {
-          "model": "mureka-ai/mureka-v9/generate-song",
+          "model": "mureka-ai/mureka-v9",
           "requestBody": {
+            "mode": "song",
             "lyrics": "la",
             "n": 3
           },
@@ -1757,12 +1965,13 @@
       }
     },
     {
-      "name": "reserves one Mureka v9 BGM track by default",
+      "name": "reserves one Mureka v9 instrumental track by default",
       "hook": "extractUsage",
       "args": [
         {
-          "model": "mureka-ai/mureka-v9/generate-bgm",
+          "model": "mureka-ai/mureka-v9",
           "requestBody": {
+            "mode": "instrumental",
             "prompt": "piano"
           },
           "usagePurpose": "facts"
@@ -1773,11 +1982,28 @@
       }
     },
     {
-      "name": "settles Mureka v9 BGM from the RunningHub deduction",
+      "name": "reserves Mureka lyrics per call",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "model": "mureka-ai/mureka-v9",
+          "requestBody": {
+            "mode": "lyrics",
+            "prompt": "离别"
+          },
+          "usagePurpose": "facts"
+        }
+      ],
+      "expected": {
+        "upstream_cny": 0.06
+      }
+    },
+    {
+      "name": "settles Mureka v9 instrumental from the RunningHub deduction",
       "hook": "extractUsageOnComplete",
       "args": [
         {
-          "model": "mureka-ai/mureka-v9/generate-bgm"
+          "model": "mureka-ai/mureka-v9"
         },
         {
           "status": "SUCCESS"
@@ -1829,11 +2055,55 @@
       }
     },
     {
-      "name": "retains the Mureka v9 song reservation without RunningHub amounts",
+      "name": "settles Mureka lyrics from the RunningHub deduction",
       "hook": "extractUsageOnComplete",
       "args": [
         {
-          "model": "mureka-ai/mureka-v9/generate-song"
+          "model": "mureka-ai/mureka-v9",
+          "action": "lyrics_generation"
+        },
+        {
+          "status": "SUCCESS"
+        },
+        {
+          "taskId": "rh-task-lyrics",
+          "status": "SUCCESS",
+          "errorCode": "",
+          "errorMessage": "",
+          "results": [
+            {
+              "url": null,
+              "outputType": "text",
+              "text": "晚风",
+              "name": "title",
+              "zindex": null
+            },
+            {
+              "url": null,
+              "outputType": "text",
+              "text": "[Verse]\n晚风吹过街角\n[Chorus]\n我们一起唱",
+              "name": "lyrics",
+              "zindex": null
+            }
+          ],
+          "usage": {
+            "consumeMoney": null,
+            "consumeCoins": null,
+            "taskCostTime": "0",
+            "thirdPartyConsumeMoney": "0.06"
+          }
+        }
+      ],
+      "expected": {
+        "upstream_cny": 0.06
+      }
+    },
+    {
+      "name": "retains the Mureka v9 reservation without RunningHub amounts",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "model": "mureka-ai/mureka-v9"
         },
         {
           "status": "SUCCESS"
@@ -1860,11 +2130,11 @@
       "expected": null
     },
     {
-      "name": "refunds failed Mureka v9 songs",
+      "name": "refunds failed Mureka v9 tasks",
       "hook": "extractUsageOnComplete",
       "args": [
         {
-          "model": "mureka-ai/mureka-v9/generate-song"
+          "model": "mureka-ai/mureka-v9"
         },
         {
           "status": "FAILURE"
@@ -1883,7 +2153,9 @@
       "name": "maps a successful Mureka v9 query with song ID text results",
       "hook": "parseTaskResult",
       "args": [
-        {},
+        {
+          "action": "audio_generation"
+        },
         {
           "taskId": "rh-task-bgm",
           "status": "SUCCESS",
@@ -1930,6 +2202,66 @@
         "status": "SUCCESS",
         "progress": "100%",
         "reason": ""
+      }
+    },
+    {
+      "name": "maps a successful Mureka lyrics query",
+      "hook": "parseTaskResult",
+      "args": [
+        {
+          "action": "lyrics_generation"
+        },
+        {
+          "taskId": "rh-task-lyrics",
+          "status": "SUCCESS",
+          "errorCode": "",
+          "errorMessage": "",
+          "results": [
+            {
+              "url": null,
+              "outputType": "text",
+              "text": "晚风",
+              "name": "title",
+              "zindex": null
+            },
+            {
+              "url": null,
+              "outputType": "text",
+              "text": "[Verse]\n晚风吹过街角\n[Chorus]\n我们一起唱",
+              "name": "lyrics",
+              "zindex": null
+            }
+          ],
+          "usage": {
+            "consumeMoney": null,
+            "consumeCoins": null,
+            "taskCostTime": "0",
+            "thirdPartyConsumeMoney": "0.06"
+          }
+        }
+      ],
+      "expected": {
+        "status": "SUCCESS",
+        "progress": "100%",
+        "reason": ""
+      }
+    },
+    {
+      "name": "does not accept a Mureka lyrics success without lyrics",
+      "hook": "parseTaskResult",
+      "args": [
+        {
+          "action": "lyrics_generation"
+        },
+        {
+          "taskId": "rh-task-lyrics",
+          "status": "SUCCESS",
+          "results": []
+        }
+      ],
+      "expected": {
+        "status": "UNKNOWN",
+        "reason": "RunningHub success response is missing lyrics"
       }
     },
     {
@@ -1993,6 +2325,45 @@
           "mimeType": "audio/mpeg"
         }
       ]
+    },
+    {
+      "name": "exposes no audio artifacts for Mureka lyrics",
+      "hook": "listArtifacts",
+      "args": [
+        {
+          "status": "SUCCESS",
+          "action": "lyrics_generation",
+          "data": {
+            "taskId": "rh-task-lyrics",
+            "status": "SUCCESS",
+            "errorCode": "",
+            "errorMessage": "",
+            "results": [
+              {
+                "url": null,
+                "outputType": "text",
+                "text": "晚风",
+                "name": "title",
+                "zindex": null
+              },
+              {
+                "url": null,
+                "outputType": "text",
+                "text": "[Verse]\n晚风吹过街角\n[Chorus]\n我们一起唱",
+                "name": "lyrics",
+                "zindex": null
+              }
+            ],
+            "usage": {
+              "consumeMoney": null,
+              "consumeCoins": null,
+              "taskCostTime": "0",
+              "thirdPartyConsumeMoney": "0.06"
+            }
+          }
+        }
+      ],
+      "expected": []
     },
     {
       "name": "returns only Mureka v9 audio URLs in query results",
@@ -2075,6 +2446,132 @@
             "thirdPartyConsumeMoney": "0.68",
             "billingSeconds": "207870"
           }
+        },
+        "artifact_metadata": {
+          "source": "RunningHub temporary result URL",
+          "expires_in_hours": 24
+        }
+      }
+    },
+    {
+      "name": "returns Mureka lyrics with their titles in query results",
+      "hook": "native",
+      "member": "renderTask",
+      "args": [
+        {},
+        {
+          "task_id": "task_lyrics",
+          "status": "SUCCESS",
+          "progress": "100%",
+          "fail_reason": "",
+          "data": {
+            "taskId": "rh-task-lyrics",
+            "status": "SUCCESS",
+            "errorCode": "",
+            "errorMessage": "",
+            "results": [
+              {
+                "url": null,
+                "outputType": "text",
+                "text": "晚风",
+                "name": "title",
+                "zindex": null
+              },
+              {
+                "url": null,
+                "outputType": "text",
+                "text": "[Verse]\n晚风吹过街角\n[Chorus]\n我们一起唱",
+                "name": "lyrics",
+                "zindex": null
+              }
+            ],
+            "usage": {
+              "consumeMoney": null,
+              "consumeCoins": null,
+              "taskCostTime": "0",
+              "thirdPartyConsumeMoney": "0.06"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "task_id": "task_lyrics",
+        "status": "SUCCESS",
+        "progress": "100%",
+        "fail_reason": "",
+        "data": {
+          "taskId": "rh-task-lyrics",
+          "status": "SUCCESS",
+          "errorCode": "",
+          "errorMessage": "",
+          "results": [
+            {
+              "outputType": "text",
+              "text": "[Verse]\n晚风吹过街角\n[Chorus]\n我们一起唱",
+              "title": "晚风"
+            }
+          ],
+          "usage": {
+            "consumeMoney": null,
+            "consumeCoins": null,
+            "taskCostTime": "0",
+            "thirdPartyConsumeMoney": "0.06"
+          }
+        },
+        "artifact_metadata": {
+          "source": "RunningHub temporary result URL",
+          "expires_in_hours": 24
+        }
+      }
+    },
+    {
+      "name": "returns each Mureka lyrics candidate including JSON-encoded lyrics",
+      "hook": "native",
+      "member": "renderTask",
+      "args": [
+        {},
+        {
+          "task_id": "task_lyrics",
+          "status": "SUCCESS",
+          "progress": "100%",
+          "fail_reason": "",
+          "data": {
+            "taskId": "rh-task-lyrics-json",
+            "status": "SUCCESS",
+            "results": [
+              {
+                "url": null,
+                "outputType": "text",
+                "text": "{\"title\":\"晚风\",\"lyrics\":\"[Verse]\\n晚风吹过\"}"
+              },
+              {
+                "url": null,
+                "outputType": "text",
+                "text": "[Verse]\n第二版"
+              }
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "task_id": "task_lyrics",
+        "status": "SUCCESS",
+        "progress": "100%",
+        "fail_reason": "",
+        "data": {
+          "taskId": "rh-task-lyrics-json",
+          "status": "SUCCESS",
+          "results": [
+            {
+              "outputType": "text",
+              "text": "[Verse]\n晚风吹过",
+              "title": "晚风"
+            },
+            {
+              "outputType": "text",
+              "text": "[Verse]\n第二版"
+            }
+          ]
         },
         "artifact_metadata": {
           "source": "RunningHub temporary result URL",
