@@ -16,6 +16,7 @@ func SetRouter(router *gin.Engine, assets WebAssets) {
 	SetApiRouter(router)
 	SetDashboardRouter(router)
 	SetRelayRouter(router)
+	SetTapComfyExtensionRouter(router)
 	SetTaskPluginProtocolRouter(router)
 	SetVideoRouter(router)
 	SetTaskRouter(router)
