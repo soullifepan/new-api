@@ -16,10 +16,10 @@ const DOUBAO_TTS_CNY_PER_1000_CHARACTERS = 0.24;
 const DOUBAO_SEED_AUDIO_CNY_PER_SECOND = 0.004;
 const MINIMAX_TTS_CNY_PER_1000_CHARACTERS = 0.62;
 // The public list (public-2026-04-29) shows 0.28 for v9 songs, but RunningHub
-// deducted 0.34 per track (n=1 0.34, n=2 0.68). Lyrics use the listed per-call
-// price. Completion settles every mode on the actual deduction.
+// deducted 0.34 per track (n=1 0.34, n=2 0.68) and 0.09 per lyrics call
+// (listed 0.06). Completion settles every mode on the actual deduction.
 const MUREKA_V9_CNY_PER_SONG = 0.34;
-const MUREKA_LYRICS_CNY_PER_CALL = 0.06;
+const MUREKA_LYRICS_CNY_PER_CALL = 0.09;
 const QWEN_TTS_LANGUAGES = ["Auto", "Chinese", "English", "German", "Italian", "Portuguese", "Spanish", "Japanese", "Korean", "French", "Russian"];
 const DOUBAO_TTS_EXPLICIT_LANGUAGES = [
   "",
@@ -67,7 +67,7 @@ export const meta = {
     en: "Audio generation tasks",
     zh: "音频生成任务",
   },
-  version: "0.8.0",
+  version: "0.8.1",
   author: { name: "QuantumNous" },
   baseUrl: "https://www.runninghub.cn",
   models: Object.keys(PROFILES),
@@ -120,7 +120,7 @@ export const meta = {
         { label: "Song · 3 tracks · estimate", facts: { upstream_cny: 1.02 } },
         { label: "Instrumental · 1 track · estimate", facts: { upstream_cny: 0.34 } },
         { label: "Instrumental · 3 tracks · estimate", facts: { upstream_cny: 1.02 } },
-        { label: "Lyrics · estimate", facts: { upstream_cny: 0.06 } },
+        { label: "Lyrics · estimate", facts: { upstream_cny: 0.09 } },
       ],
     },
   ],
