@@ -1,0 +1,1012 @@
+{
+  "cases": [
+    {
+      "name": "decodes a v1 dubbing request",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "elevenlabs/dubbing",
+              "mediaUrl": "https://media.example/clip.mp4",
+              "target_language": "zh",
+              "source_language": "ja",
+              "dubbing_model": "dubbing_v2",
+              "duration_seconds": 20
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "elevenlabs/dubbing",
+        "action": "dubbing",
+        "requestBody": {
+          "mediaUrl": "https://media.example/clip.mp4",
+          "target_language": "zh",
+          "source_language": "ja",
+          "dubbing_model": "dubbing_v2",
+          "duration_seconds": 20
+        }
+      }
+    },
+    {
+      "name": "defaults to dubbing_v1 and auto source language",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "elevenlabs/dubbing",
+              "mediaUrl": "https://media.example/clip.mp4",
+              "target_language": "es-MX",
+              "source_language": "auto",
+              "duration_seconds": 5
+            }
+          }
+        }
+      ],
+      "expected": {
+        "kind": "submit",
+        "model": "elevenlabs/dubbing",
+        "action": "dubbing",
+        "requestBody": {
+          "mediaUrl": "https://media.example/clip.mp4",
+          "target_language": "es-MX",
+          "dubbing_model": "dubbing_v1",
+          "duration_seconds": 5
+        }
+      }
+    },
+    {
+      "name": "rejects an unknown model",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "other",
+              "mediaUrl": "https://media.example/a.mp4",
+              "target_language": "zh",
+              "duration_seconds": 1
+            }
+          }
+        }
+      ],
+      "expectedError": "unsupported ElevenLabs tool model"
+    },
+    {
+      "name": "rejects an unknown field",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "elevenlabs/dubbing",
+              "mediaUrl": "https://media.example/a.mp4",
+              "target_language": "zh",
+              "duration_seconds": 1,
+              "keyterms": [
+                "x"
+              ]
+            }
+          }
+        }
+      ],
+      "expectedError": "unsupported field for elevenlabs/dubbing: keyterms"
+    },
+    {
+      "name": "rejects a non-https media URL",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "elevenlabs/dubbing",
+              "mediaUrl": "http://media.example/a.mp4",
+              "target_language": "zh",
+              "duration_seconds": 1
+            }
+          }
+        }
+      ],
+      "expectedError": "mediaUrl must be an absolute https URL"
+    },
+    {
+      "name": "rejects a missing target language",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "elevenlabs/dubbing",
+              "mediaUrl": "https://media.example/a.mp4",
+              "duration_seconds": 1
+            }
+          }
+        }
+      ],
+      "expectedError": "target_language must be a BCP-47 language tag"
+    },
+    {
+      "name": "rejects an invalid source language",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "elevenlabs/dubbing",
+              "mediaUrl": "https://media.example/a.mp4",
+              "target_language": "zh",
+              "source_language": "中文",
+              "duration_seconds": 1
+            }
+          }
+        }
+      ],
+      "expectedError": "source_language must be a BCP-47 language tag"
+    },
+    {
+      "name": "rejects an unknown dubbing model",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "elevenlabs/dubbing",
+              "mediaUrl": "https://media.example/a.mp4",
+              "target_language": "zh",
+              "dubbing_model": "dubbing_v3",
+              "duration_seconds": 1
+            }
+          }
+        }
+      ],
+      "expectedError": "dubbing_model must be one of dubbing_v1, dubbing_v2"
+    },
+    {
+      "name": "rejects a duration above one hour",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "elevenlabs/dubbing",
+              "mediaUrl": "https://media.example/a.mp4",
+              "target_language": "zh",
+              "duration_seconds": 3601
+            }
+          }
+        }
+      ],
+      "expectedError": "duration_seconds must be a finite number greater than 0 and at most 3600"
+    },
+    {
+      "name": "rejects a missing duration",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [
+        {
+          "body": {
+            "kind": "json",
+            "value": {
+              "model": "elevenlabs/dubbing",
+              "mediaUrl": "https://media.example/a.mp4",
+              "target_language": "zh"
+            }
+          }
+        }
+      ],
+      "expectedError": "duration_seconds must be a finite number"
+    },
+    {
+      "name": "builds the project multipart request with a reference",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "model": "elevenlabs/dubbing",
+          "baseUrl": "https://llm.azopenai.com/",
+          "apiKey": "key",
+          "publicTaskId": "task_pub",
+          "requestBody": {
+            "mediaUrl": "https://media.example/clip.mp4",
+            "target_language": "zh",
+            "dubbing_model": "dubbing_v1",
+            "duration_seconds": 20.4,
+            "source_language": "ja"
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://llm.azopenai.com/v1/dubbing/project",
+        "method": "POST",
+        "headers": {
+          "Accept": "application/json",
+          "Authorization": "Bearer key"
+        },
+        "bodyType": "multipart",
+        "parts": [
+          {
+            "name": "model_id",
+            "value": "dubbing_v1"
+          },
+          {
+            "name": "source_url",
+            "value": "https://media.example/clip.mp4"
+          },
+          {
+            "name": "target_language",
+            "value": "zh"
+          },
+          {
+            "name": "source_language",
+            "value": "ja"
+          },
+          {
+            "name": "reference",
+            "value": "task_pub"
+          }
+        ],
+        "action": "dubbing"
+      }
+    },
+    {
+      "name": "requires a channel credential",
+      "hook": "buildSubmitRequest",
+      "args": [
+        {
+          "model": "elevenlabs/dubbing",
+          "baseUrl": "https://llm.azopenai.com",
+          "requestBody": {
+            "mediaUrl": "https://media.example/clip.mp4",
+            "target_language": "zh",
+            "dubbing_model": "dubbing_v1",
+            "duration_seconds": 20.4
+          }
+        }
+      ],
+      "expectedError": "credential is required"
+    },
+    {
+      "name": "keeps the project and language ids",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {
+          "requestBody": {
+            "mediaUrl": "https://media.example/clip.mp4",
+            "target_language": "zh",
+            "dubbing_model": "dubbing_v1",
+            "duration_seconds": 20.4
+          }
+        },
+        {
+          "body": {
+            "project_id": "elp_1",
+            "status": "queued",
+            "language_ids": [
+              "ell_1"
+            ],
+            "media": null
+          }
+        }
+      ],
+      "expected": {
+        "taskId": "elp_1",
+        "taskData": {
+          "project_id": "elp_1",
+          "status": "queued",
+          "language_ids": [
+            "ell_1"
+          ],
+          "media": null
+        },
+        "state": {
+          "dubbing_model": "dubbing_v1",
+          "target_language": "zh",
+          "language_id": "ell_1"
+        }
+      }
+    },
+    {
+      "name": "accepts a creation without language ids",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {
+          "requestBody": {
+            "mediaUrl": "https://media.example/clip.mp4",
+            "target_language": "zh",
+            "dubbing_model": "dubbing_v1",
+            "duration_seconds": 20.4
+          }
+        },
+        {
+          "body": {
+            "project_id": "elp_1",
+            "status": "queued"
+          }
+        }
+      ],
+      "expected": {
+        "taskId": "elp_1",
+        "taskData": {
+          "project_id": "elp_1",
+          "status": "queued"
+        },
+        "state": {
+          "dubbing_model": "dubbing_v1",
+          "target_language": "zh"
+        }
+      }
+    },
+    {
+      "name": "rejects a creation without project id",
+      "hook": "parseSubmitResponse",
+      "args": [
+        {
+          "requestBody": {
+            "mediaUrl": "https://media.example/clip.mp4",
+            "target_language": "zh",
+            "dubbing_model": "dubbing_v1",
+            "duration_seconds": 20.4
+          }
+        },
+        {
+          "body": {
+            "status": "queued"
+          }
+        }
+      ],
+      "expectedError": "missing project_id"
+    },
+    {
+      "name": "queries the project until the duration is known",
+      "hook": "buildQueryRequest",
+      "args": [
+        {
+          "taskId": "elp_1",
+          "baseUrl": "https://llm.azopenai.com",
+          "apiKey": "key",
+          "state": {
+            "language_id": "ell_1",
+            "dubbing_model": "dubbing_v1"
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://llm.azopenai.com/v1/dubbing/project/elp_1",
+        "method": "GET",
+        "headers": {
+          "Accept": "application/json",
+          "Authorization": "Bearer key"
+        }
+      }
+    },
+    {
+      "name": "queries the language task once the duration is known",
+      "hook": "buildQueryRequest",
+      "args": [
+        {
+          "taskId": "elp_1",
+          "baseUrl": "https://llm.azopenai.com",
+          "apiKey": "key",
+          "state": {
+            "language_id": "ell_1",
+            "dubbing_model": "dubbing_v1",
+            "duration_s": 20
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://llm.azopenai.com/v1/dubbing/project/elp_1/language/ell_1",
+        "method": "GET",
+        "headers": {
+          "Accept": "application/json",
+          "Authorization": "Bearer key"
+        }
+      }
+    },
+    {
+      "name": "queries the language task of a ready project without duration",
+      "hook": "buildQueryRequest",
+      "args": [
+        {
+          "taskId": "elp_1",
+          "baseUrl": "https://llm.azopenai.com",
+          "apiKey": "key",
+          "state": {
+            "language_id": "ell_1",
+            "project_ready": true
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://llm.azopenai.com/v1/dubbing/project/elp_1/language/ell_1",
+        "method": "GET",
+        "headers": {
+          "Accept": "application/json",
+          "Authorization": "Bearer key"
+        }
+      }
+    },
+    {
+      "name": "records the media duration from a ready project",
+      "hook": "parseTaskResult",
+      "args": [
+        {
+          "state": {
+            "dubbing_model": "dubbing_v2",
+            "target_language": "zh",
+            "language_id": "ell_1"
+          }
+        },
+        {
+          "project_id": "elp_1",
+          "status": "ready",
+          "language_ids": [
+            "ell_1"
+          ],
+          "media": {
+            "duration_s": 20.0,
+            "has_video": true
+          }
+        }
+      ],
+      "expected": {
+        "status": "IN_PROGRESS",
+        "progress": "",
+        "state": {
+          "dubbing_model": "dubbing_v2",
+          "target_language": "zh",
+          "language_id": "ell_1",
+          "duration_s": 20,
+          "project_ready": true
+        }
+      }
+    },
+    {
+      "name": "reads a missing language id from a queued project",
+      "hook": "parseTaskResult",
+      "args": [
+        {
+          "state": {
+            "dubbing_model": "dubbing_v1",
+            "target_language": "zh"
+          }
+        },
+        {
+          "project_id": "elp_1",
+          "status": "queued",
+          "language_ids": [
+            "ell_9"
+          ],
+          "media": null
+        }
+      ],
+      "expected": {
+        "status": "QUEUED",
+        "progress": "",
+        "state": {
+          "dubbing_model": "dubbing_v1",
+          "target_language": "zh",
+          "language_id": "ell_9"
+        }
+      }
+    },
+    {
+      "name": "ignores an out-of-range media duration",
+      "hook": "parseTaskResult",
+      "args": [
+        {
+          "state": {
+            "language_id": "ell_1"
+          }
+        },
+        {
+          "project_id": "elp_1",
+          "status": "processing",
+          "language_ids": [
+            "ell_1"
+          ],
+          "media": {
+            "duration_s": 99999
+          }
+        }
+      ],
+      "expected": {
+        "status": "IN_PROGRESS",
+        "progress": "",
+        "state": {
+          "language_id": "ell_1"
+        }
+      }
+    },
+    {
+      "name": "fails a failed project",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "project_id": "elp_1",
+          "status": "failed",
+          "language_ids": [
+            "ell_1"
+          ],
+          "error": {
+            "message": "media could not be decoded"
+          }
+        }
+      ],
+      "expected": {
+        "status": "FAILURE",
+        "progress": "100%",
+        "reason": "media could not be decoded"
+      }
+    },
+    {
+      "name": "maps processing language",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "language_id": "ell_1",
+          "status": "processing"
+        }
+      ],
+      "expected": {
+        "status": "IN_PROGRESS",
+        "progress": ""
+      }
+    },
+    {
+      "name": "maps queued language",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "language_id": "ell_1",
+          "status": "queued"
+        }
+      ],
+      "expected": {
+        "status": "QUEUED",
+        "progress": ""
+      }
+    },
+    {
+      "name": "maps completed language",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "language_id": "ell_1",
+          "project_id": "elp_1",
+          "status": "completed",
+          "target_language": "zh",
+          "outputs": {
+            "lossless_audio": "https://storage.example/dub/a.flac?sig=1",
+            "subtitles": "https://storage.example/dub/s.vtt?sig=1"
+          }
+        }
+      ],
+      "expected": {
+        "status": "SUCCESS",
+        "progress": "100%",
+        "reason": ""
+      }
+    },
+    {
+      "name": "keeps polling a completed language without outputs",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "language_id": "ell_1",
+          "status": "completed",
+          "outputs": {
+            "lossless_audio": "https://storage.example/dub/a.flac?sig=1"
+          }
+        }
+      ],
+      "expected": {
+        "status": "UNKNOWN",
+        "reason": "ElevenLabs dubbing result is missing lossless_audio or subtitles"
+      }
+    },
+    {
+      "name": "maps failed language",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "language_id": "ell_1",
+          "status": "failed",
+          "error": "translation failed"
+        }
+      ],
+      "expected": {
+        "status": "FAILURE",
+        "progress": "100%",
+        "reason": "translation failed"
+      }
+    },
+    {
+      "name": "does not guess an unknown status",
+      "hook": "parseTaskResult",
+      "args": [
+        {},
+        {
+          "language_id": "ell_1",
+          "status": "stale"
+        }
+      ],
+      "expected": {
+        "status": "UNKNOWN",
+        "reason": "unrecognized ElevenLabs dubbing status: stale"
+      }
+    },
+    {
+      "name": "reserves v1 by the requested duration",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "model": "elevenlabs/dubbing",
+          "requestBody": {
+            "mediaUrl": "https://media.example/clip.mp4",
+            "target_language": "zh",
+            "dubbing_model": "dubbing_v1",
+            "duration_seconds": 20.4
+          }
+        }
+      ],
+      "expected": {
+        "upstream_usd": 0.175
+      }
+    },
+    {
+      "name": "reserves v2 for one hour",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "model": "elevenlabs/dubbing",
+          "requestBody": {
+            "mediaUrl": "https://media.example/clip.mp4",
+            "target_language": "zh",
+            "dubbing_model": "dubbing_v2",
+            "duration_seconds": 3600
+          }
+        }
+      ],
+      "expected": {
+        "upstream_usd": 132
+      }
+    },
+    {
+      "name": "skips billing ratios",
+      "hook": "extractUsage",
+      "args": [
+        {
+          "model": "elevenlabs/dubbing",
+          "usagePurpose": "billing_ratios",
+          "requestBody": {
+            "mediaUrl": "https://media.example/clip.mp4",
+            "target_language": "zh",
+            "dubbing_model": "dubbing_v1",
+            "duration_seconds": 20.4
+          }
+        }
+      ],
+      "expected": null
+    },
+    {
+      "name": "settles on the decoded media duration",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "model": "elevenlabs/dubbing",
+          "state": {
+            "dubbing_model": "dubbing_v2",
+            "duration_s": 20.0
+          }
+        },
+        {
+          "status": "SUCCESS"
+        },
+        {
+          "language_id": "ell_1",
+          "project_id": "elp_1",
+          "status": "completed",
+          "target_language": "zh",
+          "outputs": {
+            "lossless_audio": "https://storage.example/dub/a.flac?sig=1",
+            "subtitles": "https://storage.example/dub/s.vtt?sig=1"
+          }
+        }
+      ],
+      "expected": {
+        "upstream_usd": 0.733333
+      }
+    },
+    {
+      "name": "keeps the reservation without a media duration",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "model": "elevenlabs/dubbing",
+          "state": {
+            "dubbing_model": "dubbing_v1"
+          }
+        },
+        {
+          "status": "SUCCESS"
+        },
+        {
+          "language_id": "ell_1",
+          "project_id": "elp_1",
+          "status": "completed",
+          "target_language": "zh",
+          "outputs": {
+            "lossless_audio": "https://storage.example/dub/a.flac?sig=1",
+            "subtitles": "https://storage.example/dub/s.vtt?sig=1"
+          }
+        }
+      ],
+      "expected": null
+    },
+    {
+      "name": "reports zero usage on failure",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "model": "elevenlabs/dubbing",
+          "state": {
+            "dubbing_model": "dubbing_v1",
+            "duration_s": 20
+          }
+        },
+        {
+          "status": "FAILURE"
+        },
+        {}
+      ],
+      "expected": {
+        "upstream_usd": 0
+      }
+    },
+    {
+      "name": "ignores other models on completion",
+      "hook": "extractUsageOnComplete",
+      "args": [
+        {
+          "model": "other"
+        },
+        {
+          "status": "SUCCESS"
+        },
+        {}
+      ],
+      "expected": null
+    },
+    {
+      "name": "lists audio and subtitle artifacts",
+      "hook": "listArtifacts",
+      "args": [
+        {
+          "status": "SUCCESS",
+          "data": {
+            "language_id": "ell_1",
+            "project_id": "elp_1",
+            "status": "completed",
+            "target_language": "zh",
+            "outputs": {
+              "lossless_audio": "https://storage.example/dub/a.flac?sig=1",
+              "subtitles": "https://storage.example/dub/s.vtt?sig=1"
+            }
+          }
+        }
+      ],
+      "expected": [
+        {
+          "key": "output-0",
+          "type": "audio",
+          "mimeType": "audio/flac"
+        },
+        {
+          "key": "output-1",
+          "type": "file",
+          "mimeType": "text/vtt"
+        }
+      ]
+    },
+    {
+      "name": "lists nothing before success",
+      "hook": "listArtifacts",
+      "args": [
+        {
+          "status": "IN_PROGRESS",
+          "data": {
+            "language_id": "ell_1",
+            "project_id": "elp_1",
+            "status": "completed",
+            "target_language": "zh",
+            "outputs": {
+              "lossless_audio": "https://storage.example/dub/a.flac?sig=1",
+              "subtitles": "https://storage.example/dub/s.vtt?sig=1"
+            }
+          }
+        }
+      ],
+      "expected": []
+    },
+    {
+      "name": "falls back to the stored subtitle link",
+      "hook": "buildContentRequest",
+      "args": [
+        {
+          "status": "SUCCESS",
+          "artifactKey": "output-1",
+          "baseUrl": "https://llm.azopenai.com",
+          "apiKey": "key",
+          "upstreamTaskId": "elp_1",
+          "state": {
+            "language_id": "ell_1"
+          },
+          "clientRequest": {
+            "method": "GET"
+          },
+          "data": {
+            "language_id": "ell_1",
+            "project_id": "elp_1",
+            "status": "completed",
+            "target_language": "zh",
+            "outputs": {
+              "lossless_audio": "https://storage.example/dub/a.flac?sig=1",
+              "subtitles": "https://storage.example/dub/s.vtt?sig=1"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "url": "https://storage.example/dub/s.vtt?sig=1",
+        "method": "GET",
+        "credentialless": true
+      }
+    },
+    {
+      "name": "rejects an unknown artifact",
+      "hook": "buildContentRequest",
+      "args": [
+        {
+          "status": "SUCCESS",
+          "artifactKey": "output-2",
+          "clientRequest": {
+            "method": "GET"
+          },
+          "data": {
+            "language_id": "ell_1",
+            "project_id": "elp_1",
+            "status": "completed",
+            "target_language": "zh",
+            "outputs": {
+              "lossless_audio": "https://storage.example/dub/a.flac?sig=1",
+              "subtitles": "https://storage.example/dub/s.vtt?sig=1"
+            }
+          }
+        }
+      ],
+      "expectedError": "artifact_not_found"
+    },
+    {
+      "name": "renders the submission",
+      "hook": "native",
+      "member": "renderSubmitted",
+      "args": [
+        {},
+        {
+          "task_id": "task_pub",
+          "status": "SUBMITTED"
+        }
+      ],
+      "expected": {
+        "task_id": "task_pub",
+        "status": "SUBMITTED"
+      }
+    },
+    {
+      "name": "renders results in rh-tools shape",
+      "hook": "native",
+      "member": "renderTask",
+      "args": [
+        {},
+        {
+          "task_id": "task_pub",
+          "status": "SUCCESS",
+          "progress": "100%",
+          "fail_reason": "",
+          "data": {
+            "language_id": "ell_1",
+            "project_id": "elp_1",
+            "status": "completed",
+            "target_language": "zh",
+            "outputs": {
+              "lossless_audio": "https://storage.example/dub/a.flac?sig=1",
+              "subtitles": "https://storage.example/dub/s.vtt?sig=1"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "task_id": "task_pub",
+        "status": "SUCCESS",
+        "progress": "100%",
+        "fail_reason": "",
+        "data": {
+          "target_language": "zh",
+          "upstream_status": "completed",
+          "results": [
+            {
+              "url": "https://storage.example/dub/a.flac?sig=1",
+              "outputType": "flac"
+            },
+            {
+              "url": "https://storage.example/dub/s.vtt?sig=1",
+              "outputType": "vtt"
+            }
+          ]
+        },
+        "artifact_metadata": {
+          "source": "ElevenLabs signed result URL"
+        }
+      }
+    },
+    {
+      "name": "renders a running project without results",
+      "hook": "native",
+      "member": "renderTask",
+      "args": [
+        {},
+        {
+          "task_id": "task_pub",
+          "status": "IN_PROGRESS",
+          "progress": "",
+          "fail_reason": "",
+          "data": {
+            "project_id": "elp_1",
+            "status": "ready",
+            "language_ids": [
+              "ell_1"
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "task_id": "task_pub",
+        "status": "IN_PROGRESS",
+        "progress": "",
+        "fail_reason": "",
+        "data": {
+          "target_language": "",
+          "upstream_status": "ready",
+          "results": []
+        }
+      }
+    }
+  ]
+}

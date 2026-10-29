@@ -104,8 +104,8 @@ func TestBuiltInTaskPluginResponsesAndUsageContracts(t *testing.T) {
 		}
 	}
 	expectedTaskPluginKeys := []string{
-		"alibaba", "doubao", "google", "hailuo", "jimeng", "kling", "rh-audio", "rh-tools", "sora", "sunoapi",
-		"vertex-ai", "vidu", "xai",
+		"alibaba", "doubao", "el-tools", "google", "hailuo", "jimeng", "kling", "rh-audio", "rh-tools", "sora",
+		"sunoapi", "vertex-ai", "vidu", "xai",
 	}
 	assert.Equal(t, expectedTaskPluginKeys, actualKeys)
 
@@ -153,7 +153,7 @@ func TestBuiltInTaskPluginResponsesAndUsageContracts(t *testing.T) {
 }
 
 func TestBuiltInRunningHubPluginFixturesAndUsageBounds(t *testing.T) {
-	for _, key := range []string{"rh-audio", "rh-tools"} {
+	for _, key := range []string{"el-tools", "rh-audio", "rh-tools"} {
 		t.Run(key+" fixture", func(t *testing.T) {
 			source, err := Source(key)
 			require.NoError(t, err)
@@ -172,6 +172,7 @@ func TestBuiltInRunningHubPluginFixturesAndUsageBounds(t *testing.T) {
 		key       string
 		model     string
 		request   map[string]any
+		fact      string
 		wantUsage float64
 		wantError bool
 	}{
@@ -225,6 +226,27 @@ func TestBuiltInRunningHubPluginFixturesAndUsageBounds(t *testing.T) {
 			},
 			wantError: true,
 		},
+		{
+			name:  "dubbing v2 maximum duration reservation",
+			key:   "el-tools",
+			model: "elevenlabs/dubbing",
+			request: map[string]any{
+				"mediaUrl": "https://media.example/clip.mp4", "target_language": "zh",
+				"dubbing_model": "dubbing_v2", "duration_seconds": 3600,
+			},
+			fact:      "upstream_usd",
+			wantUsage: 132,
+		},
+		{
+			name:  "dubbing rejects duration above reservation bound",
+			key:   "el-tools",
+			model: "elevenlabs/dubbing",
+			request: map[string]any{
+				"mediaUrl": "https://media.example/clip.mp4", "target_language": "zh",
+				"dubbing_model": "dubbing_v2", "duration_seconds": 3600.5,
+			},
+			wantError: true,
+		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			source, err := Source(testCase.key)
@@ -245,7 +267,11 @@ func TestBuiltInRunningHubPluginFixturesAndUsageBounds(t *testing.T) {
 			require.NoError(t, err)
 			var facts map[string]float64
 			require.NoError(t, common.Unmarshal(encoded, &facts))
-			assert.InDelta(t, testCase.wantUsage, facts["upstream_cny"], 0.000001)
+			fact := testCase.fact
+			if fact == "" {
+				fact = "upstream_cny"
+			}
+			assert.InDelta(t, testCase.wantUsage, facts[fact], 0.000001)
 		})
 	}
 }
