@@ -3,6 +3,7 @@ const ACTION = "dubbing";
 // USD per minute of source media, billed on the media duration rounded up to the second.
 const DUBBING_PRICES = { dubbing_v1: 0.5, dubbing_v2: 2.2 };
 const DEFAULT_DUBBING_MODEL = "dubbing_v1";
+const FORM_BOUNDARY = "el-tools-dubbing-form-boundary";
 // Phase 1 accepts at most one hour; the upstream decodes up to four hours.
 const MAX_REQUEST_SECONDS = 3600;
 const MAX_MEDIA_SECONDS = 14400;
@@ -26,7 +27,7 @@ export const meta = {
   name: "ElevenLabs tools",
   icon: "text:EL",
   description: { en: "ElevenLabs dubbing via azopenai", zh: "通过 azopenai 调用 ElevenLabs 配音" },
-  version: "0.1.0",
+  version: "0.1.1",
   author: { name: "QuantumNous" },
   baseUrl: "https://llm.azopenai.com",
   models: [MODEL],
@@ -207,14 +208,29 @@ export function buildSubmitRequest(ctx) {
   // The public task id tags the upstream project, so an unclear creation can be
   // matched in the project list instead of being submitted again.
   if (trimmed(ctx.publicTaskId)) parts.push({ name: "reference", value: trimmed(ctx.publicTaskId) });
+  // The host's multipart descriptor re-reads an inbound multipart form, but
+  // clients send JSON, so the plugin writes the text-only form itself.
   return {
     url: projectURL(ctx.baseUrl),
     method: "POST",
-    headers: { Accept: "application/json", Authorization: authorization(ctx) },
-    bodyType: "multipart",
-    parts: parts,
+    headers: {
+      Accept: "application/json",
+      Authorization: authorization(ctx),
+      "Content-Type": "multipart/form-data; boundary=" + FORM_BOUNDARY,
+    },
+    body: formBody(parts),
     action: ACTION,
   };
+}
+
+function formBody(parts) {
+  let body = "";
+  for (const part of parts) {
+    const value = String(part.value);
+    if (/[\r\n]/.test(value) || value.includes(FORM_BOUNDARY)) throw new Error(part.name + " contains unsupported characters");
+    body += "--" + FORM_BOUNDARY + "\r\nContent-Disposition: form-data; name=\"" + part.name + "\"\r\n\r\n" + value + "\r\n";
+  }
+  return body + "--" + FORM_BOUNDARY + "--\r\n";
 }
 
 export function parseSubmitResponse(ctx, response) {

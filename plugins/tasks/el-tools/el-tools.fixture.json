@@ -240,31 +240,10 @@
         "method": "POST",
         "headers": {
           "Accept": "application/json",
-          "Authorization": "Bearer key"
+          "Authorization": "Bearer key",
+          "Content-Type": "multipart/form-data; boundary=el-tools-dubbing-form-boundary"
         },
-        "bodyType": "multipart",
-        "parts": [
-          {
-            "name": "model_id",
-            "value": "dubbing_v1"
-          },
-          {
-            "name": "source_url",
-            "value": "https://media.example/clip.mp4"
-          },
-          {
-            "name": "target_language",
-            "value": "zh"
-          },
-          {
-            "name": "source_language",
-            "value": "ja"
-          },
-          {
-            "name": "reference",
-            "value": "task_pub"
-          }
-        ],
+        "body": "--el-tools-dubbing-form-boundary\r\nContent-Disposition: form-data; name=\"model_id\"\r\n\r\ndubbing_v1\r\n--el-tools-dubbing-form-boundary\r\nContent-Disposition: form-data; name=\"source_url\"\r\n\r\nhttps://media.example/clip.mp4\r\n--el-tools-dubbing-form-boundary\r\nContent-Disposition: form-data; name=\"target_language\"\r\n\r\nzh\r\n--el-tools-dubbing-form-boundary\r\nContent-Disposition: form-data; name=\"source_language\"\r\n\r\nja\r\n--el-tools-dubbing-form-boundary\r\nContent-Disposition: form-data; name=\"reference\"\r\n\r\ntask_pub\r\n--el-tools-dubbing-form-boundary--\r\n",
         "action": "dubbing"
       }
     },
