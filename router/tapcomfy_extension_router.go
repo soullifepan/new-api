@@ -20,5 +20,7 @@ func SetTapComfyExtensionRouter(router *gin.Engine) {
 	{
 		elevenLabsRouter.POST("/audio/speech/with-timestamps", middleware.Distribute(), controller.RelayElevenLabsSpeechWithTimestamps)
 		elevenLabsRouter.POST("/music", tapcomfy.ElevenLabsMusicModel, middleware.Distribute(), controller.RelayElevenLabsMusic)
+		elevenLabsRouter.POST("/extensions/tapcomfy/voices/design", middleware.Distribute(), controller.RelayElevenLabsVoiceDesign)
+		elevenLabsRouter.POST("/extensions/tapcomfy/voices/save", middleware.Distribute(), controller.RelayElevenLabsVoiceSave)
 	}
 }

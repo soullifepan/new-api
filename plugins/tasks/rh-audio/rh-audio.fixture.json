@@ -2578,6 +2578,37 @@
           "expires_in_hours": 24
         }
       }
+    },
+    {
+      "name": "constructs MiniMax voice clone request",
+      "hook": "buildSubmitRequest",
+      "args": [{"model":"minimax/voice-clone","upstreamModel":"minimax/voice-clone","baseUrl":"https://www.runninghub.cn","apiKey":"fixture-channel-key","requestBody":{"audio_url":"https://media.example/reference.wav","voice_id":"VoiceDemo_01","reference_text":"reference transcript","accuracy":0.7,"noise_reduction":false,"volume_normalization":false,"clone_model":"speech-02-hd"}}],
+      "expected": {"url":"https://www.runninghub.cn/openapi/v2/rhart-audio/text-to-audio/voice-clone","method":"POST","headers":{"Accept":"application/json","Content-Type":"application/json","Authorization":"Bearer fixture-channel-key"},"body":{"audio":"https://media.example/reference.wav","custom_voice_id":"VoiceDemo_01","text":"reference transcript","accuracy":0.7,"need_noise_reduction":false,"need_volume_normalization":false,"model":"speech-02-hd"},"action":"audio_generation"}
+    },
+    {
+      "name": "rejects invalid clone voice ID",
+      "hook": "native",
+      "member": "decodeSubmit",
+      "args": [{"body":{"kind":"json","value":{"model":"minimax/voice-clone","audio_url":"https://media.example/reference.wav","voice_id":"bad"}}}],
+      "expectedError": "voice_id must match"
+    },
+    {
+      "name": "reserves MiniMax voice clone estimate",
+      "hook": "extractUsage",
+      "args": [{"model":"minimax/voice-clone","requestBody":{"audio_url":"https://media.example/reference.wav","voice_id":"VoiceDemo_01"},"usagePurpose":"facts"}],
+      "expected": {"upstream_cny":3.12}
+    },
+    {
+      "name": "accepts voice clone success without an audio result",
+      "hook": "parseTaskResult",
+      "args": [{"model":"minimax/voice-clone"},{"taskId":"rh-clone-1","status":"SUCCESS","custom_voice_id":"VoiceDemo_01","usage":{"consumeMoney":"3.12"},"results":null},{"status":200,"headers":{}}],
+      "expected": {"status":"SUCCESS","progress":"100%","reason":""}
+    },
+    {
+      "name": "settles MiniMax voice clone from RunningHub usage",
+      "hook": "extractUsageOnComplete",
+      "args": [{"model":"minimax/voice-clone"},{"status":"SUCCESS"},{"taskId":"rh-clone-1","status":"SUCCESS","usage":{"consumeMoney":"3.12"}}],
+      "expected": {"upstream_cny":3.12}
     }
   ]
 }

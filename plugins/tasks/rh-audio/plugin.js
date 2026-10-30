@@ -2,6 +2,7 @@
 // published for that exact endpoint; there is no generic passthrough body.
 const QWEN_MODEL = "qwen3-tts-flash";
 const MINIMAX_TTS_MODEL = "minimax/speech-2.8-hd";
+const MINIMAX_VOICE_CLONE_MODEL = "minimax/voice-clone";
 const DOUBAO_TTS_MODEL = "bytedance/doubao-seed-tts-2.0";
 const DOUBAO_SEED_AUDIO_MODEL = "bytedance/doubao-seed-audio-1.0";
 const MUREKA_MODEL = "mureka-ai/mureka-v9";
@@ -15,6 +16,8 @@ const QWEN_TTS_CNY_PER_10000_BILLED_CHARACTERS = 0.8029;
 const DOUBAO_TTS_CNY_PER_1000_CHARACTERS = 0.24;
 const DOUBAO_SEED_AUDIO_CNY_PER_SECOND = 0.004;
 const MINIMAX_TTS_CNY_PER_1000_CHARACTERS = 0.62;
+const MINIMAX_VOICE_CLONE_CNY_PER_CALL = 3.12;
+const MINIMAX_VOICE_CLONE_MODELS = ["speech-02-hd", "speech-02-turbo", "speech-2.6-hd", "speech-2.6-turbo"];
 // The public list (public-2026-04-29) shows 0.28 for v9 songs, but RunningHub
 // deducted 0.34 per track (n=1 0.34, n=2 0.68) and 0.09 per lyrics call
 // (listed 0.06). Completion settles every mode on the actual deduction.
@@ -45,6 +48,7 @@ const MAX_UPSTREAM_CREDITS = 2_147_483_647;
 const PROFILES = {
   [QWEN_MODEL]: { endpoint: "alibaba/qwen3-tts-flash" },
   [MINIMAX_TTS_MODEL]: { endpoint: "rhart-audio/text-to-audio/speech-2.8-hd" },
+  [MINIMAX_VOICE_CLONE_MODEL]: { endpoint: "rhart-audio/text-to-audio/voice-clone" },
   [DOUBAO_TTS_MODEL]: { endpoint: "bytedance/doubao-seed-tts-2.0" },
   [DOUBAO_SEED_AUDIO_MODEL]: { endpoint: "bytedance/doubao-seed-audio-1.0" },
   // The Mureka endpoint follows the request mode; see buildSubmitRequest.
@@ -67,7 +71,7 @@ export const meta = {
     en: "Audio generation tasks",
     zh: "音频生成任务",
   },
-  version: "0.8.1",
+  version: "0.9.0",
   author: { name: "QuantumNous" },
   baseUrl: "https://www.runninghub.cn",
   models: Object.keys(PROFILES),
@@ -111,6 +115,11 @@ export const meta = {
         { label: "5,000 characters · estimate", facts: { upstream_cny: 3.1 } },
         { label: "10,000 characters · estimate", facts: { upstream_cny: 6.2 } },
       ],
+    },
+    {
+      models: [MINIMAX_VOICE_CLONE_MODEL],
+      schema: TTS_USAGE_SCHEMA,
+      examples: [{ label: "Voice clone · estimate", facts: { upstream_cny: 3.12 } }],
     },
     {
       models: [MUREKA_MODEL],
@@ -250,6 +259,34 @@ function minimaxTTSRequest(value) {
     if (!MINIMAX_TTS_EMOTIONS.has(emotion)) throw new Error("unsupported emotion");
     output.emotion = emotion;
   }
+  return output;
+}
+
+function minimaxVoiceCloneRequest(value) {
+  const request = object(value, "request body must be an object");
+  checkFields(request, MINIMAX_VOICE_CLONE_MODEL, [
+    "model",
+    "audio_url",
+    "voice_id",
+    "reference_text",
+    "accuracy",
+    "noise_reduction",
+    "volume_normalization",
+    "clone_model",
+  ]);
+  const voiceID = requiredText(request.voice_id, "voice_id", 64);
+  if (!/^[A-Za-z][A-Za-z0-9_-]{7,63}$/.test(voiceID)) {
+    throw new Error("voice_id must match [A-Za-z][A-Za-z0-9_-]* and contain 8 to 64 characters");
+  }
+  const output = {
+    audio: httpsURL(request.audio_url, "audio_url"),
+    custom_voice_id: voiceID,
+    accuracy: request.accuracy === undefined ? 0.7 : number(request.accuracy, "accuracy", 0, 1),
+    need_noise_reduction: request.noise_reduction === undefined ? false : boolean(request.noise_reduction, "noise_reduction"),
+    need_volume_normalization: request.volume_normalization === undefined ? false : boolean(request.volume_normalization, "volume_normalization"),
+    model: request.clone_model === undefined ? "speech-02-hd" : oneOf(request.clone_model, "clone_model", MINIMAX_VOICE_CLONE_MODELS),
+  };
+  if (hasOwn(request, "reference_text")) output.text = optionalText(request.reference_text, "reference_text", 10000);
   return output;
 }
 
@@ -412,6 +449,7 @@ function murekaRequest(value) {
 function requestForModel(model, value) {
   if (model === QWEN_MODEL) return qwenRequest(value);
   if (model === MINIMAX_TTS_MODEL) return minimaxTTSRequest(value);
+  if (model === MINIMAX_VOICE_CLONE_MODEL) return minimaxVoiceCloneRequest(value);
   if (model === DOUBAO_TTS_MODEL) return doubaoTTSRequest(value);
   if (model === DOUBAO_SEED_AUDIO_MODEL) return doubaoSeedAudioRequest(value);
   if (model === MUREKA_MODEL) return murekaRequest(value);
@@ -538,6 +576,14 @@ function mimeType(outputType) {
 function nativeTask(task) {
   const status = String(task.status || "").toUpperCase();
   let data = task.data === undefined ? null : task.data;
+  if (data && typeof data === "object" && !Array.isArray(data) && (data.model === MINIMAX_VOICE_CLONE_MODEL || trimmed(data.custom_voice_id))) {
+    const clone = { expires_after_unused_days: 7 };
+    const voiceID = trimmed(data.voice_id) || trimmed(data.custom_voice_id);
+    if (voiceID) clone.voice_id = voiceID;
+    const previewURL = trimmed(data.audio_url);
+    if (previewURL) clone.audio_url = previewURL;
+    data = clone;
+  }
   // Mureka also lists song IDs as text results; clients receive one entry
   // per audio file, or one per lyrics candidate for lyrics tasks.
   if (data && typeof data === "object" && !Array.isArray(data) && Array.isArray(data.results)) {
@@ -598,6 +644,10 @@ export function parseSubmitResponse(ctx, response) {
   // Model API responses are top-level {taskId, status, results}; do not apply
   // the legacy RunningHub Workflow {code, data, msg} envelope here.
   const task = taskData(body, "invalid RunningHub submission response");
+  if (ctx && (ctx.upstreamModel || ctx.model) === MINIMAX_VOICE_CLONE_MODEL) {
+    task.model = MINIMAX_VOICE_CLONE_MODEL;
+    task.custom_voice_id = requestForModel(MINIMAX_VOICE_CLONE_MODEL, ctx.requestBody).custom_voice_id;
+  }
   return { taskId: trimmed(task.taskId), taskData: task };
 }
 
@@ -625,6 +675,7 @@ export function parseTaskResult(ctx, body) {
     return { status: "FAILURE", progress: "100%", reason: failureReason(task) };
   }
   if (status === "SUCCESS") {
+    if (ctx && (ctx.upstreamModel || ctx.model) === MINIMAX_VOICE_CLONE_MODEL) return { status: "SUCCESS", progress: "100%", reason: "" };
     if (ctx && ctx.action === LYRICS_ACTION) {
       if (lyricEntries(task).length === 0) return { status: "UNKNOWN", reason: "RunningHub success response is missing lyrics" };
       return { status: "SUCCESS", progress: "100%", reason: "" };
@@ -641,6 +692,7 @@ export function extractUsage(ctx) {
   const request = requestForModel(model, ctx.requestBody);
   let estimate;
   if (model === QWEN_MODEL) estimate = (qwenBilledCharacters(request.text) * QWEN_TTS_CNY_PER_10000_BILLED_CHARACTERS) / 10000;
+  else if (model === MINIMAX_VOICE_CLONE_MODEL) estimate = MINIMAX_VOICE_CLONE_CNY_PER_CALL;
   else if (model === DOUBAO_SEED_AUDIO_MODEL) {
     const chars = Array.from(request.text_prompt).length;
     const speedFactor = 1 + request.speech_rate / 100;
@@ -659,7 +711,7 @@ export function extractUsage(ctx) {
 
 export function extractUsageOnComplete(task, result, body) {
   const model = trimmed(task && (task.upstreamModel || task.model));
-  if ([QWEN_MODEL, DOUBAO_TTS_MODEL, DOUBAO_SEED_AUDIO_MODEL, MINIMAX_TTS_MODEL, MUREKA_MODEL].includes(model)) {
+  if ([QWEN_MODEL, DOUBAO_TTS_MODEL, DOUBAO_SEED_AUDIO_MODEL, MINIMAX_TTS_MODEL, MINIMAX_VOICE_CLONE_MODEL, MUREKA_MODEL].includes(model)) {
     const status = String((result && result.status) || "").toUpperCase();
     if (["FAILURE", "CANCEL", "CANCELLED", "CANCELED"].includes(status)) return { upstream_cny: 0 };
     if (status !== "SUCCESS") return null;
