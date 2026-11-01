@@ -20,7 +20,11 @@ func SetTapComfyExtensionRouter(router *gin.Engine) {
 	{
 		elevenLabsRouter.POST("/audio/speech/with-timestamps", middleware.Distribute(), controller.RelayElevenLabsSpeechWithTimestamps)
 		elevenLabsRouter.POST("/music", tapcomfy.ElevenLabsMusicModel, middleware.Distribute(), controller.RelayElevenLabsMusic)
-		elevenLabsRouter.POST("/extensions/tapcomfy/voices/design", middleware.Distribute(), controller.RelayElevenLabsVoiceDesign)
-		elevenLabsRouter.POST("/extensions/tapcomfy/voices/save", middleware.Distribute(), controller.RelayElevenLabsVoiceSave)
+		elevenLabsRouter.POST("/elevenlabs/voices", tapcomfy.ElevenLabsVoiceModel, middleware.Distribute(), controller.RelayElevenLabsVoiceClone)
+		elevenLabsRouter.POST("/extensions/tapcomfy/voices/clone", tapcomfy.ElevenLabsVoiceModel, middleware.Distribute(), controller.RelayElevenLabsVoiceClone)
+		elevenLabsRouter.GET("/elevenlabs/voices", tapcomfy.ElevenLabsVoiceModel, middleware.Distribute(), controller.RelayElevenLabsVoiceList)
+		elevenLabsRouter.GET("/elevenlabs/voices/:voice_id", tapcomfy.ElevenLabsVoiceModel, middleware.Distribute(), controller.RelayElevenLabsVoiceGet)
+		elevenLabsRouter.POST("/elevenlabs/voices/:voice_id/edit", tapcomfy.ElevenLabsVoiceModel, middleware.Distribute(), controller.RelayElevenLabsVoiceEdit)
+		elevenLabsRouter.DELETE("/elevenlabs/voices/:voice_id", tapcomfy.ElevenLabsVoiceModel, middleware.Distribute(), controller.RelayElevenLabsVoiceDelete)
 	}
 }

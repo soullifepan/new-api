@@ -16,12 +16,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RelayElevenLabsVoiceDesign(c *gin.Context) {
-	relayElevenLabsVoice(c, tapcomfy.ElevenLabsVoiceDesign)
+func RelayElevenLabsVoiceClone(c *gin.Context) {
+	relayElevenLabsVoice(c, tapcomfy.ElevenLabsVoiceClone)
 }
-
-func RelayElevenLabsVoiceSave(c *gin.Context) {
-	relayElevenLabsVoice(c, tapcomfy.ElevenLabsVoiceSave)
+func RelayElevenLabsVoiceList(c *gin.Context) { relayElevenLabsVoice(c, tapcomfy.ElevenLabsVoiceList) }
+func RelayElevenLabsVoiceGet(c *gin.Context)  { relayElevenLabsVoice(c, tapcomfy.ElevenLabsVoiceGet) }
+func RelayElevenLabsVoiceEdit(c *gin.Context) { relayElevenLabsVoice(c, tapcomfy.ElevenLabsVoiceEdit) }
+func RelayElevenLabsVoiceDelete(c *gin.Context) {
+	relayElevenLabsVoice(c, tapcomfy.ElevenLabsVoiceDelete)
 }
 
 func relayElevenLabsVoice(c *gin.Context, operation tapcomfy.ElevenLabsVoiceOperation) {
@@ -36,20 +38,22 @@ func relayElevenLabsVoice(c *gin.Context, operation tapcomfy.ElevenLabsVoiceOper
 		c.JSON(newAPIError.StatusCode, gin.H{"error": newAPIError.ToOpenAIError(common.UpstreamAddresses(c)...)})
 	}()
 
-	storage, err := common.GetBodyStorage(c)
 	var body []byte
-	if err == nil {
-		body, err = storage.Bytes()
-	}
-	if err != nil {
-		status := http.StatusBadRequest
-		if common.IsRequestBodyTooLargeError(err) || errors.Is(err, common.ErrRequestBodyTooLarge) {
-			status = http.StatusRequestEntityTooLarge
+	if operation == tapcomfy.ElevenLabsVoiceClone || operation == tapcomfy.ElevenLabsVoiceEdit {
+		storage, err := common.GetBodyStorage(c)
+		if err == nil {
+			body, err = storage.Bytes()
 		}
-		newAPIError = types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, status, types.ErrOptionWithSkipRetry())
-		return
+		if err != nil {
+			status := http.StatusBadRequest
+			if common.IsRequestBodyTooLargeError(err) || errors.Is(err, common.ErrRequestBodyTooLarge) {
+				status = http.StatusRequestEntityTooLarge
+			}
+			newAPIError = types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, status, types.ErrOptionWithSkipRetry())
+			return
+		}
 	}
-	request, newAPIError := tapcomfy.ParseElevenLabsVoiceRequest(operation, body)
+	request, newAPIError := tapcomfy.ParseElevenLabsVoiceRequest(operation, c.GetHeader("Content-Type"), body, c.Param("voice_id"))
 	if newAPIError != nil {
 		return
 	}
@@ -58,18 +62,20 @@ func relayElevenLabsVoice(c *gin.Context, operation tapcomfy.ElevenLabsVoiceOper
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
 	}
-	info.SetEstimatePromptTokens(request.BillableTokens)
-	priceData, err := helper.ModelPriceHelper(c, info, request.BillableTokens, request.GetTokenCountMeta())
-	if err != nil {
-		newAPIError = types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest))
-		return
-	}
-	if !priceData.FreeModel && request.BillableTokens > 0 {
-		if newAPIError = service.PreConsumeBilling(c, priceData.QuotaToPreConsume, info); newAPIError != nil {
+	if request.BillableTokens > 0 {
+		info.SetEstimatePromptTokens(request.BillableTokens)
+		priceData, err := helper.ModelPriceHelper(c, info, request.BillableTokens, request.GetTokenCountMeta())
+		if err != nil {
+			newAPIError = types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest))
 			return
 		}
+		if !priceData.FreeModel {
+			if newAPIError = service.PreConsumeBilling(c, priceData.QuotaToPreConsume, info); newAPIError != nil {
+				return
+			}
+		}
+		defer func() { newAPIError = relay.RefundFailedRequestBilling(c, info, newAPIError) }()
 	}
-	defer func() { newAPIError = relay.RefundFailedRequestBilling(c, info, newAPIError) }()
 
 	channel, channelErr := getChannel(c, info, &service.RetryParam{
 		Ctx: c, TokenGroup: info.TokenGroup, ModelName: info.OriginModelName, RequestPath: c.Request.URL.Path,
@@ -80,8 +86,10 @@ func relayElevenLabsVoice(c *gin.Context, operation tapcomfy.ElevenLabsVoiceOper
 		return
 	}
 	service.AppendUsedChannel(c, channel.Id)
-	if newAPIError = service.PrepareTieredBillingForSelectedGroup(c, info); newAPIError != nil {
-		return
+	if request.BillableTokens > 0 {
+		if newAPIError = service.PrepareTieredBillingForSelectedGroup(c, info); newAPIError != nil {
+			return
+		}
 	}
 	newAPIError = tapcomfy.RelayElevenLabsVoice(c, info, request)
 	if newAPIError == nil {

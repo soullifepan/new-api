@@ -5,7 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
+	"net/url"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
@@ -18,16 +22,18 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
 )
 
-const ElevenLabsVoiceDesignModel = "elevenlabs-voice-design"
+const ElevenLabsVoiceCloneModel = "elevenlabs-voice-clone"
 
 type ElevenLabsVoiceOperation int
 
 const (
-	ElevenLabsVoiceDesign ElevenLabsVoiceOperation = iota + 1
-	ElevenLabsVoiceSave
+	ElevenLabsVoiceClone ElevenLabsVoiceOperation = iota + 1
+	ElevenLabsVoiceList
+	ElevenLabsVoiceGet
+	ElevenLabsVoiceEdit
+	ElevenLabsVoiceDelete
 )
 
 type ElevenLabsVoiceRequest struct {
@@ -35,6 +41,8 @@ type ElevenLabsVoiceRequest struct {
 	Model          string
 	BillableTokens int
 	body           []byte
+	contentType    string
+	voiceID        string
 	upstreamModel  string
 }
 
@@ -46,166 +54,64 @@ func (*ElevenLabsVoiceRequest) IsStream(*http.Request) bool { return false }
 
 func (r *ElevenLabsVoiceRequest) SetModelName(modelName string) { r.upstreamModel = modelName }
 
+// ElevenLabsVoiceModel selects the fixed routing model before Distribute runs;
+// voice management requests have no JSON model field to inspect.
+func ElevenLabsVoiceModel(c *gin.Context) {
+	c.Set("resolved_task_model", ElevenLabsVoiceCloneModel)
+	c.Next()
+}
+
 func voiceInvalid(message string) *types.NewAPIError {
-	return types.NewError(
-		errors.New(message),
-		types.ErrorCodeInvalidRequest,
-		types.ErrOptionWithStatusCode(http.StatusBadRequest),
-		types.ErrOptionWithSkipRetry(),
-	)
+	return types.NewError(errors.New(message), types.ErrorCodeInvalidRequest, types.ErrOptionWithStatusCode(http.StatusBadRequest), types.ErrOptionWithSkipRetry())
 }
 
-func voiceString(body []byte, field string, minimum, maximum int, required bool) (string, *types.NewAPIError) {
-	value := gjson.GetBytes(body, field)
-	if !value.Exists() && !required {
-		return "", nil
-	}
-	if value.Type != gjson.String {
-		return "", voiceInvalid(field + " must be a string")
-	}
-	text := value.String()
-	length := utf8.RuneCountInString(text)
-	if length < minimum || length > maximum {
-		return "", voiceInvalid(fmt.Sprintf("%s must contain %d to %d characters", field, minimum, maximum))
-	}
-	return text, nil
-}
-
-func ParseElevenLabsVoiceRequest(operation ElevenLabsVoiceOperation, body []byte) (*ElevenLabsVoiceRequest, *types.NewAPIError) {
-	if !gjson.ValidBytes(body) || !gjson.ParseBytes(body).IsObject() {
-		return nil, voiceInvalid("request body must be a JSON object")
-	}
-	model := gjson.GetBytes(body, "model")
-	if model.Type != gjson.String || model.String() != ElevenLabsVoiceDesignModel {
-		return nil, voiceInvalid("model must be " + ElevenLabsVoiceDesignModel)
-	}
-	request := &ElevenLabsVoiceRequest{Operation: operation, Model: model.String(), body: body, upstreamModel: model.String()}
-	allowedFields := map[string]bool{"model": true}
-	if operation == ElevenLabsVoiceDesign {
-		for _, field := range []string{"description", "preview_text", "auto_generate_text", "loudness", "guidance_scale"} {
-			allowedFields[field] = true
-		}
-	} else if operation == ElevenLabsVoiceSave {
-		for _, field := range []string{"design_id", "name", "description"} {
-			allowedFields[field] = true
-		}
-	}
-	var unsupported string
-	gjson.ParseBytes(body).ForEach(func(key, _ gjson.Result) bool {
-		if !allowedFields[key.String()] {
-			unsupported = key.String()
-			return false
-		}
-		return true
-	})
-	if unsupported != "" {
-		return nil, voiceInvalid("unsupported field: " + unsupported)
-	}
-	if operation == ElevenLabsVoiceDesign {
-		if _, err := voiceString(body, "description", 10, 1000, true); err != nil {
-			return nil, err
-		}
-		preview := gjson.GetBytes(body, "preview_text")
-		hasPreview := preview.Exists() && preview.Type != gjson.Null
-		if hasPreview {
-			if _, err := voiceString(body, "preview_text", 100, 1000, true); err != nil {
-				return nil, err
-			}
-		}
-		auto := gjson.GetBytes(body, "auto_generate_text")
-		if auto.Exists() && !auto.IsBool() {
-			return nil, voiceInvalid("auto_generate_text must be a boolean")
-		}
-		if !hasPreview && auto.Exists() && !auto.Bool() {
-			return nil, voiceInvalid("auto_generate_text must be true when preview_text is absent")
-		}
-		for _, field := range []string{"loudness", "guidance_scale"} {
-			value := gjson.GetBytes(body, field)
-			if value.Exists() && value.Type != gjson.Number {
-				return nil, voiceInvalid(field + " must be a number")
-			}
-		}
-		if loudness := gjson.GetBytes(body, "loudness"); loudness.Exists() && (loudness.Float() < -1 || loudness.Float() > 1) {
-			return nil, voiceInvalid("loudness must be between -1 and 1")
-		}
-		if guidance := gjson.GetBytes(body, "guidance_scale"); guidance.Exists() && (guidance.Float() < 0 || guidance.Float() > 100) {
-			return nil, voiceInvalid("guidance_scale must be between 0 and 100")
-		}
-		request.BillableTokens = 1
+func ParseElevenLabsVoiceRequest(operation ElevenLabsVoiceOperation, contentType string, body []byte, voiceID string) (*ElevenLabsVoiceRequest, *types.NewAPIError) {
+	request := &ElevenLabsVoiceRequest{Operation: operation, Model: ElevenLabsVoiceCloneModel, body: body, contentType: contentType, voiceID: voiceID, upstreamModel: ElevenLabsVoiceCloneModel}
+	if operation != ElevenLabsVoiceClone && operation != ElevenLabsVoiceEdit {
 		return request, nil
 	}
-	if operation != ElevenLabsVoiceSave {
-		return nil, voiceInvalid("unsupported ElevenLabs voice operation")
-	}
-	if _, err := voiceString(body, "design_id", 1, 128, true); err != nil {
-		return nil, err
-	}
-	if _, err := voiceString(body, "name", 1, 100, true); err != nil {
-		return nil, err
-	}
-	if _, err := voiceString(body, "description", 10, 1000, true); err != nil {
-		return nil, err
-	}
-	return request, nil
-}
 
-func (r *ElevenLabsVoiceRequest) upstreamBody() ([]byte, error) {
-	var body []byte
-	var err error
-	if r.Operation == ElevenLabsVoiceDesign {
-		body, err = sjson.SetBytes(r.body, "voice_description", gjson.GetBytes(r.body, "description").String())
-		if err != nil {
-			return nil, err
-		}
-		body, err = sjson.DeleteBytes(body, "description")
-		if err != nil {
-			return nil, err
-		}
-		preview := gjson.GetBytes(body, "preview_text")
-		hasPreview := preview.Exists() && preview.Type == gjson.String && preview.String() != ""
-		if hasPreview {
-			body, err = sjson.SetBytes(body, "text", preview.String())
-			if err != nil {
-				return nil, err
-			}
-		}
-		if preview.Exists() {
-			body, err = sjson.DeleteBytes(body, "preview_text")
-			if err != nil {
-				return nil, err
-			}
-		}
-		if !gjson.GetBytes(body, "auto_generate_text").Exists() && !hasPreview {
-			body, err = sjson.SetBytes(body, "auto_generate_text", true)
-			if err != nil {
-				return nil, err
-			}
-		}
-		body, err = sjson.SetBytes(body, "model_id", "eleven_multilingual_ttv_v2")
-		if err != nil {
-			return nil, err
-		}
-		return sjson.DeleteBytes(body, "model")
+	mediaType, params, err := mime.ParseMediaType(contentType)
+	if err != nil || mediaType != "multipart/form-data" || params["boundary"] == "" {
+		return nil, voiceInvalid("Content-Type must be multipart/form-data")
 	}
-	body, err = sjson.SetBytes(r.body, "voice_name", gjson.GetBytes(r.body, "name").String())
+	form, err := multipart.NewReader(bytes.NewReader(body), params["boundary"]).ReadForm(32 << 20)
 	if err != nil {
-		return nil, err
+		return nil, voiceInvalid("invalid multipart form")
 	}
-	body, err = sjson.SetBytes(body, "voice_description", gjson.GetBytes(r.body, "description").String())
-	if err != nil {
-		return nil, err
+	defer form.RemoveAll()
+
+	name := form.Value["name"]
+	if len(name) != 1 || utf8.RuneCountInString(name[0]) < 1 || utf8.RuneCountInString(name[0]) > 100 {
+		return nil, voiceInvalid("name must contain 1 to 100 characters")
 	}
-	body, err = sjson.SetBytes(body, "generated_voice_id", gjson.GetBytes(r.body, "design_id").String())
-	if err != nil {
-		return nil, err
-	}
-	for _, field := range []string{"model", "name", "description", "design_id"} {
-		body, err = sjson.DeleteBytes(body, field)
-		if err != nil {
-			return nil, err
+	if labels, ok := form.Value["labels"]; ok {
+		if len(labels) != 1 {
+			return nil, voiceInvalid("labels must be a JSON object with string values")
+		}
+		var parsed map[string]string
+		if err := common.UnmarshalJsonStr(labels[0], &parsed); err != nil || parsed == nil {
+			return nil, voiceInvalid("labels must be a JSON object with string values")
 		}
 	}
-	return body, nil
+	if noise, ok := form.Value["remove_background_noise"]; ok && (len(noise) != 1 || (noise[0] != "true" && noise[0] != "false")) {
+		return nil, voiceInvalid("remove_background_noise must be true or false")
+	}
+	if operation == ElevenLabsVoiceClone {
+		files := form.File["files"]
+		if len(files) == 0 {
+			return nil, voiceInvalid("at least one non-empty files part is required")
+		}
+		hasNonEmptyFile := false
+		for _, file := range files {
+			hasNonEmptyFile = hasNonEmptyFile || file.Size > 0
+		}
+		if !hasNonEmptyFile {
+			return nil, voiceInvalid("at least one non-empty files part is required")
+		}
+	}
+	request.BillableTokens = 1
+	return request, nil
 }
 
 func RelayElevenLabsVoice(c *gin.Context, info *relaycommon.RelayInfo, request *ElevenLabsVoiceRequest) *types.NewAPIError {
@@ -216,20 +122,24 @@ func RelayElevenLabsVoice(c *gin.Context, info *relaycommon.RelayInfo, request *
 	if err := helper.ModelMappedHelper(c, info, request); err != nil {
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
-	body, err := request.upstreamBody()
-	if err != nil {
-		return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+
+	info.RequestURLPath = "/v1/elevenlabs/voices"
+	if request.voiceID != "" {
+		info.RequestURLPath += "/" + url.PathEscape(request.voiceID)
 	}
-	info.RequestURLPath = "/v1/text-to-voice/design"
-	if request.Operation == ElevenLabsVoiceSave {
-		info.RequestURLPath = "/v1/text-to-voice"
+	if request.Operation == ElevenLabsVoiceEdit {
+		info.RequestURLPath += "/edit"
 	}
+	if c.Request.URL.RawQuery != "" {
+		info.RequestURLPath += "?" + c.Request.URL.RawQuery
+	}
+
 	adaptor := relay.GetAdaptor(info.ApiType)
 	if adaptor == nil {
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
 	adaptor.Init(info)
-	response, err := adaptor.DoRequest(c, info, bytes.NewReader(body))
+	response, err := adaptor.DoRequest(c, info, bytes.NewReader(request.body))
 	if err != nil {
 		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
 	}
@@ -244,64 +154,22 @@ func RelayElevenLabsVoice(c *gin.Context, info *relaycommon.RelayInfo, request *
 		return apiErr
 	}
 	responseBody, err := io.ReadAll(httpResponse.Body)
-	if err != nil || !gjson.ValidBytes(responseBody) || !gjson.ParseBytes(responseBody).IsObject() {
-		return types.NewOpenAIError(errors.New("invalid ElevenLabs voice response"), types.ErrorCodeBadResponseBody, http.StatusBadGateway, types.ErrOptionWithSkipRetry())
+	if err != nil {
+		return types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusBadGateway, types.ErrOptionWithSkipRetry())
 	}
-	normalized, apiErr := normalizeElevenLabsVoiceResponse(request.Operation, responseBody)
-	if apiErr != nil {
-		return apiErr
+	if request.BillableTokens > 0 {
+		voiceID := gjson.GetBytes(responseBody, "voice_id")
+		if !gjson.ValidBytes(responseBody) || voiceID.Type != gjson.String || strings.TrimSpace(voiceID.String()) == "" {
+			return types.NewOpenAIError(errors.New("invalid ElevenLabs voice response"), types.ErrorCodeBadResponseBody, http.StatusBadGateway, types.ErrOptionWithSkipRetry())
+		}
 	}
-	c.Header("Content-Type", "application/json")
-	c.Status(httpResponse.StatusCode)
-	_, _ = c.Writer.Write(normalized)
+	contentType := httpResponse.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "application/json"
+	}
+	c.Data(httpResponse.StatusCode, contentType, responseBody)
 	if request.BillableTokens > 0 {
 		service.PostTextConsumeQuota(c, info, &dto.Usage{PromptTokens: request.BillableTokens, TotalTokens: request.BillableTokens}, nil)
 	}
 	return nil
-}
-
-func normalizeElevenLabsVoiceResponse(operation ElevenLabsVoiceOperation, body []byte) ([]byte, *types.NewAPIError) {
-	invalid := func() ([]byte, *types.NewAPIError) {
-		return nil, types.NewOpenAIError(errors.New("invalid ElevenLabs voice response"), types.ErrorCodeBadResponseBody, http.StatusBadGateway, types.ErrOptionWithSkipRetry())
-	}
-	if operation == ElevenLabsVoiceSave {
-		voiceID := gjson.GetBytes(body, "voice_id")
-		name := gjson.GetBytes(body, "name")
-		if voiceID.Type != gjson.String || voiceID.String() == "" || name.Type != gjson.String || name.String() == "" {
-			return invalid()
-		}
-		output, err := common.Marshal(gin.H{"voice_id": voiceID.String(), "name": name.String()})
-		if err != nil {
-			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
-		}
-		return output, nil
-	}
-	text := gjson.GetBytes(body, "text")
-	previews := gjson.GetBytes(body, "previews")
-	if text.Type != gjson.String || !previews.IsArray() || len(previews.Array()) == 0 {
-		return invalid()
-	}
-	output := make([]gin.H, 0, len(previews.Array()))
-	for _, preview := range previews.Array() {
-		designID := preview.Get("generated_voice_id")
-		audio := preview.Get("audio_base_64")
-		if audio.Type == gjson.Null {
-			audio = preview.Get("audio_base64")
-		}
-		if designID.Type != gjson.String || designID.String() == "" || audio.Type != gjson.String || audio.String() == "" {
-			return invalid()
-		}
-		duration := preview.Get("duration_secs")
-		if duration.Type != gjson.Number || duration.Float() < 0 {
-			return invalid()
-		}
-		output = append(output, gin.H{
-			"design_id": designID.String(), "audio_base64": audio.String(), "media_type": "audio/mpeg", "duration_secs": duration.Float(),
-		})
-	}
-	normalized, err := common.Marshal(gin.H{"previews": output, "text": text.String()})
-	if err != nil {
-		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
-	}
-	return normalized, nil
 }

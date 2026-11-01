@@ -1,6 +1,8 @@
 package tapcomfy
 
 import (
+	"bytes"
+	"mime/multipart"
 	"net/http"
 	"testing"
 
@@ -9,33 +11,41 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func voiceCloneForm(t *testing.T, fields map[string]string, files map[string]string) (string, []byte) {
+	t.Helper()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	for key, value := range fields {
+		require.NoError(t, writer.WriteField(key, value))
+	}
+	for name, content := range files {
+		part, err := writer.CreateFormFile("files", name)
+		require.NoError(t, err)
+		_, err = part.Write([]byte(content))
+		require.NoError(t, err)
+	}
+	require.NoError(t, writer.Close())
+	return writer.FormDataContentType(), body.Bytes()
+}
+
 func TestParseElevenLabsVoiceRequest(t *testing.T) {
 	tests := []struct {
 		name      string
 		operation ElevenLabsVoiceOperation
-		body      string
-		wantBody  string
+		fields    map[string]string
+		files     map[string]string
 		errCode   types.ErrorCode
 	}{
-		{
-			name: "design maps documented fields", operation: ElevenLabsVoiceDesign,
-			body:     `{"model":"elevenlabs-voice-design","description":"A warm and calm narrator with a measured pace.","preview_text":"This preview text is deliberately more than one hundred characters long so that it meets the documented ElevenLabs voice design minimum.","loudness":0,"guidance_scale":5}`,
-			wantBody: `{"voice_description":"A warm and calm narrator with a measured pace.","text":"This preview text is deliberately more than one hundred characters long so that it meets the documented ElevenLabs voice design minimum.","loudness":0,"guidance_scale":5,"model_id":"eleven_multilingual_ttv_v2"}`,
-		},
-		{
-			name: "save maps documented fields", operation: ElevenLabsVoiceSave,
-			body:     `{"model":"elevenlabs-voice-design","design_id":"generated-1","name":"Narrator","description":"A warm and calm narrator with a measured pace."}`,
-			wantBody: `{"voice_name":"Narrator","voice_description":"A warm and calm narrator with a measured pace.","generated_voice_id":"generated-1"}`,
-		},
-		{
-			name: "design rejects absent preview without automatic text", operation: ElevenLabsVoiceDesign,
-			body:    `{"model":"elevenlabs-voice-design","description":"A warm and calm narrator with a measured pace.","auto_generate_text":false}`,
-			errCode: types.ErrorCodeInvalidRequest,
-		},
+		{name: "clone accepts documented multipart fields", operation: ElevenLabsVoiceClone, fields: map[string]string{"name": "Narrator", "description": "Warm", "labels": `{"accent":"british"}`, "remove_background_noise": "true"}, files: map[string]string{"sample.mp3": "audio"}},
+		{name: "clone requires file", operation: ElevenLabsVoiceClone, fields: map[string]string{"name": "Narrator"}, errCode: types.ErrorCodeInvalidRequest},
+		{name: "edit requires name", operation: ElevenLabsVoiceEdit, fields: map[string]string{}, errCode: types.ErrorCodeInvalidRequest},
+		{name: "rejects non string labels", operation: ElevenLabsVoiceClone, fields: map[string]string{"name": "Narrator", "labels": `{"rank":1}`}, files: map[string]string{"sample.mp3": "audio"}, errCode: types.ErrorCodeInvalidRequest},
+		{name: "rejects invalid noise flag", operation: ElevenLabsVoiceClone, fields: map[string]string{"name": "Narrator", "remove_background_noise": "yes"}, files: map[string]string{"sample.mp3": "audio"}, errCode: types.ErrorCodeInvalidRequest},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			request, apiErr := ParseElevenLabsVoiceRequest(tc.operation, []byte(tc.body))
+			contentType, body := voiceCloneForm(t, tc.fields, tc.files)
+			request, apiErr := ParseElevenLabsVoiceRequest(tc.operation, contentType, body, "voice-1")
 			if tc.errCode != "" {
 				require.NotNil(t, apiErr)
 				assert.Equal(t, tc.errCode, apiErr.GetErrorCode())
@@ -43,19 +53,16 @@ func TestParseElevenLabsVoiceRequest(t *testing.T) {
 				return
 			}
 			require.Nil(t, apiErr)
-			body, err := request.upstreamBody()
-			require.NoError(t, err)
-			assert.JSONEq(t, tc.wantBody, string(body))
+			assert.Equal(t, ElevenLabsVoiceCloneModel, request.Model)
+			assert.Equal(t, 1, request.BillableTokens)
+			assert.Equal(t, body, request.body)
 		})
 	}
 }
 
-func TestNormalizeElevenLabsVoiceResponse(t *testing.T) {
-	body, apiErr := normalizeElevenLabsVoiceResponse(ElevenLabsVoiceDesign, []byte(`{"text":"preview text","previews":[{"generated_voice_id":"design-1","audio_base_64":"QUJD","duration_secs":4.2}]}`))
+func TestParseElevenLabsVoiceManagementRequestIsFree(t *testing.T) {
+	request, apiErr := ParseElevenLabsVoiceRequest(ElevenLabsVoiceList, "", nil, "")
 	require.Nil(t, apiErr)
-	assert.JSONEq(t, `{"text":"preview text","previews":[{"design_id":"design-1","audio_base64":"QUJD","media_type":"audio/mpeg","duration_secs":4.2}]}`, string(body))
-
-	body, apiErr = normalizeElevenLabsVoiceResponse(ElevenLabsVoiceSave, []byte(`{"voice_id":"voice-1","name":"Narrator"}`))
-	require.Nil(t, apiErr)
-	assert.JSONEq(t, `{"voice_id":"voice-1","name":"Narrator"}`, string(body))
+	assert.Equal(t, ElevenLabsVoiceCloneModel, request.Model)
+	assert.Zero(t, request.BillableTokens)
 }
