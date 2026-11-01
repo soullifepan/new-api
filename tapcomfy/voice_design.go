@@ -106,7 +106,8 @@ func ParseElevenLabsVoiceRequest(operation ElevenLabsVoiceOperation, body []byte
 			return nil, err
 		}
 		preview := gjson.GetBytes(body, "preview_text")
-		if preview.Exists() {
+		hasPreview := preview.Exists() && preview.Type != gjson.Null
+		if hasPreview {
 			if _, err := voiceString(body, "preview_text", 100, 1000, true); err != nil {
 				return nil, err
 			}
@@ -115,7 +116,7 @@ func ParseElevenLabsVoiceRequest(operation ElevenLabsVoiceOperation, body []byte
 		if auto.Exists() && !auto.IsBool() {
 			return nil, voiceInvalid("auto_generate_text must be a boolean")
 		}
-		if !preview.Exists() && auto.Exists() && !auto.Bool() {
+		if !hasPreview && auto.Exists() && !auto.Bool() {
 			return nil, voiceInvalid("auto_generate_text must be true when preview_text is absent")
 		}
 		for _, field := range []string{"loudness", "guidance_scale"} {
@@ -160,17 +161,21 @@ func (r *ElevenLabsVoiceRequest) upstreamBody() ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		if preview := gjson.GetBytes(body, "preview_text"); preview.Exists() {
+		preview := gjson.GetBytes(body, "preview_text")
+		hasPreview := preview.Exists() && preview.Type == gjson.String && preview.String() != ""
+		if hasPreview {
 			body, err = sjson.SetBytes(body, "text", preview.String())
 			if err != nil {
 				return nil, err
 			}
+		}
+		if preview.Exists() {
 			body, err = sjson.DeleteBytes(body, "preview_text")
 			if err != nil {
 				return nil, err
 			}
 		}
-		if !gjson.GetBytes(body, "auto_generate_text").Exists() && !gjson.GetBytes(r.body, "preview_text").Exists() {
+		if !gjson.GetBytes(body, "auto_generate_text").Exists() && !hasPreview {
 			body, err = sjson.SetBytes(body, "auto_generate_text", true)
 			if err != nil {
 				return nil, err
