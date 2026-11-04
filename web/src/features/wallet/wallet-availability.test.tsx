@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
   act,
   cleanup,
+  fireEvent,
   render,
   renderHook,
   screen,
@@ -116,6 +117,9 @@ test('native Alipay counts as an available payment method', () => {
   }
   const { rerender } = render(<RechargeFormCard {...props} />)
   expect(screen.getByRole('button', { name: 'Alipay' })).toBeEnabled()
+  expect(screen.queryByRole('img', { name: 'Alipay' })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Alipay' }))
+  expect(props.onAlipayNativeSelect).toHaveBeenCalledOnce()
   expect(
     screen.queryByText(
       'No payment methods available. Please contact administrator.'

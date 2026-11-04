@@ -413,11 +413,13 @@ export function RechargeFormCard({
                     }
                     className='min-h-14 w-full justify-start gap-2 rounded-lg px-3 py-2 text-left'
                   >
-                    {paymentLoading === 'alipay_native' ? (
-                      <Loader2 className='h-4 w-4 animate-spin' />
-                    ) : (
-                      getPaymentIcon('alipay_native', 'h-4 w-4')
-                    )}
+                    <span aria-hidden='true'>
+                      {paymentLoading === 'alipay_native' ? (
+                        <Loader2 className='h-4 w-4 animate-spin' />
+                      ) : (
+                        getPaymentIcon('alipay_native', 'h-4 w-4')
+                      )}
+                    </span>
                     <span className='flex min-w-0 flex-col items-start gap-0.5'>
                       <span>{t('Alipay')}</span>
                       {alipayNativeSandbox && (
