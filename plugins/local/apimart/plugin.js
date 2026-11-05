@@ -68,8 +68,8 @@ const gpt25OutputExamples = Object.entries(gpt25OutputSpecs).flatMap(([resolutio
 // Separate 2026-11-04 vendor snapshot: both official Flare/Sunburst model pages
 // https://apimart.ai/model/gpt-image-2-6-{flare,sunburst}
 // publish these tokens and the same effective credit rates. Never use 2.5's
-// low/medium budgets. The catalog's 1M token limits below are conservative
-// reservation inputs for unknown dimensions, not a promise of maximum cost.
+// low/medium budgets. Protocol validation supports the complete documented
+// request; estimates are replaced by validated actual task cost at completion.
 const gpt26Models = new Map([
   ["gpt-image-2.6-flare-am", "gpt-image-2.6-flare"],
   ["gpt-image-2.6-sunburst-am", "gpt-image-2.6-sunburst"],
@@ -123,9 +123,16 @@ const gpt26OutputTokens = {
   "9:21@4k": [983, 1650, 2099, 3598, 8196]
 };
 const gpt26OutputExamples = ["1k", "2k", "4k"].flatMap(resolution => ["low", "medium", "high", "xhigh", "max"].map((quality, index) => ({
-  label: "1:1 · " + resolution.toUpperCase() + " · " + quality + " · output estimate only / 仅输出预估",
+  label: "1:1 " + resolution.toUpperCase() + " " + quality + " · ref output estimate / 仅参考图输出预估",
   facts: { upstream_credits: gpt26OutputTokens["1:1" + (resolution === "1k" ? "" : "@" + resolution)][index] * 240 / 1000000 },
 })));
+// The host accepts at most 16 examples per profile. Keep all 15 static/SVG
+// reference quality/resolution entries and one representative GIF output sample.
+// SVG authoring text and all inputs are excluded from these display-only prices.
+gpt26OutputExamples.push({
+  label: "GIF 9×512² low · output estimate / 仅输出预估",
+  facts: { upstream_credits: 1172 * 240 / 1000000 },
+});
 
 export const meta = {
   apiVersion: 1,
@@ -136,7 +143,7 @@ export const meta = {
     en: "AM asynchronous image generation tasks",
     zh: "AM 异步图片生成任务",
   },
-  version: "0.12.0",
+  version: "0.12.2",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   usageProfiles: (function () {
@@ -533,8 +540,7 @@ function gpt26LayerURL(value, name, markup) {
 }
 
 function normalizeGPT26(model, request) {
-  if (["gif", "svg"].includes(request.output_format)) throw new Error("GPT Image 2.6 GIF and SVG are not enabled; only static png, jpeg and webp are supported");
-  const allowed = new Set(["model", "prompt", "size", "resolution", "n", "image_urls", "quality", "output_format", "output_compression", "background", "moderation", "mask_url", "markup_url", "markup", "complexity", "safety_identifier"]);
+  const allowed = new Set(["model", "prompt", "size", "resolution", "n", "image_urls", "quality", "output_format", "output_compression", "background", "moderation", "mask_url", "markup_url", "markup", "complexity", "safety_identifier", "frame_count", "frame_duration_ms", "svg"]);
   for (const key of Object.keys(request)) {
     if (!allowed.has(key)) throw new Error("unsupported GPT Image 2.6 field: " + key);
   }
@@ -545,7 +551,7 @@ function normalizeGPT26(model, request) {
   for (const [field, values, fallback] of [
     ["resolution", ["1k", "2k", "4k"], "1k"],
     ["quality", ["auto", "low", "medium", "high", "xhigh", "max"], "auto"],
-    ["output_format", ["png", "jpeg", "webp"], "png"],
+    ["output_format", ["png", "jpeg", "webp", "gif", "svg"], "png"],
     ["moderation", ["auto", "low"], "low"],
     ["background", ["transparent", "opaque", "auto"], undefined],
     ["complexity", ["low", "medium", "high"], undefined],
@@ -555,7 +561,47 @@ function normalizeGPT26(model, request) {
     if (!values.includes(value)) throw new Error("unsupported " + field);
     output[field] = value;
   }
-  if (request.size !== undefined) {
+  const gif = output.output_format === "gif";
+  const svg = output.output_format === "svg";
+  if (gif || svg) {
+    if (["image_urls", "mask_url", "markup_url", "markup"].some(field => request[field] !== undefined)) throw new Error("GIF and SVG only support text-to-image generation");
+  }
+  if (!gif && (request.frame_count !== undefined || request.frame_duration_ms !== undefined)) throw new Error("frame_count and frame_duration_ms are only supported with GIF");
+  if (!svg && request.svg !== undefined) throw new Error("svg configuration is only supported with SVG");
+  if (svg) {
+    if (n !== 1) throw new Error("SVG requires n=1");
+    const config = object(request.svg, "SVG requires svg.model");
+    if (Object.keys(config).some(key => !["model", "reasoning"].includes(key))) throw new Error("unsupported svg field");
+    if (typeof config.model !== "string" || !config.model.trim()) throw new Error("SVG requires svg.model");
+    output.svg = { model: config.model };
+    if (config.reasoning !== undefined) {
+      const reasoning = object(config.reasoning, "svg.reasoning must be an object");
+      if (Object.keys(reasoning).some(key => key !== "effort")) throw new Error("unsupported svg.reasoning field");
+      output.svg.reasoning = {};
+      if (reasoning.effort !== undefined) {
+        if (!["none", "minimal", "low", "medium", "high", "xhigh", "max"].includes(reasoning.effort)) throw new Error("unsupported svg.reasoning.effort");
+        output.svg.reasoning.effort = reasoning.effort;
+      }
+    }
+  }
+  if (gif) {
+    const frames = request.frame_count === undefined ? 9 : request.frame_count;
+    if (!Number.isInteger(frames) || frames < 2 || frames > 16) throw new Error("frame_count must be an integer from 2 to 16");
+    const duration = request.frame_duration_ms === undefined ? 200 : request.frame_duration_ms;
+    if (!Number.isSafeInteger(duration) || duration < 20) throw new Error("frame_duration_ms must be a safe integer of at least 20 milliseconds");
+    output.frame_count = frames;
+    // The provider rounds to 10ms. Keep the supplied integer so wire semantics
+    // do not depend on an undocumented local rounding direction.
+    output.frame_duration_ms = duration;
+    const size = request.size === undefined ? "auto" : request.size;
+    const match = typeof size === "string" && /^(\d{1,4})x(\d{1,4})$/.exec(size);
+    if (size !== "auto" && !match) throw new Error("GIF size must be auto or frame pixel dimensions");
+    const width = match ? Number(match[1]) : 512;
+    const height = match ? Number(match[2]) : 512;
+    if (!width || !height || width % 16 || height % 16) throw new Error("GIF frame dimensions must be positive multiples of 16");
+    gpt26GIFSheet(width, height, frames);
+    if (request.size !== undefined) output.size = size;
+  } else if (request.size !== undefined) {
     const size = request.size;
     if (typeof size !== "string") throw new Error("unsupported GPT Image 2.6 size");
     if (!gptImage2Sizes.has(size)) {
@@ -566,7 +612,7 @@ function normalizeGPT26(model, request) {
     }
     output.size = size;
   }
-  if (output.background === "transparent" && output.output_format === "jpeg") throw new Error("transparent background requires png or webp");
+  if (output.background === "transparent" && !["png", "webp"].includes(output.output_format)) throw new Error("transparent background requires png or webp");
   if (request.output_compression !== undefined) {
     if (!Number.isInteger(request.output_compression) || request.output_compression < 0 || request.output_compression > 100) throw new Error("output_compression must be an integer from 0 to 100");
     if (!["jpeg", "webp"].includes(output.output_format)) throw new Error("output_compression is only supported with jpeg or webp");
@@ -600,31 +646,60 @@ function normalizeGPT26(model, request) {
   return output;
 }
 
+// APIMart arranges each GIF into one billable sheet, rotating the layout to
+// approach a square. Reuse this for validation and the output-token estimate.
+function gpt26GIFSheet(frameWidth, frameHeight, frames) {
+  let columns = frames <= 8 ? 4 : frames === 9 ? 3 : 4;
+  let rows = frames <= 8 ? 2 : frames === 9 ? 3 : frames <= 12 ? 3 : 4;
+  const normalAspect = frameWidth * columns / (frameHeight * rows);
+  const transposedAspect = frameWidth * rows / (frameHeight * columns);
+  if (Math.abs(Math.log(transposedAspect)) < Math.abs(Math.log(normalAspect))) [columns, rows] = [rows, columns];
+  const width = frameWidth * columns, height = frameHeight * rows;
+  if (Math.max(width, height) > 3840 || width * height > 8294400 || Math.max(width, height) > Math.min(width, height) * 3) throw new Error("no supported sheet fits GIF frames at the requested size");
+  return { width, height };
+}
+
 function gpt26Usage(request) {
-  let tokens;
-  if (gptImage2Sizes.has(request.size) && request.size !== "auto") tokens = gpt26OutputTokens[request.size + (request.resolution === "1k" ? "" : "@" + request.resolution)];
-  if (request.size && request.size.includes("x")) {
-    const [width, height] = request.size.split("x").map(Number);
-    // The vendor documents the same static pixel mapping as 2.5, but not its tokens.
-    for (const [resolution, specs] of Object.entries(gpt25OutputSpecs)) {
-      for (const [ratio, spec] of Object.entries(specs)) {
-        if (spec.pixels === Math.max(width, height) + "x" + Math.min(width, height)) tokens = gpt26OutputTokens[ratio + (resolution === "1k" ? "" : "@" + resolution)];
-      }
-    }
-  }
   const quality = request.quality === "auto" ? "max" : request.quality;
-  // Unknown custom pixels / auto / inferred first-image size: use the official
-  // catalog's output-token envelope, never interpolate by area or assume 1:1.
-  const outputTokens = tokens ? tokens[["low", "medium", "high", "xhigh", "max"].indexOf(quality)] : gpt26TokenLimit;
+  let width, height;
+  if (request.output_format === "gif") {
+    const [frameWidth, frameHeight] = (request.size && request.size !== "auto" ? request.size : "512x512").split("x").map(Number);
+    ({ width, height } = gpt26GIFSheet(frameWidth, frameHeight, request.frame_count));
+  } else if (request.size && request.size.includes("x")) {
+    [width, height] = request.size.split("x").map(Number);
+  } else {
+    // Follow the vendor playground's 1:1 reference for automatic/unknown first
+    // image dimensions, without changing omitted size into explicit auto on wire.
+    const ratio = request.size && request.size !== "auto" ? request.size : "1:1";
+    const [first, second] = ratio.split(":").map(Number);
+    const landscape = Math.max(first, second) + ":" + Math.min(first, second);
+    // Only the pixel mapping is shared with 2.5; never use its token counts.
+    const pixels = gpt25OutputSpecs[request.resolution][landscape].pixels;
+    [width, height] = pixels.split("x").map(Number);
+  }
+  // OpenAI's GPT Image 2.6 output calculator uses this quality grid and rounds
+  // the short grid edge to nearest, ties to even. APIMart rounds the final
+  // low/medium factor upward (OpenAI's display rounds to nearest). This version
+  // matches all 225 vendor catalog values and its nine extra GIF pixel examples.
+  // Source: developers.openai.com/api/docs/guides/image-generation#calculating-costs
+  // Snapshot: GptImageTokenCalculator.react.DcSj7WaD.js, 2026-11-05.
+  const longGrid = { low: 16, medium: 24, high: 48, xhigh: 64, max: 96 }[quality];
+  const shortExact = longGrid / (Math.max(width, height) / Math.min(width, height));
+  const shortFloor = Math.floor(shortExact);
+  const shortGrid = shortExact - shortFloor === 0.5 ? shortFloor + shortFloor % 2 : Math.round(shortExact);
+  const baseOutput = Math.ceil(longGrid * shortGrid * (2000000 + width * height) / 4000000);
+  const outputTokens = Math.ceil(baseOutput * (quality === "low" ? 4.2 : quality === "medium" ? 3.3 : 1));
   let textTokens = 0;
   for (const character of request.prompt) {
     const point = character.codePointAt(0);
     textTokens += point <= 0x7f ? 1 : point <= 0x7ff ? 2 : point <= 0xffff ? 3 : 4;
   }
-  // Reference dimensions cannot be probed here. The published input envelope
-  // covers their unknown token use; markup can add text but no image tokens.
-  if (request.markup_url) textTokens = gpt26TokenLimit;
-  const imageTokens = request.image_urls && request.image_urls.length ? gpt26TokenLimit : 0;
+  // Keep the existing 2.5 reference-input estimate, not a claimed 2.6 token cap.
+  // Markup has no separate image fee; internal extra text is not measured here.
+  const imageTokens = (request.image_urls || []).length * 16384;
+  // Approved reference reservation: SVG includes the raster reference and prompt
+  // only. Authoring text is unestimated, not free; completion replaces the whole
+  // fact with the vendor's task cost, without adding svg_usage a second time.
   return { upstream_credits: (request.n * outputTokens * 240 + textTokens * 40 + imageTokens * 64) / 1000000 };
 }
 

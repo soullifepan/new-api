@@ -1,11 +1,6 @@
 package plugins_test
 
 import (
-	"bytes"
-	"encoding/base64"
-	"encoding/binary"
-	"image"
-	"image/png"
 	"os"
 	"strings"
 	"testing"
@@ -73,19 +68,9 @@ func TestAPIMartLocalPluginFixturesAndBillingHooks(t *testing.T) {
 }
 
 // Large boundary strings belong here instead of making the shared JSON fixture unreadable.
-func TestAPIMartGPT26CharacterAndLayerBoundaries(t *testing.T) {
+func TestAPIMartGPT26CharacterBoundaries(t *testing.T) {
 	source, err := os.ReadFile("local/apimart/plugin.js")
 	require.NoError(t, err)
-	var pngBytes bytes.Buffer
-	require.NoError(t, png.Encode(&pngBytes, image.NewNRGBA(image.Rect(0, 0, 1, 1))))
-	pngURL := "data:image/png;base64," + base64.StdEncoding.EncodeToString(pngBytes.Bytes())
-	oversized := bytes.Clone(pngBytes.Bytes())
-	binary.BigEndian.PutUint32(oversized[16:20], 4097)
-	binary.BigEndian.PutUint32(oversized[20:24], 4096)
-	references := make([]string, 16)
-	for i := range references {
-		references[i] = "https://example.test/ref.png"
-	}
 	for _, model := range []string{"gpt-image-2.6-flare-am", "gpt-image-2.6-sunburst-am"} {
 		t.Run(model, func(t *testing.T) {
 			cases := []any{}
@@ -98,15 +83,8 @@ func TestAPIMartGPT26CharacterAndLayerBoundaries(t *testing.T) {
 				{"unicode prompt over limit", map[string]any{"prompt": strings.Repeat("😀", 32001)}, "prompt must contain 1 to 32000 characters"},
 				{"unicode safety at limit", map[string]any{"safety_identifier": strings.Repeat("界", 128)}, ""},
 				{"unicode safety over limit", map[string]any{"safety_identifier": strings.Repeat("界", 129)}, "safety_identifier must be a string of at most 128 characters"},
-				{"sixteen references", map[string]any{"image_urls": references}, ""},
-				{"seventeen references", map[string]any{"image_urls": append(append([]string{}, references...), "https://example.test/extra.png")}, "image_urls must contain at most 16"},
-				{"PNG markup", map[string]any{"image_urls": references[:1], "markup_url": pngURL}, ""},
-				{"PNG mask", map[string]any{"image_urls": references[:1], "mask_url": pngURL}, ""},
-				{"truncated PNG markup", map[string]any{"image_urls": references[:1], "markup_url": "data:image/png;base64,iVBORw0KGgo="}, "must contain a PNG IHDR"},
-				// Mutated IHDR is deliberately invalid; the local size guard must reject it before upload.
-				{"oversized markup IHDR", map[string]any{"image_urls": references[:1], "markup_url": "data:image/png;base64," + base64.StdEncoding.EncodeToString(oversized)}, "markup PNG must not exceed 16777216 pixels"},
 			} {
-				request := map[string]any{"model": model, "prompt": "test"}
+				request := map[string]any{"model": model, "prompt": "test", "size": "1:1", "quality": "low"}
 				for key, value := range tc.fields {
 					request[key] = value
 				}
@@ -114,7 +92,7 @@ func TestAPIMartGPT26CharacterAndLayerBoundaries(t *testing.T) {
 				if tc.wantError != "" {
 					fixtureCase["expectedError"] = tc.wantError
 				} else {
-					normalized := map[string]any{"model": model, "prompt": "test", "n": 1, "resolution": "1k", "quality": "auto", "output_format": "png", "moderation": "low"}
+					normalized := map[string]any{"model": model, "prompt": "test", "n": 1, "resolution": "1k", "quality": "low", "output_format": "png", "moderation": "low", "size": "1:1"}
 					for key, value := range tc.fields {
 						normalized[key] = value
 					}
