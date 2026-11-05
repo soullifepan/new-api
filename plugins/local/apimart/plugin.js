@@ -64,6 +64,69 @@ const gpt25OutputExamples = Object.entries(gpt25OutputSpecs).flatMap(([resolutio
   facts: { upstream_credits: count * 24 / 100000 },
 })));
 
+// GPT Image 2.6 is an APIMart preview, not a live-service guarantee.
+// Separate 2026-11-04 vendor snapshot: both official Flare/Sunburst model pages
+// https://apimart.ai/model/gpt-image-2-6-{flare,sunburst}
+// publish these tokens and the same effective credit rates. Never use 2.5's
+// low/medium budgets. The catalog's 1M token limits below are conservative
+// reservation inputs for unknown dimensions, not a promise of maximum cost.
+const gpt26Models = new Map([
+  ["gpt-image-2.6-flare-am", "gpt-image-2.6-flare"],
+  ["gpt-image-2.6-sunburst-am", "gpt-image-2.6-sunburst"],
+]);
+const gpt26TokenLimit = 1000000;
+const gpt26OutputTokens = {
+  "16:9": [504, 924, 1078, 1917, 4312],
+  "16:9@2k": [660, 1212, 1413, 2511, 5650],
+  "16:9@4k": [1559, 2855, 3336, 5930, 13342],
+  "1:1": [824, 1449, 1756, 3122, 7024],
+  "1:1@2k": [1668, 2944, 3568, 6343, 14272],
+  "1:1@4k": [2768, 4894, 5930, 10542, 23719],
+  "1:2": [555, 974, 1180, 2098, 4720],
+  "1:2@2k": [756, 1337, 1617, 2874, 6466],
+  "1:2@4k": [1260, 2228, 2700, 4799, 10798],
+  "1:3": [236, 443, 535, 937, 2140],
+  "1:3@2k": [433, 816, 988, 1729, 3952],
+  "1:3@4k": [584, 1096, 1328, 2324, 5311],
+  "21:9": [441, 743, 943, 1617, 3682],
+  "21:9@2k": [601, 1010, 1285, 2202, 5016],
+  "21:9@4k": [983, 1650, 2099, 3598, 8196],
+  "2:1": [555, 974, 1180, 2098, 4720],
+  "2:1@2k": [756, 1337, 1617, 2874, 6466],
+  "2:1@4k": [1260, 2228, 2700, 4799, 10798],
+  "2:3": [664, 1132, 1372, 2459, 5488],
+  "2:3@2k": [887, 1518, 1838, 3216, 7351],
+  "2:3@4k": [1890, 3241, 3926, 6870, 15703],
+  "3:1": [236, 443, 535, 937, 2140],
+  "3:1@2k": [433, 816, 988, 1729, 3952],
+  "3:1@4k": [584, 1096, 1328, 2324, 5311],
+  "3:2": [664, 1132, 1372, 2459, 5488],
+  "3:2@2k": [887, 1518, 1838, 3216, 7351],
+  "3:2@4k": [1890, 3241, 3926, 6870, 15703],
+  "3:4": [563, 994, 1204, 2140, 4815],
+  "3:4@2k": [1038, 1835, 2223, 3952, 8892],
+  "3:4@4k": [2063, 3644, 4413, 7845, 17650],
+  "4:3": [563, 994, 1204, 2140, 4815],
+  "4:3@2k": [1038, 1835, 2223, 3952, 8892],
+  "4:3@4k": [2063, 3644, 4413, 7845, 17650],
+  "4:5": [727, 1248, 1510, 2702, 6119],
+  "4:5@2k": [1584, 2726, 3303, 5911, 13385],
+  "4:5@4k": [2247, 3871, 4690, 8393, 19006],
+  "5:4": [727, 1248, 1510, 2702, 6119],
+  "5:4@2k": [1584, 2726, 3303, 5911, 13385],
+  "5:4@4k": [2247, 3871, 4690, 8393, 19006],
+  "9:16": [504, 924, 1078, 1917, 4312],
+  "9:16@2k": [660, 1212, 1413, 2511, 5650],
+  "9:16@4k": [1559, 2855, 3336, 5930, 13342],
+  "9:21": [441, 743, 943, 1617, 3682],
+  "9:21@2k": [601, 1010, 1285, 2202, 5016],
+  "9:21@4k": [983, 1650, 2099, 3598, 8196]
+};
+const gpt26OutputExamples = ["1k", "2k", "4k"].flatMap(resolution => ["low", "medium", "high", "xhigh", "max"].map((quality, index) => ({
+  label: "1:1 · " + resolution.toUpperCase() + " · " + quality + " · output estimate only / 仅输出预估",
+  facts: { upstream_credits: gpt26OutputTokens["1:1" + (resolution === "1k" ? "" : "@" + resolution)][index] * 240 / 1000000 },
+})));
+
 export const meta = {
   apiVersion: 1,
   key: "am-image",
@@ -73,11 +136,17 @@ export const meta = {
     en: "AM asynchronous image generation tasks",
     zh: "AM 异步图片生成任务",
   },
-  version: "0.11.1",
+  version: "0.12.0",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   usageProfiles: (function () {
     const schemas = {
+    "gpt-image-2.6-flare-am": {
+      upstream_credits: { type: "number", unit: "credit", description: { en: "Image generation credit unit price", zh: "图片生成积分单价" } },
+    },
+    "gpt-image-2.6-sunburst-am": {
+      upstream_credits: { type: "number", unit: "credit", description: { en: "Image generation credit unit price", zh: "图片生成积分单价" } },
+    },
     "gpt-image-2.5-ext-am": {
       images: { type: "number", unit: "count", unitLabel: { en: "image", zh: "张" }, description: { en: "Image generation unit price", zh: "图片生成单价" } },
       resolution: { enum: ["1k", "2k", "4k"], description: { en: "Output resolution", zh: "输出分辨率" } },
@@ -150,6 +219,8 @@ export const meta = {
     },
     };
     const examples = {
+    "gpt-image-2.6-flare-am": gpt26OutputExamples,
+    "gpt-image-2.6-sunburst-am": gpt26OutputExamples,
     "gpt-image-2.5-ext-am": ["flare", "sunburst"].flatMap(version => ["1k", "2k", "4k"].map(resolution => ({ label: version + " · " + resolution.toUpperCase(), facts: { images: 1, version, resolution } }))),
     "gpt-image-2.5-flare-am": gpt25OutputExamples,
     "gpt-image-2.5-sunburst-am": gpt25OutputExamples,
@@ -205,6 +276,7 @@ export const meta = {
   // available to ordinary channels without being classified as task models.
   models: [
     ...gpt25Models.keys(),
+    ...gpt26Models.keys(),
     "nano-banana-am",
     "nano-banana-2-am",
     "nano-banana-pro-am",
@@ -335,6 +407,7 @@ function normalizedProSize(value) {
 }
 
 function normalizeAPIMartModelRequest(model, request) {
+  if (gpt26Models.has(model)) return normalizeGPT26(model, request);
   if (gpt25Models.has(model)) return normalizeGPT25(model, request);
   const banana = nanoBananaModels.get(model);
   if (banana) {
@@ -434,6 +507,153 @@ function normalizeAPIMartModelRequest(model, request) {
   return output;
 }
 
+// Remote file MIME, alpha, dimensions and matching overlay/source dimensions
+// remain vendor validations; do not fetch arbitrary client URLs with credentials.
+function gpt26LayerURL(value, name, markup) {
+  if (typeof value !== "string") throw new Error(name + " must be a PNG data URL or an image URL");
+  const http = markup ? /^https:\/\/[^\s/@]+(?:[/?#][^\s]*)?$/i : /^https?:\/\/[^\s/@]+(?:[/?#][^\s]*)?$/i;
+  if (http.test(value)) return value;
+  const data = /^data:image\/png;base64,([a-z0-9+/]+={0,2})$/i.exec(value);
+  if (!data || data[1].length % 4 !== 0 || !data[1].startsWith("iVBORw0KGgo")) throw new Error(name + " must be a PNG data URL or " + (markup ? "HTTPS" : "HTTP(S)") + " URL");
+  const padding = data[1].endsWith("==") ? 2 : data[1].endsWith("=") ? 1 : 0;
+  if (markup && data[1].length / 4 * 3 - padding > 50 * 1024 * 1024) throw new Error("markup PNG must not exceed 50 MB");
+  // Read only the PNG IHDR prefix; no generic binary or image framework.
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  const bytes = [];
+  for (let index = 0; index + 3 < Math.min(data[1].length, 36); index += 4) {
+    const bits = alphabet.indexOf(data[1][index]) * 262144 + alphabet.indexOf(data[1][index + 1]) * 4096 + alphabet.indexOf(data[1][index + 2]) * 64 + alphabet.indexOf(data[1][index + 3]);
+    bytes.push((bits >>> 16) & 255, (bits >>> 8) & 255, bits & 255);
+  }
+  if (bytes.length < 24 || bytes.slice(8, 12).join(",") !== "0,0,0,13" || bytes.slice(12, 16).join(",") !== "73,72,68,82") throw new Error(name + " must contain a PNG IHDR");
+  const width = bytes[16] * 16777216 + bytes[17] * 65536 + bytes[18] * 256 + bytes[19];
+  const height = bytes[20] * 16777216 + bytes[21] * 65536 + bytes[22] * 256 + bytes[23];
+  if (!width || !height) throw new Error(name + " PNG dimensions must be positive");
+  if (markup && width * height > 16777216) throw new Error("markup PNG must not exceed 16777216 pixels");
+  return value;
+}
+
+function normalizeGPT26(model, request) {
+  if (["gif", "svg"].includes(request.output_format)) throw new Error("GPT Image 2.6 GIF and SVG are not enabled; only static png, jpeg and webp are supported");
+  const allowed = new Set(["model", "prompt", "size", "resolution", "n", "image_urls", "quality", "output_format", "output_compression", "background", "moderation", "mask_url", "markup_url", "markup", "complexity", "safety_identifier"]);
+  for (const key of Object.keys(request)) {
+    if (!allowed.has(key)) throw new Error("unsupported GPT Image 2.6 field: " + key);
+  }
+  if (typeof request.prompt !== "string" || !request.prompt.trim() || Array.from(request.prompt).length > 32000) throw new Error("prompt must contain 1 to 32000 characters");
+  const n = request.n === undefined ? 1 : request.n;
+  if (!Number.isInteger(n) || n < 1 || n > 4) throw new Error("n must be an integer between 1 and 4");
+  const output = { model, prompt: request.prompt, n };
+  for (const [field, values, fallback] of [
+    ["resolution", ["1k", "2k", "4k"], "1k"],
+    ["quality", ["auto", "low", "medium", "high", "xhigh", "max"], "auto"],
+    ["output_format", ["png", "jpeg", "webp"], "png"],
+    ["moderation", ["auto", "low"], "low"],
+    ["background", ["transparent", "opaque", "auto"], undefined],
+    ["complexity", ["low", "medium", "high"], undefined],
+  ]) {
+    const value = request[field] === undefined ? fallback : request[field];
+    if (value === undefined) continue;
+    if (!values.includes(value)) throw new Error("unsupported " + field);
+    output[field] = value;
+  }
+  if (request.size !== undefined) {
+    const size = request.size;
+    if (typeof size !== "string") throw new Error("unsupported GPT Image 2.6 size");
+    if (!gptImage2Sizes.has(size)) {
+      const match = /^(\d{1,4})x(\d{1,4})$/.exec(size);
+      if (!match) throw new Error("unsupported GPT Image 2.6 size");
+      const width = Number(match[1]), height = Number(match[2]), pixels = width * height;
+      if (width % 16 || height % 16 || Math.max(width, height) > 3840 || pixels < 655360 || pixels > 8294400 || Math.max(width, height) > Math.min(width, height) * 3) throw new Error("pixel dimensions must be multiples of 16, at most 3840 per edge, 655360 to 8294400 pixels, and at most 3:1");
+    }
+    output.size = size;
+  }
+  if (output.background === "transparent" && output.output_format === "jpeg") throw new Error("transparent background requires png or webp");
+  if (request.output_compression !== undefined) {
+    if (!Number.isInteger(request.output_compression) || request.output_compression < 0 || request.output_compression > 100) throw new Error("output_compression must be an integer from 0 to 100");
+    if (!["jpeg", "webp"].includes(output.output_format)) throw new Error("output_compression is only supported with jpeg or webp");
+    output.output_compression = request.output_compression;
+  }
+  const images = imageURLs(request.image_urls, 16);
+  if (images) {
+    if (images.some(url => !/^https?:\/\/[^\s/@]+(?:[/?#][^\s]*)?$/i.test(url))) throw new Error("reference images must be public HTTP(S) URLs");
+    output.image_urls = images;
+  }
+  if (request.mask_url !== undefined) {
+    if (!images || !images.length) throw new Error("mask_url requires image_urls");
+    output.mask_url = gpt26LayerURL(request.mask_url, "mask_url", false);
+  }
+  if (request.markup_url !== undefined || request.markup !== undefined) {
+    if (!images || !images.length) throw new Error("markup requires image_urls");
+    if (request.mask_url !== undefined) throw new Error("markup cannot be combined with mask_url");
+    if (request.markup_url !== undefined && request.markup !== undefined) throw new Error("use only one of markup_url or markup");
+    let markup = request.markup_url === undefined ? request.markup : request.markup_url;
+    if (request.markup !== undefined && typeof markup !== "string") {
+      object(markup, "markup must be a string or an image_url object");
+      if (Object.keys(markup).length !== 1 || typeof markup.image_url !== "string") throw new Error("markup must contain only image_url; file_id is unsupported");
+      markup = markup.image_url;
+    }
+    output.markup_url = gpt26LayerURL(markup, "markup", true);
+  }
+  if (request.safety_identifier !== undefined) {
+    if (typeof request.safety_identifier !== "string" || Array.from(request.safety_identifier).length > 128) throw new Error("safety_identifier must be a string of at most 128 characters");
+    output.safety_identifier = request.safety_identifier;
+  }
+  return output;
+}
+
+function gpt26Usage(request) {
+  let tokens;
+  if (gptImage2Sizes.has(request.size) && request.size !== "auto") tokens = gpt26OutputTokens[request.size + (request.resolution === "1k" ? "" : "@" + request.resolution)];
+  if (request.size && request.size.includes("x")) {
+    const [width, height] = request.size.split("x").map(Number);
+    // The vendor documents the same static pixel mapping as 2.5, but not its tokens.
+    for (const [resolution, specs] of Object.entries(gpt25OutputSpecs)) {
+      for (const [ratio, spec] of Object.entries(specs)) {
+        if (spec.pixels === Math.max(width, height) + "x" + Math.min(width, height)) tokens = gpt26OutputTokens[ratio + (resolution === "1k" ? "" : "@" + resolution)];
+      }
+    }
+  }
+  const quality = request.quality === "auto" ? "max" : request.quality;
+  // Unknown custom pixels / auto / inferred first-image size: use the official
+  // catalog's output-token envelope, never interpolate by area or assume 1:1.
+  const outputTokens = tokens ? tokens[["low", "medium", "high", "xhigh", "max"].indexOf(quality)] : gpt26TokenLimit;
+  let textTokens = 0;
+  for (const character of request.prompt) {
+    const point = character.codePointAt(0);
+    textTokens += point <= 0x7f ? 1 : point <= 0x7ff ? 2 : point <= 0xffff ? 3 : 4;
+  }
+  // Reference dimensions cannot be probed here. The published input envelope
+  // covers their unknown token use; markup can add text but no image tokens.
+  if (request.markup_url) textTokens = gpt26TokenLimit;
+  const imageTokens = request.image_urls && request.image_urls.length ? gpt26TokenLimit : 0;
+  return { upstream_credits: (request.n * outputTokens * 240 + textTokens * 40 + imageTokens * 64) / 1000000 };
+}
+
+function gpt26ActualCredits(data) {
+  // Local sanity ceiling from the largest supported reservation envelope:
+  // 4M image output + 1M text input + 1M image input at the catalog rates.
+  // It is not a price promise; actual costs can exceed a reference estimate.
+  const ceiling = (4 * gpt26TokenLimit * 240 + gpt26TokenLimit * 40 + gpt26TokenLimit * 64) / 10000000;
+  if (typeof data.cost !== "number" || !Number.isFinite(data.cost) || data.cost < 0 || data.cost > ceiling) return null;
+  if (data.credits_cost !== undefined && (typeof data.credits_cost !== "number" || !Number.isFinite(data.credits_cost) || data.credits_cost < 0 || Math.abs(data.credits_cost - data.cost * 10) > 0.00001)) return null;
+  return data.cost * 10;
+}
+
+function gpt26DeliveredCount(ctx, data) {
+  const requested = ctx.state && ctx.state.gpt26_requested_images;
+  if (!Number.isInteger(requested) || requested < 1 || requested > 4) return null;
+  const images = data.result && data.result.images;
+  if (!Array.isArray(images) || !images.length) return null;
+  const urls = new Set();
+  for (const image of images) {
+    if (!image || !Array.isArray(image.url) || !image.url.length) return null;
+    for (const url of image.url) {
+      if (typeof url !== "string" || !/^https?:\/\/[^\s/@]+(?:[/?#][^\s]*)?$/i.test(url)) return null;
+      urls.add(url);
+    }
+  }
+  return urls.size > 0 && urls.size <= requested ? urls.size : null;
+}
+
 function normalizeGPT25(model, request) {
   const ext = model === gpt25Ext;
   const allowed = new Set(["model", "prompt", "size", "resolution", "n", "image_urls", ...(ext ? ["version"] : ["quality", "output_format", "output_compression", "background", "moderation"])]);
@@ -525,7 +745,7 @@ function gpt25ActualCredits(data) {
   // The explicit customer contract is validated upstream USD, without applying
   // the published 20% discount a second time. Never coerce null/strings to zero.
   if (typeof data.cost !== "number" || !Number.isFinite(data.cost) || data.cost < 0 || data.cost > 100) return null;
-  if (data.credits_cost !== undefined && (typeof data.credits_cost !== "number" || !Number.isFinite(data.credits_cost) || Math.abs(data.credits_cost - data.cost * 10) > 0.00001)) return null;
+  if (data.credits_cost !== undefined && (typeof data.credits_cost !== "number" || !Number.isFinite(data.credits_cost) || data.credits_cost < 0 || Math.abs(data.credits_cost - data.cost * 10) > 0.00001)) return null;
   return data.cost * 10;
 }
 
@@ -727,7 +947,8 @@ export function buildSubmitRequest(ctx) {
   const publicModel = trimmed(ctx.model || request.model);
   const banana = nanoBananaModels.get(publicModel);
   const upstreamModel = trimmed(ctx.upstreamModel);
-  const model = gpt25Models.has(publicModel) && (!upstreamModel || upstreamModel === publicModel) ? gpt25Models.get(publicModel) : banana && (!upstreamModel || upstreamModel === publicModel) ? banana.upstream : upstreamModel || publicModel;
+  const model = gpt26Models.has(publicModel) && (!upstreamModel || upstreamModel === publicModel) ? gpt26Models.get(publicModel) : gpt25Models.has(publicModel) && (!upstreamModel || upstreamModel === publicModel) ? gpt25Models.get(publicModel) : banana && (!upstreamModel || upstreamModel === publicModel) ? banana.upstream : upstreamModel || publicModel;
+  if (gpt26Models.has(publicModel) && model !== gpt26Models.get(publicModel)) throw new Error("upstream model must match the GPT Image 2.6 alias");
   if (gpt25Models.has(publicModel) && model !== gpt25Models.get(publicModel)) throw new Error("upstream model must match the GPT Image 2.5 alias");
   if (banana && ![banana.upstream, publicModel.slice(0, -3)].includes(model)) {
     throw new Error("upstream model must match the Nano Banana " + (banana.credits ? "credit" : "ext") + " alias");
@@ -751,6 +972,9 @@ export function buildSubmitRequest(ctx) {
 
 export function parseSubmitResponse(ctx, response) {
   const body = object(response && response.body, "invalid AM submit response");
+  if (gpt26Models.has(ctx.model) && (![200, 202].includes(Number(body.code)) || !(Array.isArray(body.data) && body.data[0] && trimmed(body.data[0].task_id)))) {
+    return { taskId: "am-" + (ctx.publicTaskId || utils.uuid()), taskData: {}, immediate: { status: "FAILURE", reason: failureReason(body, publicMessage(body.message) || "AM image task submission failed or is missing task_id") } };
+  }
   if (![200, 202].includes(Number(body.code))) throw new Error(publicMessage(body.message) || "AM image task submission failed");
   const entries = Array.isArray(body.data) ? body.data : [];
   const submitted = entries[0] && typeof entries[0] === "object" ? entries[0] : body.data && typeof body.data === "object" ? body.data : {};
@@ -758,8 +982,9 @@ export function parseSubmitResponse(ctx, response) {
   if (!taskId) throw new Error("AM submit response is missing task_id");
   const request = ctx && ctx.requestBody && typeof ctx.requestBody === "object" ? ctx.requestBody : {};
   const publicModel = trimmed(ctx && ctx.model || request.model);
-  const normalized = publicModel === "seedream-5-0-pro-am" || nanoBananaModels.has(publicModel) || gpt25Models.has(publicModel) ? normalizeAPIMartModelRequest(publicModel, request) : null;
-  const billingUsage = normalized ? gpt25Models.has(publicModel) ? gpt25Usage(publicModel, normalized) : apimartUsage(normalized, publicModel) : null;
+  const normalized = gpt26Models.has(publicModel) || publicModel === "seedream-5-0-pro-am" || nanoBananaModels.has(publicModel) || gpt25Models.has(publicModel) ? normalizeAPIMartModelRequest(publicModel, request) : null;
+  const billingUsage = normalized ? gpt26Models.has(publicModel) ? gpt26Usage(normalized) : gpt25Models.has(publicModel) ? gpt25Usage(publicModel, normalized) : apimartUsage(normalized, publicModel) : null;
+  if (gpt26Models.has(publicModel)) return { taskId, taskData: body, state: { billing_usage: billingUsage, gpt26_requested_images: normalized.n } };
   return billingUsage
     ? { taskId: taskId, taskData: body, state: { billing_usage: billingUsage } }
     : { taskId: taskId, taskData: body };
@@ -770,6 +995,7 @@ export function extractUsage(ctx) {
   const request = ctx.requestBody || {};
   const publicModel = trimmed(ctx.model || request.model);
   const normalized = normalizeAPIMartModelRequest(publicModel, request);
+  if (gpt26Models.has(publicModel)) return gpt26Usage(normalized);
   if (gpt25Models.has(publicModel)) return gpt25Usage(publicModel, normalized);
   const taskUsage = apimartUsage(normalized, publicModel);
   if (taskUsage) return taskUsage;
@@ -787,6 +1013,16 @@ export function extractUsage(ctx) {
 
 export function extractUsageOnComplete(ctx, _taskResult, body) {
   const publicModel = trimmed(ctx.model || (ctx.requestBody || {}).model);
+  if (gpt26Models.has(publicModel)) {
+    if (body && body.code !== undefined && body.code !== 200) return null;
+    const data = body && body.data;
+    if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+    const status = trimmed(data.status).toLowerCase();
+    if (["failed", "failure", "cancelled", "canceled"].includes(status)) return { upstream_credits: 0 };
+    if (!["completed", "success"].includes(status) || gpt26DeliveredCount(ctx, data) === null) return null;
+    const credits = gpt26ActualCredits(data);
+    return credits === null ? null : { upstream_credits: credits };
+  }
   if (gpt25Models.has(publicModel)) {
     const data = body && body.data;
     if (!data || typeof data !== "object") return null;
@@ -828,6 +1064,10 @@ export function parseTaskResult(ctx, body) {
     return { code: Number(response.code) || 0, status: "FAILURE", progress: "100%", reason: publicMessage(response.message) || "AM task query failed" };
   }
   const data = object(response.data, "AM task response is missing data");
+  if (gpt26Models.has(ctx.model) && ["completed", "success"].includes(trimmed(data.status).toLowerCase())) {
+    if (gpt26DeliveredCount(ctx, data) === null) return { status: "UNKNOWN", reason: "invalid delivered image count" };
+    if (gpt26ActualCredits(data) === null) return { status: "IN_PROGRESS", progress: "99%", reason: "" };
+  }
   if (gpt25Models.has(ctx.model) && ["completed", "success"].includes(trimmed(data.status).toLowerCase())) {
     if (ctx.model !== gpt25Ext && gpt25ActualCredits(data) === null) return { status: "IN_PROGRESS", progress: "99%", reason: "" };
     if (ctx.model === gpt25Ext && gpt25DeliveredCount(ctx, data) === null) return { status: "UNKNOWN", reason: "invalid delivered image count" };
@@ -879,7 +1119,7 @@ export const native = {
     const request = object(ctx.body.value, "request body must be an object");
     const model = trimmed(request.model);
     if (!isDeclaredModel(model)) throw new Error("unsupported AM image model");
-    if (gpt25Models.has(model) || nanoBananaModels.has(model) || ["seedream-5-0-lite-am", "seedream-5-0-pro-am", "z-image-turbo-am"].includes(model)) {
+    if (gpt26Models.has(model) || gpt25Models.has(model) || nanoBananaModels.has(model) || ["seedream-5-0-lite-am", "seedream-5-0-pro-am", "z-image-turbo-am"].includes(model)) {
       const normalized = normalizeAPIMartModelRequest(model, request);
       return { kind: "submit", model: model, action: "image_generation", requestBody: normalized };
     }
