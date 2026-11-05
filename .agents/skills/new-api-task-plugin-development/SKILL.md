@@ -9,6 +9,13 @@ description: 开发或维护 New API 本地 Task Plugin（异步图片、视频�
 
 实现、修改或审查插件及其运行时前，完整阅读当前 `docs/plugin-api/v1.md`，不要把本技能当作协议副本。修改宿主契约时同时核对 `v1.schema.json` 和 `v1.d.ts`。API v1 也有新增字段；使用 `usageProfiles`、`unitLabel`、`enumLabels` 或新 capability 前先确认部署宿主支持，按先宿主、后插件的顺序发布。
 
+## 按当前阶段接续
+
+- 开发阶段在本技能核对官方字段、身份映射、公开任务 ID 和计费契约，复用既有 fixture/回归入口；接手已验证的实现时继承源码哈希、命令结果及未完成项，只补证据缺口，不重跑全部流程。
+- 进入测试网关发布阶段，先读取 [new-api-test-server-deployment](../new-api-test-server-deployment/SKILL.md)，再选择其中已有的管理 API 或受控 SQL 路径；不要每轮重新发明部署流程，也不要把缺少管理登录直接当成部署阻塞。授权范围以当前任务为准。
+- 运行时问题转到 [new-api-test-server-troubleshooting](../new-api-test-server-troubleshooting/SKILL.md)，以远程数据和日志定位，不用本地源码状态替代现网证据。
+- 服务端运行时验证完成后交接原生客户端 MCP 验收；服务端 fixture、公开接口和 SQL 证据不能替代真实客户端生成、恢复与账务验证。客户端重启和 GUI 操作须另有明确同意，付费请求须有当轮授权及预算。
+
 ## 边界与设计
 
 - 标准 OpenAI、Claude、Gemini 等协议优先使用现有渠道和模型映射，不创建插件。
@@ -74,7 +81,7 @@ go run . plugin test plugins/local/<provider>/plugin.js --fixture plugins/local/
 
 ### 第二步：部署与运行时验收
 
-用户授权发布后使用部署技能。分别确认版本已保存、已启用、已激活、运行时已加载，渠道模型与映射、模型级及 provider 级定价生效；最后检查 schema、examples 和页面。保留旧版本和配置回滚点。仅插件/config 变化不重打镜像；是否需要重启由同步结果决定。
+用户授权发布后读取并执行 [部署技能](../new-api-test-server-deployment/SKILL.md)，继承第一步已有检查结果。分别确认版本已保存、已启用、已激活、运行时已加载，渠道模型与映射、模型级及 provider 级定价生效；最后检查 schema、examples 和已获 GUI 授权的页面。保留旧版本和配置回滚点。仅插件/config 变化不重打镜像，先等待现有同步；重启须有对应授权，不能因 SQL 发布就默认重启。
 
 ### 第三步：指导 Tapcomfy 并主审
 

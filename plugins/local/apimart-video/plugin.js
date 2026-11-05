@@ -12,6 +12,16 @@ const VIDEO_FIELDS = new Set([
   "prompt_extend", "metadata", "extend_from_task_id",
 ]);
 
+const MUSE_MODEL = "muse-video-ext-am";
+const KLING_V4_MODEL = "kling-v4-am";
+// Gold public prices verified 2026-11-05 at
+// https://apimart.ai/model/kling-4-0; one AM credit is USD 0.1.
+const KLING_V4_CREDITS_PER_SECOND = { "720p": [1.4, 0.84], "1080p": [2.1, 1.26] };
+// APIMart Muse public Gold price, verified 2026-11-05:
+// https://apimart.ai/model/muse-video (0.24 credits = USD 0.024 / generation).
+const MUSE_RESERVATION_CREDITS = 0.24;
+const MUSE_IMAGE_BYTES = 11 * 1024 * 1024;
+
 const H3_CONTEXT_MODEL = "minimax-h3-context-ir-am";
 const H3_REGENERATION_MODEL = "minimax-h3-regeneration-am";
 
@@ -37,6 +47,8 @@ const GEMINI_OMNI_EXT_CREDITS = {
 const GEMINI_OMNI_CREDITS_PER_SECOND = { "360p": 0.37, "720p": 1.1, "1080p": 1.65, "4k": 3.3 };
 
 const MODELS = new Map([
+  [KLING_V4_MODEL, { upstream: "kling-v4", klingV4: true, resolutions: ["720p", "1080p"], seconds: [3, 30, 5] }],
+  [MUSE_MODEL, { upstream: "muse-video-ext", muse: true, resolutions: ["720p"], seconds: [10, 10, 10] }],
   ["grok-imagine-1.5-video-am", {
     upstream: "grok-imagine-1.5-video-ext", seconds: [6, 15, 6], resolutions: ["480p", "720p"],
     ratios: new Set(["16:9", "9:16", "1:1", "3:2", "2:3"]), images: 7,
@@ -155,6 +167,12 @@ const WAN3_CREDITS_PER_SECOND = {
 };
 
 function usageSchema(model) {
+  if (model === KLING_V4_MODEL) return {
+    upstream_credits: { type: "number", unit: "credit", description: { en: "AM settlement credit unit price", zh: "AM 结算积分单价" } },
+  };
+  if (model === MUSE_MODEL) return {
+    upstream_credits: { type: "number", unit: "credit", description: { en: "AM settlement credit unit price", zh: "AM 结算积分单价" } },
+  };
   if (model.startsWith("wan3.0-video")) return {
     upstream_credits: { type: "number", unit: "credit", description: { en: "AM settlement credit unit price", zh: "AM 结算积分单价" } },
   };
@@ -200,7 +218,16 @@ for (const [model, spec] of MODELS) {
           ? { requests: 1, resolution: spec.defaultResolution || spec.resolutions[0] }
           : { seconds: spec.defaultDuration || spec.seconds[2], resolution: spec.defaultResolution || spec.resolutions[0] };
   if (model === "pixverse-v6-am") facts.audio = "off";
-  if (model === "minimax-h3-am") {
+  if (model === KLING_V4_MODEL) {
+    examples[model] = Object.entries(KLING_V4_CREDITS_PER_SECOND).flatMap(function (entry) {
+      return [
+        { label: entry[0].toUpperCase() + " · 5s generation reservation", facts: { upstream_credits: entry[1][0] * 5 } },
+        { label: entry[0].toUpperCase() + " · 5s output + 30s input reservation", facts: { upstream_credits: Math.round(entry[1][1] * 35 * 1e8) / 1e8 } },
+      ];
+    });
+  } else if (model === MUSE_MODEL) {
+    examples[model] = [{ label: "720P · 10s · audio · estimate", facts: { upstream_credits: MUSE_RESERVATION_CREDITS } }];
+  } else if (model === "minimax-h3-am") {
     examples[model] = [
       { label: "768P · 5s", facts: { upstream_credits: 2.856 } },
       { label: "2K · 5s", facts: { upstream_credits: 4.572 } },
@@ -250,7 +277,7 @@ export const meta = {
   name: "AM Video",
   icon: "text:AV",
   description: { en: "Validated AM asynchronous video generation tasks.", zh: "经过逐模型校验的 AM 异步视频生成任务。" },
-  version: "0.5.12",
+  version: "0.5.15",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   allowedHosts: ["api.apib.ai", "api.apimart.ai", "upload.apimart.ai", "cdn.apimart.ai"],
@@ -746,10 +773,152 @@ function normalizeGeminiOmni(model, request) {
   return body;
 }
 
+function normalizeKlingV4(model, request) {
+  const fields = new Set(["model", "prompt", "duration", "resolution", "aspect_ratio", "image_urls", "image_with_roles", "first_frame_image", "last_frame_image", "video_urls", "video_url", "audio_urls", "omni_reference_task_type", "audio_setting", "watermark", "audio"]);
+  for (const field of Object.keys(request)) if (!fields.has(field)) throw new Error("unsupported field for " + KLING_V4_MODEL + ": " + field);
+  if (request.model !== undefined && request.model !== model) throw new Error("model must be " + model);
+  const taskType = request.omni_reference_task_type === undefined ? "auto" : request.omni_reference_task_type;
+  if (!["auto", "reference", "edit", "extend"].includes(taskType)) throw new Error("unsupported omni_reference_task_type");
+  const body = { model: model, resolution: request.resolution === undefined ? "720p" : request.resolution };
+  if (!["720p", "1080p"].includes(body.resolution)) throw new Error("unsupported resolution");
+  if (request.omni_reference_task_type !== undefined) body.omni_reference_task_type = taskType;
+  for (const field of ["image_urls", "video_urls", "audio_urls"]) {
+    if (request[field] !== undefined) body[field] = urlArray(request[field], field, field === "image_urls" ? 10 : field === "video_urls" ? 5 : 3);
+  }
+  for (const field of ["first_frame_image", "last_frame_image", "video_url"]) {
+    if (request[field] !== undefined) body[field] = mediaURL(request[field], field, false);
+  }
+  if (request.image_with_roles !== undefined) {
+    if (!Array.isArray(request.image_with_roles) || !request.image_with_roles.length || request.image_with_roles.length > 10) throw new Error("image_with_roles must contain 1 to 10 images");
+    body.image_with_roles = request.image_with_roles.map(function (value) {
+      const entry = object(value, "image_with_roles entries must be objects");
+      if (Object.keys(entry).some(function (field) { return field !== "url" && field !== "role"; })) throw new Error("unsupported image_with_roles entry field");
+      if (!["first_frame", "last_frame", "keyframe", "middle_frame", "reference_image"].includes(entry.role)) throw new Error("unsupported image role");
+      return { url: mediaURL(entry.url, "image_with_roles", false), role: entry.role };
+    });
+  }
+  const roles = body.image_with_roles || [];
+  const videos = body.video_urls || [];
+  const audios = body.audio_urls || [];
+  const images = body.image_urls || [];
+  const edit = taskType === "edit";
+  const extend = taskType === "extend";
+  if (body.video_url && !edit && !extend) throw new Error("video_url requires edit or extend");
+  if (body.video_url && videos.length) throw new Error("video_url and video_urls are mutually exclusive");
+  if ((edit || extend) && !(body.video_url || videos.length === 1)) throw new Error("edit and extend require exactly one input video");
+  const reference = !edit && !extend && (taskType === "reference" || videos.length > 0 || audios.length > 0 || roles.some(function (entry) { return entry.role === "reference_image"; }));
+  if (reference || edit) {
+    if (body.first_frame_image || body.last_frame_image || roles.some(function (entry) { return entry.role !== "reference_image"; })) throw new Error("reference and edit images must be reference images");
+    if (images.length + roles.length > 10) throw new Error("reference images must contain at most 10 images");
+    if (images.length + roles.length + videos.length + (body.video_url ? 1 : 0) + audios.length > 15) throw new Error("reference images, videos and audios together are at most 15 files");
+    if (edit && audios.length) throw new Error("audio_urls is only supported for reference generation");
+  } else if (extend) {
+    if (images.length || audios.length || body.first_frame_image || roles.some(function (entry) { return entry.role !== "last_frame"; })) throw new Error("extend only accepts a target last frame image");
+    if (roles.length + (body.last_frame_image ? 1 : 0) > 1) throw new Error("extend accepts at most one last frame");
+  }
+  const imageToVideo = !reference && !edit && !extend && (images.length > 0 || roles.length > 0 || !!body.first_frame_image || !!body.last_frame_image);
+  if (imageToVideo) {
+    const first = (images.length ? 1 : 0) + (body.first_frame_image ? 1 : 0) + roles.filter(function (entry) { return entry.role === "first_frame"; }).length;
+    const last = (images.length > 1 ? 1 : 0) + (body.last_frame_image ? 1 : 0) + roles.filter(function (entry) { return entry.role === "last_frame"; }).length;
+    const middle = roles.filter(function (entry) { return entry.role === "keyframe" || entry.role === "middle_frame"; }).length;
+    if (images.length > 2) throw new Error("image-to-video image_urls accepts at most 2 images");
+    if (first !== 1) throw new Error("image-to-video requires exactly 1 first frame");
+    if (last > 1 || middle > 8 || first + last + middle > 10) throw new Error("image-to-video accepts one last frame and at most 8 middle frames, 10 images total");
+  }
+  if (request.prompt !== undefined && typeof request.prompt !== "string") throw new Error("prompt must be a string");
+  const prompt = text(request.prompt);
+  if (!prompt && !imageToVideo) throw new Error("prompt is required");
+  if (request.prompt !== undefined) body.prompt = prompt;
+  // Editing must retain omitted duration/aspect so the provider follows input.
+  if (request.duration !== undefined) body.duration = integer(request.duration, "duration", 3, 30);
+  else if (!edit) body.duration = 5;
+  if (request.aspect_ratio !== undefined) {
+    if (extend) throw new Error("extend does not support aspect_ratio");
+    if (!["16:9", "9:16", "1:1", "21:9"].includes(request.aspect_ratio) && !(reference && request.aspect_ratio === "auto")) throw new Error("unsupported aspect_ratio");
+    body.aspect_ratio = request.aspect_ratio;
+  }
+  if (request.audio_setting !== undefined) {
+    if (!edit && !(reference && videos.length)) throw new Error("audio_setting requires edit or reference video");
+    if (!["origin", "auto"].includes(request.audio_setting)) throw new Error("unsupported audio_setting");
+    body.audio_setting = request.audio_setting;
+  }
+  for (const field of ["watermark", "audio"]) {
+    if (request[field] === undefined) continue;
+    if (request[field] !== (field === "audio")) throw new Error(field + " must be " + (field === "audio"));
+    body[field] = request[field];
+  }
+  return body;
+}
+
+function normalizeMuse(model, request) {
+  const fields = new Set(["model", "prompt", "image_urls", "aspect_ratio", "size", "n", "duration", "seconds", "duration_seconds", "resolution", "audio", "webhook", "language"]);
+  for (const field of Object.keys(request)) if (!fields.has(field)) throw new Error("unsupported field for " + MUSE_MODEL + ": " + field);
+  if (request.model !== undefined && request.model !== model) throw new Error("model must be " + model);
+  const prompt = text(request.prompt);
+  if (!prompt) throw new Error("prompt is required");
+  const body = { model: model, prompt: prompt, n: 1, duration: 10, resolution: "720p" };
+  if (request.n !== undefined && request.n !== 1) throw new Error("n must be 1");
+  for (const field of ["duration", "seconds", "duration_seconds"]) {
+    if (request[field] !== undefined && request[field] !== 10 && request[field] !== "10" && request[field] !== "10s") throw new Error(field + " must be 10 seconds");
+  }
+  if (request.resolution !== undefined && request.resolution !== "720p") throw new Error("resolution must be 720p");
+  if (request.audio !== undefined) {
+    if (request.audio !== true) throw new Error("audio must be true");
+    body.audio = true;
+  }
+  const ratios = new Set(["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"]);
+  if (request.aspect_ratio !== undefined && !ratios.has(request.aspect_ratio)) throw new Error("unsupported aspect_ratio");
+  if (request.size !== undefined && request.size !== "auto" && !ratios.has(request.size)) throw new Error("unsupported size");
+  if (request.aspect_ratio !== undefined) body.aspect_ratio = request.aspect_ratio;
+  else if (request.size !== undefined && request.size !== "auto") body.aspect_ratio = request.size;
+  if (request.image_urls !== undefined) {
+    if (!Array.isArray(request.image_urls) || request.image_urls.length > 9) throw new Error("image_urls must contain at most 9 images");
+    let totalBytes = 0;
+    body.image_urls = request.image_urls.map(function (value) {
+      const image = text(value);
+      if (!image) throw new Error("image_urls must contain nonempty image inputs");
+      if (/^https?:\/\//i.test(image)) return mediaURL(image, "image_urls", false);
+      let encoded = image;
+      if (/^data:/i.test(image)) {
+        const comma = image.indexOf(",");
+        if (comma < 0 || !/^data:image\/[a-z0-9.+-]+;base64$/i.test(image.slice(0, comma))) throw new Error("image_urls must contain image base64 or HTTP URLs");
+        encoded = image.slice(comma + 1);
+      }
+      const padding = encoded.endsWith("==") ? 2 : encoded.endsWith("=") ? 1 : 0;
+      if (!encoded || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded) || encoded.length % 4 === 1 || padding && encoded.length % 4 !== 0) throw new Error("image_urls contains invalid base64");
+      totalBytes += Math.floor(encoded.length * 3 / 4) - padding;
+      if (totalBytes > MUSE_IMAGE_BYTES) throw new Error("image_urls total raw bytes exceeds 11 MiB");
+      // Remote URL bytes cannot be inspected by the bounded host fetch API;
+      // clients check their source bytes and APIMart enforces the final total.
+      return image;
+    });
+  }
+  if (request.webhook !== undefined) body.webhook = mediaURL(request.webhook, "webhook", false);
+  if (request.language !== undefined) {
+    if (!["zh", "en", "ja", "ko", "ru", "fr", "de", "id", "pt", "es"].includes(request.language)) throw new Error("unsupported language");
+    body.language = request.language;
+  }
+  return body;
+}
+
+function museTaskCredits(data) {
+  // Accept either authenticated cost field, never infer a missing value as zero.
+  // Match the existing AM $100 safety ceiling; this is not a unit price.
+  const cost = data.cost;
+  const credits = data.credits_cost;
+  if (cost !== undefined && (typeof cost !== "number" || !Number.isFinite(cost) || cost < 0 || cost > 100)) throw new Error("AM completed Muse task has invalid cost");
+  if (credits !== undefined && (typeof credits !== "number" || !Number.isFinite(credits) || credits < 0 || credits > 1000)) throw new Error("AM completed Muse task has invalid credits_cost");
+  if (cost === undefined && credits === undefined) throw new Error("AM completed Muse task is missing cost");
+  if (cost !== undefined && credits !== undefined && Math.abs(credits - cost * 10) > 0.00001) throw new Error("AM cost and credits_cost disagree");
+  return Math.round((credits === undefined ? cost * 10 : credits) * 1e8) / 1e8;
+}
+
 function normalize(model, request) {
   object(request, "video generation request must be an object");
   const spec = MODELS.get(model);
   if (!spec) throw new Error("unsupported AM video model");
+  if (spec.klingV4) return normalizeKlingV4(model, request);
+  if (spec.muse) return normalizeMuse(model, request);
   if (spec.viduQ4) return normalizeViduQ4(model, request);
   if (spec.wan3) return normalizeWan3(model, request);
   if (spec.h3Context) return normalizeH3Context(request);
@@ -882,11 +1051,11 @@ function artifactKey(index, url) {
 export function buildSubmitRequest(ctx) {
   const request = object(ctx.requestBody, "video generation request is required");
   const publicModel = text(ctx.model || request.model);
-  const spec = MODELS.get(publicModel);
+  const spec = MODELS.get(publicModel) || (ctx.upstreamModel === "muse-video-ext" ? MODELS.get(MUSE_MODEL) : ctx.upstreamModel === "kling-v4" ? MODELS.get(KLING_V4_MODEL) : undefined);
   if (!spec) throw new Error("unsupported AM video model");
   const upstream = text(ctx.upstreamModel);
   if (upstream && upstream !== publicModel && upstream !== spec.upstream) throw new Error("upstream model does not match the public video model");
-  const body = ctx.action === "asset" ? normalizeAssets(request) : normalize(publicModel, request);
+  const body = ctx.action === "asset" ? normalizeAssets(request) : spec.muse ? normalizeMuse(publicModel, request) : spec.klingV4 ? normalizeKlingV4(publicModel, request) : normalize(publicModel, request);
   if (publicModel === H3_REGENERATION_MODEL) {
     const origin = (ctx.originTasks || []).find(function (task) { return task.taskId === body.source_task_id; });
     const facts = origin && origin.state && origin.state.h3Source;
@@ -919,10 +1088,17 @@ export function buildSubmitRequest(ctx) {
       });
     }
   }
+  const headers = { Accept: "application/json", "Content-Type": "application/json", Authorization: "Bearer " + ctx.apiKey };
+  if (spec.muse) {
+    const supplied = Object.entries(ctx.requestHeaders || {}).find(function (entry) { return entry[0].toLowerCase() === "idempotency-key"; });
+    const key = supplied ? supplied[1] : "am-muse-" + ctx.publicTaskId;
+    if (typeof key !== "string" || !/^[\x21-\x7e]{1,191}$/.test(key) || !supplied && !text(ctx.publicTaskId)) throw new Error("Idempotency-Key must contain 1 to 191 visible ASCII characters");
+    headers["Idempotency-Key"] = key;
+  }
   return {
     url: ctx.baseUrl + (ctx.action === "asset" ? "/v1/seedance2/private-avatar/assets" : "/v1/videos/generations"),
     method: "POST",
-    headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: "Bearer " + ctx.apiKey },
+    headers: headers,
     body: body,
     action: ctx.action === "asset" ? "asset" : "video_generation",
   };
@@ -930,6 +1106,20 @@ export function buildSubmitRequest(ctx) {
 
 export function parseSubmitResponse(ctx, response) {
   const body = object(response && response.body, "invalid AM submit response");
+  if (ctx.model === KLING_V4_MODEL || ctx.upstreamModel === "kling-v4") {
+    const entry = Array.isArray(body.data) ? body.data[0] : body.data;
+    const taskId = entry && typeof entry === "object" ? text(entry.task_id || entry.id) : "";
+    if ([200, 202].includes(Number(body.code)) && taskId) return { taskId: taskId, taskData: body };
+    return { taskId: "kling-v4-submit-" + (ctx.publicTaskId || utils.uuid()), taskData: {}, immediate: { status: "FAILURE", reason: failure(body, "AM Kling V4 submission has no task ID; investigate before resubmitting") } };
+  }
+  if (ctx.model === MUSE_MODEL || ctx.upstreamModel === "muse-video-ext") {
+    const entry = Array.isArray(body.data) ? body.data[0] : body.data;
+    const taskId = entry && typeof entry === "object" ? text(entry.task_id || entry.id) : "";
+    if ([200, 202].includes(Number(body.code)) && taskId) return { taskId: taskId, taskData: body };
+    // A 2xx business rejection or indeterminate reply must not become a 502
+    // that the host retries, potentially starting another paid generation.
+    return { taskId: "muse-submit-" + (ctx.publicTaskId || utils.uuid()), taskData: {}, immediate: { status: "FAILURE", reason: failure(body, "AM Muse submission has no task ID; retain the operation key and investigate before resubmitting") } };
+  }
   if (Number(body.code) !== 200) throw new Error(publicMessage(body.message) || failure(body, "AM video task submission failed"));
   const entry = ctx.action === "asset" ? body.data || {} : Array.isArray(body.data) && body.data[0] && typeof body.data[0] === "object" ? body.data[0] : {};
   const taskId = text(ctx.action === "asset" ? entry.id : entry.task_id);
@@ -958,6 +1148,22 @@ export function extractUsage(ctx) {
   if (ctx.usagePurpose === "billing_ratios") return null;
   const request = ctx.requestBody || {};
   const model = text(ctx.model || request.model);
+  if (model === KLING_V4_MODEL || ctx.upstreamModel === "kling-v4") {
+    const body = normalizeKlingV4(model, request);
+    const taskType = body.omni_reference_task_type;
+    const hasVideoInput = taskType === "edit" || taskType !== "extend" && !!body.video_urls;
+    // User-confirmed AM policy: reserve the 30-second input ceiling instead
+    // of trusting client media metadata. Omitted edit duration stays omitted
+    // upstream, but reserves a 30-second output. Extend bills only new seconds.
+    const outputSeconds = body.duration === undefined ? 30 : body.duration;
+    const billableSeconds = hasVideoInput ? outputSeconds + Math.max(outputSeconds, 30) : outputSeconds;
+    const rate = KLING_V4_CREDITS_PER_SECOND[body.resolution][hasVideoInput ? 1 : 0];
+    return { upstream_credits: Math.round(billableSeconds * rate * 1e8) / 1e8 };
+  }
+  if (model === MUSE_MODEL || ctx.upstreamModel === "muse-video-ext") {
+    normalizeMuse(model, request);
+    return { upstream_credits: MUSE_RESERVATION_CREDITS };
+  }
   // APIMart preauthorizes Context-IR at ¥0.8. Completion still replaces this
   // estimate with the validated upstream cost/credits_cost fact below.
   if (model === H3_CONTEXT_MODEL) return { upstream_credits: 0.8 };
@@ -1023,6 +1229,8 @@ export function extractUsageOnComplete(ctx, result, body) {
   if (result.status !== "SUCCESS") return null;
   const model = String(ctx.model || "");
   const data = object(body.data, "missing AM task data");
+  if (model === KLING_V4_MODEL || ctx.upstreamModel === "kling-v4") return { upstream_credits: amTaskCredits(data) };
+  if (model === MUSE_MODEL || ctx.upstreamModel === "muse-video-ext") return { upstream_credits: museTaskCredits(data) };
   if (model === H3_CONTEXT_MODEL || model === "minimax-h3-am" || model === "minimax-h3-max-am" || model === H3_REGENERATION_MODEL || model.startsWith("gemini-omni-1.1-flash")) return { upstream_credits: amTaskCredits(data) };
   if (model.startsWith("wan3.0-video")) return { upstream_credits: wan3Cost(data) };
   if (!model.startsWith("seedance-") || ctx.action === "asset") return null;
@@ -1032,17 +1240,35 @@ export function extractUsageOnComplete(ctx, result, body) {
 export function buildQueryRequest(ctx) {
   const taskId = text(ctx.taskId);
   if (!taskId) throw new Error("task_id is required");
+  // The active AM channel returns 404 on the model-specific documentation URL;
+  // its authenticated existing-task response explicitly requires /v1/tasks.
   return { url: ctx.baseUrl + "/v1/tasks/" + encodeURIComponent(taskId), method: "GET", headers: { Accept: "application/json", Authorization: "Bearer " + ctx.apiKey } };
 }
 
 export function parseTaskResult(ctx, body) {
   const response = object(body, "invalid AM task response");
+  const muse = ctx.model === MUSE_MODEL || ctx.upstreamModel === "muse-video-ext";
+  const klingV4 = ctx.model === KLING_V4_MODEL || ctx.upstreamModel === "kling-v4";
+  if (klingV4 && Number(response.code) !== 200) throw new Error("AM Kling V4 task query temporarily unavailable");
+  if (muse && Number(response.code) !== 200) throw new Error("AM Muse task query temporarily unavailable");
   if (Number(response.code) !== 200) return { code: Number(response.code) || 0, status: "FAILURE", progress: "100%", reason: failure(response, "AM video task query failed") };
   const data = object(response.data, "AM task response is missing data");
   const statuses = { submitted: "SUBMITTED", queued: "SUBMITTED", pending: "SUBMITTED", in_progress: "IN_PROGRESS", processing: "IN_PROGRESS", running: "IN_PROGRESS", completed: "SUCCESS", succeeded: "SUCCESS", success: "SUCCESS", failed: "FAILURE", failure: "FAILURE", cancelled: "FAILURE", canceled: "FAILURE" };
   const status = statuses[text(data.status).toLowerCase()];
   if (status === "SUCCESS" && String(ctx.model || "").startsWith("seedance-") && ctx.action !== "asset") seedanceCost(data);
   if (!status) return { status: "UNKNOWN", reason: "unrecognized AM task status: " + String(data.status || "") };
+  if (muse && status === "SUCCESS") {
+    // Delay terminal success until actual-cost settlement and the video exist;
+    // completion hook errors alone would otherwise silently retain reservation.
+    museTaskCredits(data);
+    if (!videoURLs({ data: response }).length) throw new Error("AM completed Muse task is missing video output");
+  }
+  if (klingV4 && status === "SUCCESS") {
+    // The model page documents data.cost and result.videos[].url[]; do not
+    // publish success until actual settlement facts and video output exist.
+    amTaskCredits(data);
+    if (!videoURLs({ data: response }).length) throw new Error("AM completed Kling V4 task is missing video output");
+  }
   const value = progress(data.progress);
   return { status: status, progress: status === "SUCCESS" || status === "FAILURE" ? "100%" : value === undefined ? "" : value + "%", reason: status === "FAILURE" ? failure(data, "AM video task failed") : "" };
 }

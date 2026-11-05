@@ -108,3 +108,51 @@ func TestAPIMartGPT26CharacterBoundaries(t *testing.T) {
 		})
 	}
 }
+
+func TestAPIMartMuseReferenceByteBoundaries(t *testing.T) {
+	source, err := os.ReadFile("local/apimart-video/plugin.js")
+	require.NoError(t, err)
+	plugin, err := jsplugin.NewRegistry().Register(string(source), jsplugin.Options{})
+	require.NoError(t, err)
+	const maxBytes = 11 * 1024 * 1024
+	for _, tc := range []struct {
+		name   string
+		sizes  []int
+		reject bool
+	}{
+		{"single reference at total limit", []int{maxBytes}, false},
+		{"single reference over total limit", []int{maxBytes + 1}, true},
+		{"two references at total limit", []int{maxBytes / 2, maxBytes / 2}, false},
+		{"two individually valid references exceed total", []int{maxBytes / 2, maxBytes/2 + 1}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			images := make([]any, 0, len(tc.sizes))
+			for i, size := range tc.sizes {
+				encoded := strings.Repeat("YWFh", size/3)
+				switch size % 3 {
+				case 1:
+					encoded += "YQ=="
+				case 2:
+					encoded += "YWE="
+				}
+				if i == 0 {
+					encoded = "data:image/png;base64," + encoded
+				}
+				images = append(images, encoded)
+			}
+			value, callErr := plugin.Engine.CallMember(t.Context(), "native", "decodeVideoGeneration", map[string]any{
+				"body": map[string]any{"kind": "json", "value": map[string]any{"model": "muse-video-ext-am", "prompt": "waves", "image_urls": images}},
+			})
+			if tc.reject {
+				require.ErrorContains(t, callErr, "total raw bytes exceeds 11 MiB")
+				return
+			}
+			require.NoError(t, callErr)
+			intent, ok := value.(map[string]any)
+			require.True(t, ok)
+			body, ok := intent["requestBody"].(map[string]any)
+			require.True(t, ok)
+			assert.Equal(t, images, body["image_urls"])
+		})
+	}
+}
