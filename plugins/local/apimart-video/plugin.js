@@ -1,7 +1,7 @@
 // APIMart asynchronous video generation tasks.
 // Public models use an -am suffix; channel model mappings select the documented
-// APIMart model names. Sora and models without complete public pricing are not
-// declared here.
+// APIMart model names. Sora is not declared here. Omni 1.2 EXT temporarily
+// reserves against the standard model estimates by explicit user policy.
 
 const RATIOS = new Set(["16:9", "9:16", "1:1", "4:3", "3:4"]);
 const VIDEO_FIELDS = new Set([
@@ -11,6 +11,19 @@ const VIDEO_FIELDS = new Set([
   "video_urls", "audio_url", "audio_urls", "audio", "generate_audio", "generation_type",
   "prompt_extend", "metadata", "extend_from_task_id",
 ]);
+
+const OMNI12_MODEL = "gemini-omni-1.2-flash-am";
+const OMNI12_EXT_MODEL = "gemini-omni-1.2-flash-ext-am";
+// APIMart Gold pricing verified 2026-11-06:
+// https://apimart.ai/model/gemini-omni-1-2-flash
+// Token Pricing: input 12 credits/M, output 96 credits/M (USD 1.2 / 9.6).
+// The page publishes these resolution-based per-second estimates separately;
+// use them only for reservation, never as measured tokens or the final bill.
+const OMNI12_ESTIMATE_CREDITS_PER_SECOND = { "360p": 0.2, "720p": 0.6, "1080p": 0.904, "4k": 1.808 };
+// User-approved temporary policy (2026-11-06): EXT uses the standard 1.2
+// resolution estimates and reservation rules until its own rates are published.
+// These are not official EXT prices; completion settles its actual data.cost.
+const OMNI12_FIELDS = ["model", "prompt", "duration", "resolution", "aspect_ratio", "image_urls", "first_frame_image", "last_frame_image", "image_with_roles", "video_urls", "omni_reference_task_type", "extend_from_task_id"];
 
 const MUSE_MODEL = "muse-video-ext-am";
 const KLING_V4_MODEL = "kling-v4-am";
@@ -47,6 +60,14 @@ const GEMINI_OMNI_EXT_CREDITS = {
 const GEMINI_OMNI_CREDITS_PER_SECOND = { "360p": 0.37, "720p": 1.1, "1080p": 1.65, "4k": 3.3 };
 
 const MODELS = new Map([
+  [OMNI12_MODEL, {
+    upstream: "gemini-omni-1.2-flash", geminiOmni12: "standard", resolutions: ["360p", "720p", "1080p", "4k"], defaultResolution: "720p", seconds: [3, 15, 10],
+    fields: new Set(OMNI12_FIELDS),
+  }],
+  [OMNI12_EXT_MODEL, {
+    upstream: "gemini-omni-1.2-flash-ext", geminiOmni12: "ext", resolutions: ["360p", "720p", "1080p", "4k"], defaultResolution: "720p", seconds: [3, 15, 10],
+    fields: new Set([...OMNI12_FIELDS, "seconds", "generation_type", "video_url", "negative_prompt", "system_prompt", "audio", "n", "watermark", "format", "output_format", "response_format", "enable_gif", "async"]),
+  }],
   [KLING_V4_MODEL, { upstream: "kling-v4", klingV4: true, resolutions: ["720p", "1080p"], seconds: [3, 30, 5] }],
   [MUSE_MODEL, { upstream: "muse-video-ext", muse: true, resolutions: ["720p"], seconds: [10, 10, 10] }],
   ["grok-imagine-1.5-video-am", {
@@ -179,7 +200,7 @@ function usageSchema(model) {
   if (model === H3_CONTEXT_MODEL) return {
     upstream_credits: { type: "number", unit: "credit", description: { en: "AM settlement credit unit price", zh: "AM 结算积分单价" } },
   };
-  if (model === H3_REGENERATION_MODEL || model.startsWith("gemini-omni-1.1-flash")) return {
+  if (model === H3_REGENERATION_MODEL || model === OMNI12_MODEL || model === OMNI12_EXT_MODEL || model.startsWith("gemini-omni-1.1-flash")) return {
     upstream_credits: { type: "number", unit: "credit", description: { en: "AM settlement credit unit price", zh: "AM 结算积分单价" } },
   };
   if (model === "minimax-h3-am" || model === "minimax-h3-max-am") return {
@@ -210,7 +231,7 @@ for (const [model, spec] of MODELS) {
     ? { upstream_credits: 0.167 }
     : model === H3_REGENERATION_MODEL
       ? { upstream_credits: 2.25 }
-      : model.startsWith("gemini-omni-1.1-flash")
+      : model === OMNI12_MODEL || model === OMNI12_EXT_MODEL || model.startsWith("gemini-omni-1.1-flash")
         ? { upstream_credits: 0 }
         : (model === "minimax-h3-am" || model === "minimax-h3-max-am")
         ? { upstream_credits: 2.856 }
@@ -271,13 +292,20 @@ examples["gemini-omni-1.1-flash-am"] = Object.entries(GEMINI_OMNI_CREDITS_PER_SE
   return { label: entry[0].toUpperCase() + " · max 10s reservation", facts: { upstream_credits: entry[1] * 10 } };
 });
 
+examples[OMNI12_MODEL] = Object.entries(OMNI12_ESTIMATE_CREDITS_PER_SECOND).map(function (entry) {
+  return { label: entry[0].toUpperCase() + " · 10s reservation estimate", facts: { upstream_credits: entry[1] * 10 } };
+});
+examples[OMNI12_EXT_MODEL] = Object.entries(OMNI12_ESTIMATE_CREDITS_PER_SECOND).map(function (entry) {
+  return { label: entry[0].toUpperCase() + " · 10s temporary standard 1.2 estimate", facts: { upstream_credits: entry[1] * 10 } };
+});
+
 export const meta = {
   apiVersion: 1,
   key: "am-video",
   name: "AM Video",
   icon: "text:AV",
   description: { en: "Validated AM asynchronous video generation tasks.", zh: "经过逐模型校验的 AM 异步视频生成任务。" },
-  version: "0.5.15",
+  version: "0.5.17",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   allowedHosts: ["api.apib.ai", "api.apimart.ai", "upload.apimart.ai", "cdn.apimart.ai"],
@@ -699,6 +727,96 @@ function normalizeWan3(model, request) {
   return body;
 }
 
+function normalizeGeminiOmni12(model, request) {
+  const spec = MODELS.get(model);
+  const ext = spec.geminiOmni12 === "ext";
+  for (const field of Object.keys(request)) if (!spec.fields.has(field)) throw new Error("unsupported field for " + model + ": " + field);
+  if (request.model !== undefined && request.model !== model) throw new Error("model must be " + model);
+  if (typeof request.prompt !== "string" || !text(request.prompt)) throw new Error("prompt is required");
+  const resolution = request.resolution === undefined ? "720p" : text(request.resolution).toLowerCase();
+  const body = { model: model, prompt: text(request.prompt), resolution: normalizedResolution(resolution === "2160p" ? "4k" : resolution, spec) };
+  if (request.resolution !== undefined && !resolution) throw new Error("unsupported resolution");
+  if (request.aspect_ratio !== undefined || !ext) {
+    let ratio = request.aspect_ratio === undefined ? "16:9" : text(request.aspect_ratio);
+    if (ext) ratio = ratio.replace("x", ":");
+    if (ext && ratio === "auto") ratio = "";
+    else if (!["16:9", "9:16"].includes(ratio)) {
+      if (ext) throw new Error("unsupported aspect ratio");
+      ratio = "16:9";
+    }
+    if (ratio) body.aspect_ratio = ratio;
+  }
+  let taskType = request.omni_reference_task_type;
+  if (ext && request.generation_type !== undefined) {
+    if (taskType !== undefined) throw new Error("generation_type and omni_reference_task_type are mutually exclusive");
+    if (!["frame", "reference", "edit", "extend"].includes(request.generation_type)) throw new Error("unsupported generation_type");
+    taskType = request.generation_type === "frame" ? "image_to_video" : request.generation_type;
+  }
+  if (taskType !== undefined && !["auto", "edit", "extend", "reference", "text_to_video", "image_to_video", "reference_to_video"].includes(taskType)) throw new Error("unsupported omni_reference_task_type");
+  if (taskType !== undefined) body.omni_reference_task_type = taskType;
+  const images = request.image_urls === undefined ? [] : urlArray(request.image_urls, "image_urls", 10);
+  let first = request.first_frame_image === undefined ? "" : mediaURL(request.first_frame_image, "first_frame_image", false);
+  let last = request.last_frame_image === undefined ? "" : mediaURL(request.last_frame_image, "last_frame_image", false);
+  if (request.image_with_roles !== undefined) {
+    if (!Array.isArray(request.image_with_roles) || request.image_with_roles.length < 1 || request.image_with_roles.length > 10) throw new Error("image_with_roles must contain 1 to 10 images");
+    for (const entry of request.image_with_roles) {
+      object(entry, "image_with_roles entries must be objects");
+      if (!Object.keys(entry).every(function (key) { return key === "url" || key === "role"; })) throw new Error("unsupported image_with_roles field");
+      if (entry.role !== undefined && typeof entry.role !== "string") throw new Error("image role must be a string");
+      if (!ext && entry.role === undefined) throw new Error("image role is required");
+      const url = mediaURL(entry.url, "image_with_roles.url", false);
+      if (entry.role === "first_frame") {
+        if (first) throw new Error("duplicate first frame");
+        first = url;
+      } else if (entry.role === "last_frame") {
+        if (last) throw new Error("duplicate last frame");
+        last = url;
+      } else images.push(url);
+    }
+  }
+  if (ext && last) throw new Error("AM Omni 1.2 EXT does not support last frame");
+  if (last && !first) throw new Error("last_frame_image requires first_frame_image");
+  if (images.length + (first ? 1 : 0) + (last ? 1 : 0) > 10) throw new Error("image input limit exceeded");
+  if (ext && first && images.length) throw new Error("first_frame_image and image_urls are mutually exclusive");
+  if (images.length) body.image_urls = images;
+  if (first) body.first_frame_image = first;
+  if (last) body.last_frame_image = last;
+  if (ext && request.video_url !== undefined && request.video_urls !== undefined) throw new Error("video_url and video_urls are mutually exclusive");
+  const videos = request.video_urls === undefined ? (ext && request.video_url !== undefined ? [mediaURL(request.video_url, "video_url", false)] : []) : urlArray(request.video_urls, "video_urls", 1);
+  if (videos.length) body.video_urls = videos;
+  if (request.extend_from_task_id !== undefined) {
+    const taskID = text(request.extend_from_task_id);
+    if (!/^task_[A-Za-z0-9_-]+$/.test(taskID)) throw new Error("extend_from_task_id must be a public gateway task ID");
+    if (videos.length) throw new Error("extend_from_task_id and video_urls are mutually exclusive");
+    body.extend_from_task_id = taskID;
+  }
+  const hasVideo = !!(videos.length || body.extend_from_task_id);
+  if (ext && hasVideo && taskType === undefined) throw new Error("video input requires omni_reference_task_type");
+  if ((taskType === "edit" || taskType === "extend") && !hasVideo) throw new Error("edit and extend require a source video");
+  if (ext && hasVideo && (images.length > 0 || first)) throw new Error("video editing and extension cannot include images");
+  if (ext && (taskType === "reference" || taskType === "reference_to_video") && !images.length) throw new Error("reference mode requires image_urls");
+  const editing = hasVideo && taskType !== "extend";
+  if (ext && request.seconds !== undefined && request.duration !== undefined && request.seconds !== request.duration) throw new Error("seconds and duration conflict");
+  const duration = request.duration === undefined && ext ? request.seconds : request.duration;
+  if (editing) {
+    if (ext && duration !== undefined) throw new Error("video edit does not accept duration");
+    // Standard explicitly ignores duration while editing; omit it upstream.
+  } else body.duration = integer(duration === undefined ? 10 : duration, "duration", 3, taskType === "extend" || last ? 10 : 15);
+  if (ext) {
+    for (const field of ["negative_prompt", "system_prompt"]) {
+      if (request[field] === undefined) continue;
+      if (typeof request[field] !== "string") throw new Error(field + " must be a string");
+      body[field] = request[field];
+    }
+    // Documented compatibility fields do not change the effective request.
+    for (const field of ["format", "output_format", "response_format"]) if (request[field] !== undefined && request[field] !== "mp4") throw new Error(field + " must be mp4");
+    for (const field of ["enable_gif", "watermark"]) if (request[field] !== undefined && request[field] !== false) throw new Error(field + " must be false");
+    for (const field of ["audio", "async"]) if (request[field] !== undefined && request[field] !== true) throw new Error(field + " must be true");
+    if (request.n !== undefined && request.n !== 1) throw new Error("n must be 1");
+  }
+  return body;
+}
+
 function normalizeGeminiOmni(model, request) {
   const spec = MODELS.get(model);
   for (const field of Object.keys(request)) if (!spec.fields.has(field)) throw new Error("unsupported field for " + model + ": " + field);
@@ -924,6 +1042,7 @@ function normalize(model, request) {
   if (spec.h3Context) return normalizeH3Context(request);
   if (spec.h3Regeneration) return normalizeH3Regeneration(request);
   if (spec.h3) return normalizeH3(model, request);
+  if (spec.geminiOmni12) return normalizeGeminiOmni12(model, request);
   if (spec.geminiOmni) return normalizeGeminiOmni(model, request);
   if (model.startsWith("seedance-")) return normalizeSeedance(model, request);
   for (const field of Object.keys(request)) {
@@ -1065,7 +1184,7 @@ export function buildSubmitRequest(ctx) {
     body.source_task_id = origin.upstreamTaskId;
   }
   body.model = upstream && upstream !== publicModel ? upstream : spec.upstream;
-  if (publicModel === "gemini-omni-1.1-flash-am" && body.extend_from_task_id) {
+  if ((publicModel === "gemini-omni-1.1-flash-am" || spec.geminiOmni12) && body.extend_from_task_id) {
     const origin = (ctx.originTasks || []).find(function (task) { return task.taskId === body.extend_from_task_id; });
     if (!origin || origin.model !== publicModel || origin.action !== "video_generation" || origin.status !== "SUCCESS" || !text(origin.upstreamTaskId)) throw new Error("extend_from_task_id must reference your successful Gemini Omni task");
     body.extend_from_task_id = origin.upstreamTaskId;
@@ -1120,6 +1239,12 @@ export function parseSubmitResponse(ctx, response) {
     // that the host retries, potentially starting another paid generation.
     return { taskId: "muse-submit-" + (ctx.publicTaskId || utils.uuid()), taskData: {}, immediate: { status: "FAILURE", reason: failure(body, "AM Muse submission has no task ID; retain the operation key and investigate before resubmitting") } };
   }
+  if (ctx.model === OMNI12_MODEL || ctx.model === OMNI12_EXT_MODEL) {
+    const entry = Array.isArray(body.data) ? body.data[0] : body.data;
+    const taskId = entry && typeof entry === "object" ? text(entry.task_id) : "";
+    if (Number(body.code) === 200 && taskId) return { taskId: taskId, taskData: body };
+    return { taskId: "omni12-submit-" + (ctx.publicTaskId || utils.uuid()), taskData: {}, immediate: { status: "FAILURE", reason: failure(body, "AM Omni submission has no task ID; investigate before resubmitting") } };
+  }
   if (Number(body.code) !== 200) throw new Error(publicMessage(body.message) || failure(body, "AM video task submission failed"));
   const entry = ctx.action === "asset" ? body.data || {} : Array.isArray(body.data) && body.data[0] && typeof body.data[0] === "object" ? body.data[0] : {};
   const taskId = text(ctx.action === "asset" ? entry.id : entry.task_id);
@@ -1170,6 +1295,17 @@ export function extractUsage(ctx) {
   if (model === H3_REGENERATION_MODEL) return { upstream_credits: 10 };
   if (model === "minimax-h3-am") return { upstream_credits: 30 };
   if (model === "minimax-h3-max-am") return { upstream_credits: h3MaxReservationCredits(request) };
+  if (model === OMNI12_MODEL || model === OMNI12_EXT_MODEL) {
+    const body = normalizeGeminiOmni12(model, request);
+    const hasVideo = !!(body.video_urls || body.extend_from_task_id);
+    const rate = OMNI12_ESTIMATE_CREDITS_PER_SECOND[body.resolution];
+    // Standard's documented preauthorization uses max(10,duration), or the
+    // 15s input ceiling with uploaded video or a source task. By explicit user
+    // policy EXT temporarily uses this same reference reservation, including
+    // extension; actual EXT data.cost replaces it on successful completion.
+    const seconds = hasVideo ? 15 : Math.max(10, body.duration);
+    return { upstream_credits: Math.round(rate * seconds * 1e8) / 1e8 };
+  }
   if (model === "gemini-omni-1.1-flash-ext-am") return { upstream_credits: geminiOmniExtReservationCredits(request) };
   if (model === "gemini-omni-1.1-flash-am") return { upstream_credits: geminiOmniReservationCredits(request) };
   if (model.startsWith("wan3.0-video")) {
@@ -1231,7 +1367,7 @@ export function extractUsageOnComplete(ctx, result, body) {
   const data = object(body.data, "missing AM task data");
   if (model === KLING_V4_MODEL || ctx.upstreamModel === "kling-v4") return { upstream_credits: amTaskCredits(data) };
   if (model === MUSE_MODEL || ctx.upstreamModel === "muse-video-ext") return { upstream_credits: museTaskCredits(data) };
-  if (model === H3_CONTEXT_MODEL || model === "minimax-h3-am" || model === "minimax-h3-max-am" || model === H3_REGENERATION_MODEL || model.startsWith("gemini-omni-1.1-flash")) return { upstream_credits: amTaskCredits(data) };
+  if (model === H3_CONTEXT_MODEL || model === "minimax-h3-am" || model === "minimax-h3-max-am" || model === H3_REGENERATION_MODEL || model === OMNI12_MODEL || model === OMNI12_EXT_MODEL || model.startsWith("gemini-omni-1.1-flash")) return { upstream_credits: amTaskCredits(data) };
   if (model.startsWith("wan3.0-video")) return { upstream_credits: wan3Cost(data) };
   if (!model.startsWith("seedance-") || ctx.action === "asset") return null;
   return { upstream_credits: seedanceCost(data) };
@@ -1248,7 +1384,9 @@ export function buildQueryRequest(ctx) {
 export function parseTaskResult(ctx, body) {
   const response = object(body, "invalid AM task response");
   const muse = ctx.model === MUSE_MODEL || ctx.upstreamModel === "muse-video-ext";
+  const omni12 = ctx.model === OMNI12_MODEL || ctx.model === OMNI12_EXT_MODEL;
   const klingV4 = ctx.model === KLING_V4_MODEL || ctx.upstreamModel === "kling-v4";
+  if (omni12 && Number(response.code) !== 200) throw new Error("AM Omni task query temporarily unavailable");
   if (klingV4 && Number(response.code) !== 200) throw new Error("AM Kling V4 task query temporarily unavailable");
   if (muse && Number(response.code) !== 200) throw new Error("AM Muse task query temporarily unavailable");
   if (Number(response.code) !== 200) return { code: Number(response.code) || 0, status: "FAILURE", progress: "100%", reason: failure(response, "AM video task query failed") };
@@ -1257,6 +1395,10 @@ export function parseTaskResult(ctx, body) {
   const status = statuses[text(data.status).toLowerCase()];
   if (status === "SUCCESS" && String(ctx.model || "").startsWith("seedance-") && ctx.action !== "asset") seedanceCost(data);
   if (!status) return { status: "UNKNOWN", reason: "unrecognized AM task status: " + String(data.status || "") };
+  if (omni12 && status === "SUCCESS") {
+    amTaskCredits(data);
+    if (!videoURLs({ data: response }).length) throw new Error("AM completed Omni task is missing video output");
+  }
   if (muse && status === "SUCCESS") {
     // Delay terminal success until actual-cost settlement and the video exist;
     // completion hook errors alone would otherwise silently retain reservation.
@@ -1307,7 +1449,7 @@ export const native = {
     const model = text(request.model);
     const body = normalize(model, request);
     const intent = { kind: "submit", model: model, action: "video_generation", requestBody: body };
-    if (model === "gemini-omni-1.1-flash-am" && body.extend_from_task_id) intent.originTaskIds = [body.extend_from_task_id];
+    if ((model === "gemini-omni-1.1-flash-am" || MODELS.get(model).geminiOmni12) && body.extend_from_task_id) intent.originTaskIds = [body.extend_from_task_id];
     if (model.startsWith("seedance-")) {
       const refs = body.draft_task_id ? [body.draft_task_id] : assetReferences(body);
       if (refs.length) intent.originTaskIds = refs;
