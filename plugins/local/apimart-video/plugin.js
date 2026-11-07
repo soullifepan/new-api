@@ -27,6 +27,12 @@ const OMNI12_FIELDS = ["model", "prompt", "duration", "resolution", "aspect_rati
 
 const MUSE_MODEL = "muse-video-ext-am";
 const KLING_V4_MODEL = "kling-v4-am";
+const KLING_V4_FLASH_MODEL = "kling-v4-flash-am";
+// APIMart Gold prices verified 2026-11-07 (one credit = USD 0.1):
+// https://apimart.ai/model/kling-4-0-flash
+// Public page resolution_paid_prices (USD): 720P 0.0857144,
+// 720P-input 0.0571432. Preserve their precision instead of the rounded table.
+const KLING_V4_FLASH_CREDITS_PER_SECOND = [0.857144, 0.571432];
 // Gold public prices verified 2026-11-05 at
 // https://apimart.ai/model/kling-4-0; one AM credit is USD 0.1.
 const KLING_V4_CREDITS_PER_SECOND = { "720p": [1.4, 0.84], "1080p": [2.1, 1.26] };
@@ -68,6 +74,7 @@ const MODELS = new Map([
     upstream: "gemini-omni-1.2-flash-ext", geminiOmni12: "ext", resolutions: ["360p", "720p", "1080p", "4k"], defaultResolution: "720p", seconds: [3, 15, 10],
     fields: new Set([...OMNI12_FIELDS, "seconds", "generation_type", "video_url", "negative_prompt", "system_prompt", "audio", "n", "watermark", "format", "output_format", "response_format", "enable_gif", "async"]),
   }],
+  [KLING_V4_FLASH_MODEL, { upstream: "kling-v4-flash", klingV4: true, klingV4Flash: true, resolutions: ["720p"], seconds: [3, 20, 5] }],
   [KLING_V4_MODEL, { upstream: "kling-v4", klingV4: true, resolutions: ["720p", "1080p"], seconds: [3, 30, 5] }],
   [MUSE_MODEL, { upstream: "muse-video-ext", muse: true, resolutions: ["720p"], seconds: [10, 10, 10] }],
   ["grok-imagine-1.5-video-am", {
@@ -188,7 +195,7 @@ const WAN3_CREDITS_PER_SECOND = {
 };
 
 function usageSchema(model) {
-  if (model === KLING_V4_MODEL) return {
+  if (model === KLING_V4_MODEL || model === KLING_V4_FLASH_MODEL) return {
     upstream_credits: { type: "number", unit: "credit", description: { en: "AM settlement credit unit price", zh: "AM 结算积分单价" } },
   };
   if (model === MUSE_MODEL) return {
@@ -239,7 +246,14 @@ for (const [model, spec] of MODELS) {
           ? { requests: 1, resolution: spec.defaultResolution || spec.resolutions[0] }
           : { seconds: spec.defaultDuration || spec.seconds[2], resolution: spec.defaultResolution || spec.resolutions[0] };
   if (model === "pixverse-v6-am") facts.audio = "off";
-  if (model === KLING_V4_MODEL) {
+  if (model === KLING_V4_FLASH_MODEL) {
+    examples[model] = [
+      { label: "720P · 5s generation reservation", facts: { upstream_credits: 4.28572 } },
+      { label: "720P-input · 3s output + 3.04s input estimate", facts: { upstream_credits: 4.000024 } },
+      { label: "720P-input · 3s output / max 20s input reserve", facts: { upstream_credits: 13.142936 } },
+      { label: "720P-input · auto edit max reservation", facts: { upstream_credits: 22.85728 } },
+    ];
+  } else if (model === KLING_V4_MODEL) {
     examples[model] = Object.entries(KLING_V4_CREDITS_PER_SECOND).flatMap(function (entry) {
       return [
         { label: entry[0].toUpperCase() + " · 5s generation reservation", facts: { upstream_credits: entry[1][0] * 5 } },
@@ -305,7 +319,7 @@ export const meta = {
   name: "AM Video",
   icon: "text:AV",
   description: { en: "Validated AM asynchronous video generation tasks.", zh: "经过逐模型校验的 AM 异步视频生成任务。" },
-  version: "0.5.17",
+  version: "0.5.18",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   allowedHosts: ["api.apib.ai", "api.apimart.ai", "upload.apimart.ai", "cdn.apimart.ai"],
@@ -891,14 +905,24 @@ function normalizeGeminiOmni(model, request) {
   return body;
 }
 
-function normalizeKlingV4(model, request) {
+// Remote URLs carry no trustworthy media geometry or stream duration here.
+// APIMart probes Flash image bounds and edit/reference format, height and total
+// stream duration. Clients must also enforce each reference clip's 3s minimum:
+// the documented upstream submission check does not yet reject that case.
+function normalizeKlingV4(model, request, flash = model === KLING_V4_FLASH_MODEL) {
   const fields = new Set(["model", "prompt", "duration", "resolution", "aspect_ratio", "image_urls", "image_with_roles", "first_frame_image", "last_frame_image", "video_urls", "video_url", "audio_urls", "omni_reference_task_type", "audio_setting", "watermark", "audio"]);
-  for (const field of Object.keys(request)) if (!fields.has(field)) throw new Error("unsupported field for " + KLING_V4_MODEL + ": " + field);
+  if (flash) {
+    fields.delete("last_frame_image");
+    fields.delete("audio_urls");
+    fields.add("seconds");
+    fields.add("size");
+  }
+  for (const field of Object.keys(request)) if (!fields.has(field)) throw new Error("unsupported field for " + model + ": " + field);
   if (request.model !== undefined && request.model !== model) throw new Error("model must be " + model);
   const taskType = request.omni_reference_task_type === undefined ? "auto" : request.omni_reference_task_type;
   if (!["auto", "reference", "edit", "extend"].includes(taskType)) throw new Error("unsupported omni_reference_task_type");
   const body = { model: model, resolution: request.resolution === undefined ? "720p" : request.resolution };
-  if (!["720p", "1080p"].includes(body.resolution)) throw new Error("unsupported resolution");
+  if (!(flash ? ["720p"] : ["720p", "1080p"]).includes(body.resolution)) throw new Error("unsupported resolution");
   if (request.omni_reference_task_type !== undefined) body.omni_reference_task_type = taskType;
   for (const field of ["image_urls", "video_urls", "audio_urls"]) {
     if (request[field] !== undefined) body[field] = urlArray(request[field], field, field === "image_urls" ? 10 : field === "video_urls" ? 5 : 3);
@@ -911,7 +935,7 @@ function normalizeKlingV4(model, request) {
     body.image_with_roles = request.image_with_roles.map(function (value) {
       const entry = object(value, "image_with_roles entries must be objects");
       if (Object.keys(entry).some(function (field) { return field !== "url" && field !== "role"; })) throw new Error("unsupported image_with_roles entry field");
-      if (!["first_frame", "last_frame", "keyframe", "middle_frame", "reference_image"].includes(entry.role)) throw new Error("unsupported image role");
+      if (!(flash ? ["first_frame", "reference_image"] : ["first_frame", "last_frame", "keyframe", "middle_frame", "reference_image"]).includes(entry.role)) throw new Error("unsupported image role");
       return { url: mediaURL(entry.url, "image_with_roles", false), role: entry.role };
     });
   }
@@ -931,6 +955,7 @@ function normalizeKlingV4(model, request) {
     if (images.length + roles.length + videos.length + (body.video_url ? 1 : 0) + audios.length > 15) throw new Error("reference images, videos and audios together are at most 15 files");
     if (edit && audios.length) throw new Error("audio_urls is only supported for reference generation");
   } else if (extend) {
+    if (flash && (images.length || roles.length || body.first_frame_image)) throw new Error("Flash extend takes no images");
     if (images.length || audios.length || body.first_frame_image || roles.some(function (entry) { return entry.role !== "last_frame"; })) throw new Error("extend only accepts a target last frame image");
     if (roles.length + (body.last_frame_image ? 1 : 0) > 1) throw new Error("extend accepts at most one last frame");
   }
@@ -939,6 +964,7 @@ function normalizeKlingV4(model, request) {
     const first = (images.length ? 1 : 0) + (body.first_frame_image ? 1 : 0) + roles.filter(function (entry) { return entry.role === "first_frame"; }).length;
     const last = (images.length > 1 ? 1 : 0) + (body.last_frame_image ? 1 : 0) + roles.filter(function (entry) { return entry.role === "last_frame"; }).length;
     const middle = roles.filter(function (entry) { return entry.role === "keyframe" || entry.role === "middle_frame"; }).length;
+    if (flash && images.length + roles.length + (body.first_frame_image ? 1 : 0) !== 1) throw new Error("Flash image-to-video requires exactly one first frame");
     if (images.length > 2) throw new Error("image-to-video image_urls accepts at most 2 images");
     if (first !== 1) throw new Error("image-to-video requires exactly 1 first frame");
     if (last > 1 || middle > 8 || first + last + middle > 10) throw new Error("image-to-video accepts one last frame and at most 8 middle frames, 10 images total");
@@ -948,15 +974,25 @@ function normalizeKlingV4(model, request) {
   if (!prompt && !imageToVideo) throw new Error("prompt is required");
   if (request.prompt !== undefined) body.prompt = prompt;
   // Editing must retain omitted duration/aspect so the provider follows input.
-  if (request.duration !== undefined) body.duration = integer(request.duration, "duration", 3, 30);
-  else if (!edit) body.duration = 5;
-  if (request.aspect_ratio !== undefined) {
+  const duration = flash && request.duration === null ? undefined : request.duration;
+  const seconds = flash && request.seconds !== null ? request.seconds : undefined;
+  if (duration !== undefined) body.duration = integer(duration, "duration", 3, flash ? 20 : 30);
+  if (seconds !== undefined) {
+    integer(seconds, "seconds", 3, 20);
+    if (duration !== undefined && seconds !== duration) throw new Error("seconds and duration conflict");
+    body.duration = seconds;
+  }
+  if (body.duration === undefined && !edit) body.duration = 5;
+  if (flash && request.size !== undefined && request.size !== "") throw new Error("Flash does not support size; use aspect_ratio for text, reference or edit only");
+  if (request.aspect_ratio !== undefined && !(flash && request.aspect_ratio === "")) {
+    if (flash && imageToVideo) throw new Error("Flash image-to-video follows the first frame; omit aspect_ratio and size");
     if (extend) throw new Error("extend does not support aspect_ratio");
     if (!["16:9", "9:16", "1:1", "21:9"].includes(request.aspect_ratio) && !(reference && request.aspect_ratio === "auto")) throw new Error("unsupported aspect_ratio");
     body.aspect_ratio = request.aspect_ratio;
   }
   if (request.audio_setting !== undefined) {
-    if (!edit && !(reference && videos.length)) throw new Error("audio_setting requires edit or reference video");
+    if (flash && !(reference && videos.length)) throw new Error("Flash audio_setting requires reference video");
+    if (!flash && !edit && !(reference && videos.length)) throw new Error("audio_setting requires edit or reference video");
     if (!["origin", "auto"].includes(request.audio_setting)) throw new Error("unsupported audio_setting");
     body.audio_setting = request.audio_setting;
   }
@@ -1035,7 +1071,7 @@ function normalize(model, request) {
   object(request, "video generation request must be an object");
   const spec = MODELS.get(model);
   if (!spec) throw new Error("unsupported AM video model");
-  if (spec.klingV4) return normalizeKlingV4(model, request);
+  if (spec.klingV4) return normalizeKlingV4(model, request, !!spec.klingV4Flash);
   if (spec.muse) return normalizeMuse(model, request);
   if (spec.viduQ4) return normalizeViduQ4(model, request);
   if (spec.wan3) return normalizeWan3(model, request);
@@ -1170,11 +1206,11 @@ function artifactKey(index, url) {
 export function buildSubmitRequest(ctx) {
   const request = object(ctx.requestBody, "video generation request is required");
   const publicModel = text(ctx.model || request.model);
-  const spec = MODELS.get(publicModel) || (ctx.upstreamModel === "muse-video-ext" ? MODELS.get(MUSE_MODEL) : ctx.upstreamModel === "kling-v4" ? MODELS.get(KLING_V4_MODEL) : undefined);
+  const spec = MODELS.get(publicModel) || (ctx.upstreamModel === "muse-video-ext" ? MODELS.get(MUSE_MODEL) : ctx.upstreamModel === "kling-v4" ? MODELS.get(KLING_V4_MODEL) : ctx.upstreamModel === "kling-v4-flash" ? MODELS.get(KLING_V4_FLASH_MODEL) : undefined);
   if (!spec) throw new Error("unsupported AM video model");
   const upstream = text(ctx.upstreamModel);
   if (upstream && upstream !== publicModel && upstream !== spec.upstream) throw new Error("upstream model does not match the public video model");
-  const body = ctx.action === "asset" ? normalizeAssets(request) : spec.muse ? normalizeMuse(publicModel, request) : spec.klingV4 ? normalizeKlingV4(publicModel, request) : normalize(publicModel, request);
+  const body = ctx.action === "asset" ? normalizeAssets(request) : spec.muse ? normalizeMuse(publicModel, request) : spec.klingV4 ? normalizeKlingV4(publicModel, request, !!spec.klingV4Flash) : normalize(publicModel, request);
   if (publicModel === H3_REGENERATION_MODEL) {
     const origin = (ctx.originTasks || []).find(function (task) { return task.taskId === body.source_task_id; });
     const facts = origin && origin.state && origin.state.h3Source;
@@ -1225,7 +1261,7 @@ export function buildSubmitRequest(ctx) {
 
 export function parseSubmitResponse(ctx, response) {
   const body = object(response && response.body, "invalid AM submit response");
-  if (ctx.model === KLING_V4_MODEL || ctx.upstreamModel === "kling-v4") {
+  if (ctx.model === KLING_V4_MODEL || ctx.upstreamModel === "kling-v4" || ctx.model === KLING_V4_FLASH_MODEL || ctx.upstreamModel === "kling-v4-flash") {
     const entry = Array.isArray(body.data) ? body.data[0] : body.data;
     const taskId = entry && typeof entry === "object" ? text(entry.task_id || entry.id) : "";
     if ([200, 202].includes(Number(body.code)) && taskId) return { taskId: taskId, taskData: body };
@@ -1273,16 +1309,21 @@ export function extractUsage(ctx) {
   if (ctx.usagePurpose === "billing_ratios") return null;
   const request = ctx.requestBody || {};
   const model = text(ctx.model || request.model);
-  if (model === KLING_V4_MODEL || ctx.upstreamModel === "kling-v4") {
-    const body = normalizeKlingV4(model, request);
+  if (model === KLING_V4_MODEL || ctx.upstreamModel === "kling-v4" || model === KLING_V4_FLASH_MODEL || ctx.upstreamModel === "kling-v4-flash") {
+    const flash = ctx.upstreamModel === "kling-v4-flash" || model === KLING_V4_FLASH_MODEL;
+    const body = normalizeKlingV4(model, request, flash);
     const taskType = body.omni_reference_task_type;
     const hasVideoInput = taskType === "edit" || taskType !== "extend" && !!body.video_urls;
     // User-confirmed AM policy: reserve the 30-second input ceiling instead
     // of trusting client media metadata. Omitted edit duration stays omitted
     // upstream, but reserves a 30-second output. Extend bills only new seconds.
-    const outputSeconds = body.duration === undefined ? 30 : body.duration;
-    const billableSeconds = hasVideoInput ? outputSeconds + Math.max(outputSeconds, 30) : outputSeconds;
-    const rate = KLING_V4_CREDITS_PER_SECOND[body.resolution][hasVideoInput ? 1 : 0];
+    // Flash uses the same user-approved ceiling policy, with its own documented
+    // 20-second limit and prices. Never trust client-supplied media durations.
+    const inputCeiling = flash ? 20 : 30;
+    const outputSeconds = body.duration === undefined ? inputCeiling : body.duration;
+    const billableSeconds = hasVideoInput ? outputSeconds + Math.max(outputSeconds, inputCeiling) : outputSeconds;
+    const rates = flash ? KLING_V4_FLASH_CREDITS_PER_SECOND : KLING_V4_CREDITS_PER_SECOND[body.resolution];
+    const rate = rates[hasVideoInput ? 1 : 0];
     return { upstream_credits: Math.round(billableSeconds * rate * 1e8) / 1e8 };
   }
   if (model === MUSE_MODEL || ctx.upstreamModel === "muse-video-ext") {
@@ -1365,7 +1406,7 @@ export function extractUsageOnComplete(ctx, result, body) {
   if (result.status !== "SUCCESS") return null;
   const model = String(ctx.model || "");
   const data = object(body.data, "missing AM task data");
-  if (model === KLING_V4_MODEL || ctx.upstreamModel === "kling-v4") return { upstream_credits: amTaskCredits(data) };
+  if (model === KLING_V4_MODEL || ctx.upstreamModel === "kling-v4" || model === KLING_V4_FLASH_MODEL || ctx.upstreamModel === "kling-v4-flash") return { upstream_credits: amTaskCredits(data) };
   if (model === MUSE_MODEL || ctx.upstreamModel === "muse-video-ext") return { upstream_credits: museTaskCredits(data) };
   if (model === H3_CONTEXT_MODEL || model === "minimax-h3-am" || model === "minimax-h3-max-am" || model === H3_REGENERATION_MODEL || model === OMNI12_MODEL || model === OMNI12_EXT_MODEL || model.startsWith("gemini-omni-1.1-flash")) return { upstream_credits: amTaskCredits(data) };
   if (model.startsWith("wan3.0-video")) return { upstream_credits: wan3Cost(data) };
@@ -1385,7 +1426,7 @@ export function parseTaskResult(ctx, body) {
   const response = object(body, "invalid AM task response");
   const muse = ctx.model === MUSE_MODEL || ctx.upstreamModel === "muse-video-ext";
   const omni12 = ctx.model === OMNI12_MODEL || ctx.model === OMNI12_EXT_MODEL;
-  const klingV4 = ctx.model === KLING_V4_MODEL || ctx.upstreamModel === "kling-v4";
+  const klingV4 = ctx.model === KLING_V4_MODEL || ctx.upstreamModel === "kling-v4" || ctx.model === KLING_V4_FLASH_MODEL || ctx.upstreamModel === "kling-v4-flash";
   if (omni12 && Number(response.code) !== 200) throw new Error("AM Omni task query temporarily unavailable");
   if (klingV4 && Number(response.code) !== 200) throw new Error("AM Kling V4 task query temporarily unavailable");
   if (muse && Number(response.code) !== 200) throw new Error("AM Muse task query temporarily unavailable");
