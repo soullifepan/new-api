@@ -74,6 +74,19 @@ const gpt26Models = new Map([
   ["gpt-image-2.6-flare-am", "gpt-image-2.6-flare"],
   ["gpt-image-2.6-sunburst-am", "gpt-image-2.6-sunburst"],
 ]);
+// Ext is a per-image contract, independent of the ordinary GPT26 token tables.
+// 2026-11-07 https://apimart.ai/zh/model/gpt-image-2-6 RSC pricing snapshot:
+// version_resolution_paid_prices, Gold (8000 bps). The user approved Gold
+// reservation estimates and settlement to actual USD cost; do not discount twice.
+const gpt26Ext = "gpt-image-2.6-ext-am";
+const gpt26ExtPrices = {
+  flare: { "1k": 0.0085, "2k": 0.03, "4k": 0.04 },
+  sunburst: { "1k": 0.0085, "2k": 0.03, "4k": 0.04 },
+};
+const gpt26ExtExamples = Object.entries(gpt26ExtPrices).flatMap(([version, prices]) => Object.entries(prices).map(([resolution, price]) => ({
+  label: version + " · " + resolution.toUpperCase() + " · Gold estimate / 预扣估算",
+  facts: { upstream_credits: price * 10, version, resolution },
+})));
 const gpt26TokenLimit = 1000000;
 const gpt26OutputTokens = {
   "16:9": [504, 924, 1078, 1917, 4312],
@@ -143,11 +156,16 @@ export const meta = {
     en: "AM asynchronous image generation tasks",
     zh: "AM 异步图片生成任务",
   },
-  version: "0.12.2",
+  version: "0.13.0",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   usageProfiles: (function () {
     const schemas = {
+    "gpt-image-2.6-ext-am": {
+      upstream_credits: { type: "number", unit: "credit", description: { en: "Image generation credit unit price", zh: "图片生成积分单价" } },
+      resolution: { enum: ["1k", "2k", "4k"], description: { en: "Output resolution", zh: "输出分辨率" } },
+      version: { enum: ["flare", "sunburst"], description: { en: "Model version", zh: "模型版本" } },
+    },
     "gpt-image-2.6-flare-am": {
       upstream_credits: { type: "number", unit: "credit", description: { en: "Image generation credit unit price", zh: "图片生成积分单价" } },
     },
@@ -226,6 +244,7 @@ export const meta = {
     },
     };
     const examples = {
+    "gpt-image-2.6-ext-am": gpt26ExtExamples,
     "gpt-image-2.6-flare-am": gpt26OutputExamples,
     "gpt-image-2.6-sunburst-am": gpt26OutputExamples,
     "gpt-image-2.5-ext-am": ["flare", "sunburst"].flatMap(version => ["1k", "2k", "4k"].map(resolution => ({ label: version + " · " + resolution.toUpperCase(), facts: { images: 1, version, resolution } }))),
@@ -284,6 +303,7 @@ export const meta = {
   models: [
     ...gpt25Models.keys(),
     ...gpt26Models.keys(),
+    gpt26Ext,
     "nano-banana-am",
     "nano-banana-2-am",
     "nano-banana-pro-am",
@@ -414,6 +434,7 @@ function normalizedProSize(value) {
 }
 
 function normalizeAPIMartModelRequest(model, request) {
+  if (model === gpt26Ext) return normalizeGPT26Ext(request);
   if (gpt26Models.has(model)) return normalizeGPT26(model, request);
   if (gpt25Models.has(model)) return normalizeGPT25(model, request);
   const banana = nanoBananaModels.get(model);
@@ -537,6 +558,99 @@ function gpt26LayerURL(value, name, markup) {
   if (!width || !height) throw new Error(name + " PNG dimensions must be positive");
   if (markup && width * height > 16777216) throw new Error("markup PNG must not exceed 16777216 pixels");
   return value;
+}
+
+function normalizeGPT26Ext(request) {
+  const aliases = ["image_urls", "image_url", "image", "images", "input_image", "input_images"];
+  const ignored = ["background", "moderation", "output_compression", "seed", "negative_prompt", "style", "response_format"];
+  const allowed = new Set(["model", "prompt", "version", "resolution", "size", "aspect_ratio", "n", "quality", "output_format", "complexity", "svg", ...aliases, ...ignored]);
+  for (const key of Object.keys(request)) {
+    if (!allowed.has(key)) throw new Error("unsupported GPT Image 2.6 Ext field: " + key);
+  }
+  if (!trimmed(request.prompt)) throw new Error("prompt is required");
+  if (request.n !== undefined && request.n !== 1) throw new Error("n must be the integer 1");
+  const output = { model: gpt26Ext, prompt: request.prompt, n: 1 };
+  for (const [field, values, fallback] of [
+    ["version", ["flare", "sunburst"], "flare"],
+    ["resolution", ["1k", "2k", "4k"], "1k"],
+    ["output_format", ["png", "jpeg", "webp", "svg", "gif"], "png"],
+    ["quality", ["auto", "low", "medium", "high", "xhigh", "max"], undefined],
+    ["complexity", ["low", "medium", "high"], undefined],
+  ]) {
+    if (request[field] === undefined && fallback === undefined) continue;
+    let value = request[field] === undefined ? fallback : trimmed(request[field]).toLowerCase();
+    if (field === "output_format" && value === "jpg") value = "jpeg";
+    if (!values.includes(value)) throw new Error("unsupported " + field);
+    output[field] = value;
+  }
+  const size = request.size === undefined ? undefined : trimmed(request.size).toLowerCase();
+  const aspect = request.aspect_ratio === undefined ? undefined : trimmed(request.aspect_ratio).toLowerCase();
+  if (size !== undefined && aspect !== undefined && size !== aspect) throw new Error("size and aspect_ratio must match");
+  output.size = size === undefined ? aspect === undefined ? "auto" : aspect : size;
+  if (!nanoBananaRatios.has(output.size)) throw new Error("size must be auto or a supported GPT Image 2.6 Ext ratio");
+  if (output.output_format === "gif" && output.size !== "auto") throw new Error("GIF size must be auto or omitted");
+  const referenceFields = aliases.filter(field => request[field] !== undefined);
+  // Avoid silently choosing between competing reference lists.
+  if (referenceFields.length > 1) throw new Error("use only one reference image field");
+  if (referenceFields.length) {
+    const value = request[referenceFields[0]];
+    const images = imageURLs(typeof value === "string" && referenceFields[0] !== "image_urls" ? [value] : value, 16);
+    if (images.length && ["svg", "gif"].includes(output.output_format)) throw new Error("GIF and SVG only support text-to-image generation");
+    for (const image of images) {
+      const url = image.trim();
+      let restricted = /\.(gif|bmp)(?:[?#]|$)/i.test(url);
+      if (/^data:/i.test(url)) {
+        const comma = url.indexOf(",");
+        const mime = /^data:image\/(png|jpeg|webp|gif|bmp|x-ms-bmp);base64$/i.exec(url.slice(0, comma));
+        if (!mime || comma < 0) throw new Error("reference images must be HTTP(S) URLs or supported image Base64 Data URLs");
+        const encoded = url.slice(comma + 1);
+        const padding = encoded.endsWith("==") ? 2 : encoded.endsWith("=") ? 1 : 0;
+        if (encoded.length / 4 * 3 - padding > 20 * 1024 * 1024) throw new Error("each reference image must not exceed 20 MB");
+        if (!encoded.length || encoded.length % 4 || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded)) throw new Error("invalid reference image Base64");
+        restricted = ["gif", "bmp", "x-ms-bmp"].includes(mime[1].toLowerCase()) || /^R0lGOD|^Qk/.test(encoded);
+      } else if (!/^https?:\/\/[^\s/@]+(?:[/?#][^\s]*)?$/i.test(url)) {
+        throw new Error("reference images must be HTTP(S) URLs or supported image Base64 Data URLs");
+      }
+      if (output.resolution !== "1k" && restricted) throw new Error("2k and 4k reference images cannot be GIF or BMP");
+    }
+    // Remote download byte size and actual media type are checked by APIMart;
+    // the plugin cannot fetch 16 arbitrary external hosts through utils.fetch.
+    output.image_urls = images.map(image => image.trim());
+  }
+  if (request.svg !== undefined) {
+    if (output.output_format !== "svg") throw new Error("svg configuration is only supported with SVG");
+    const config = object(request.svg, "svg must be an object");
+    if (Object.keys(config).some(key => !["model", "reasoning"].includes(key))) throw new Error("unsupported svg field");
+    if (!trimmed(config.model)) throw new Error("svg.model is required when svg is provided");
+    output.svg = { model: config.model.trim() };
+    if (config.reasoning !== undefined) {
+      const reasoning = object(config.reasoning, "svg.reasoning must be an object");
+      if (Object.keys(reasoning).some(key => key !== "effort")) throw new Error("unsupported svg.reasoning field");
+      output.svg.reasoning = {};
+      if (reasoning.effort !== undefined) {
+        const effort = trimmed(reasoning.effort).toLowerCase();
+        if (!["none", "minimal", "low", "medium", "high", "xhigh", "max"].includes(effort)) throw new Error("unsupported svg.reasoning.effort");
+        output.svg.reasoning.effort = effort;
+      }
+    }
+  }
+  return output;
+}
+
+function gpt26ExtUsage(request) {
+  return { upstream_credits: gpt26ExtPrices[request.version][request.resolution] * 10, version: request.version, resolution: request.resolution };
+}
+
+function gpt26ExtActualCredits(data) {
+  // Reuse APIMart's existing 64-credit safety ceiling, not token estimates.
+  const ceiling = 64;
+  const cost = data.cost;
+  const credits = data.credits_cost;
+  if (cost === undefined && credits === undefined) return null;
+  if (cost !== undefined && (typeof cost !== "number" || !Number.isFinite(cost) || cost < 0 || cost > ceiling / 10)) return null;
+  if (credits !== undefined && (typeof credits !== "number" || !Number.isFinite(credits) || credits < 0 || credits > ceiling)) return null;
+  if (cost !== undefined && credits !== undefined && Math.abs(cost * 10 - credits) > 0.00001) return null;
+  return cost === undefined ? credits : cost * 10;
 }
 
 function normalizeGPT26(model, request) {
@@ -714,7 +828,7 @@ function gpt26ActualCredits(data) {
 }
 
 function gpt26DeliveredCount(ctx, data) {
-  const requested = ctx.state && ctx.state.gpt26_requested_images;
+  const requested = ctx.model === gpt26Ext ? 1 : ctx.state && ctx.state.gpt26_requested_images;
   if (!Number.isInteger(requested) || requested < 1 || requested > 4) return null;
   const images = data.result && data.result.images;
   if (!Array.isArray(images) || !images.length) return null;
@@ -971,7 +1085,9 @@ function imageTaskData(task) {
   const snapshot = task && task.data;
   if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return {};
   const response = snapshot.response && typeof snapshot.response === "object" && !Array.isArray(snapshot.response) ? snapshot.response : snapshot;
-  return response.data && typeof response.data === "object" && !Array.isArray(response.data) ? response.data : {};
+  if (response.data && typeof response.data === "object" && !Array.isArray(response.data)) return response.data;
+  // Ext also documents task objects without the code/data envelope.
+  return response.status !== undefined && response.result !== undefined ? response : {};
 }
 
 function publicStatus(status) {
@@ -1022,7 +1138,8 @@ export function buildSubmitRequest(ctx) {
   const publicModel = trimmed(ctx.model || request.model);
   const banana = nanoBananaModels.get(publicModel);
   const upstreamModel = trimmed(ctx.upstreamModel);
-  const model = gpt26Models.has(publicModel) && (!upstreamModel || upstreamModel === publicModel) ? gpt26Models.get(publicModel) : gpt25Models.has(publicModel) && (!upstreamModel || upstreamModel === publicModel) ? gpt25Models.get(publicModel) : banana && (!upstreamModel || upstreamModel === publicModel) ? banana.upstream : upstreamModel || publicModel;
+  const model = publicModel === gpt26Ext && (!upstreamModel || upstreamModel === publicModel) ? "gpt-image-2.6-ext" : gpt26Models.has(publicModel) && (!upstreamModel || upstreamModel === publicModel) ? gpt26Models.get(publicModel) : gpt25Models.has(publicModel) && (!upstreamModel || upstreamModel === publicModel) ? gpt25Models.get(publicModel) : banana && (!upstreamModel || upstreamModel === publicModel) ? banana.upstream : upstreamModel || publicModel;
+  if (publicModel === gpt26Ext && model !== "gpt-image-2.6-ext") throw new Error("upstream model must match the GPT Image 2.6 Ext alias");
   if (gpt26Models.has(publicModel) && model !== gpt26Models.get(publicModel)) throw new Error("upstream model must match the GPT Image 2.6 alias");
   if (gpt25Models.has(publicModel) && model !== gpt25Models.get(publicModel)) throw new Error("upstream model must match the GPT Image 2.5 alias");
   if (banana && ![banana.upstream, publicModel.slice(0, -3)].includes(model)) {
@@ -1047,7 +1164,7 @@ export function buildSubmitRequest(ctx) {
 
 export function parseSubmitResponse(ctx, response) {
   const body = object(response && response.body, "invalid AM submit response");
-  if (gpt26Models.has(ctx.model) && (![200, 202].includes(Number(body.code)) || !(Array.isArray(body.data) && body.data[0] && trimmed(body.data[0].task_id)))) {
+  if ((gpt26Models.has(ctx.model) || ctx.model === gpt26Ext) && (![200, 202].includes(Number(body.code)) || !(Array.isArray(body.data) && body.data[0] && trimmed(body.data[0].task_id)))) {
     return { taskId: "am-" + (ctx.publicTaskId || utils.uuid()), taskData: {}, immediate: { status: "FAILURE", reason: failureReason(body, publicMessage(body.message) || "AM image task submission failed or is missing task_id") } };
   }
   if (![200, 202].includes(Number(body.code))) throw new Error(publicMessage(body.message) || "AM image task submission failed");
@@ -1057,9 +1174,9 @@ export function parseSubmitResponse(ctx, response) {
   if (!taskId) throw new Error("AM submit response is missing task_id");
   const request = ctx && ctx.requestBody && typeof ctx.requestBody === "object" ? ctx.requestBody : {};
   const publicModel = trimmed(ctx && ctx.model || request.model);
-  const normalized = gpt26Models.has(publicModel) || publicModel === "seedream-5-0-pro-am" || nanoBananaModels.has(publicModel) || gpt25Models.has(publicModel) ? normalizeAPIMartModelRequest(publicModel, request) : null;
-  const billingUsage = normalized ? gpt26Models.has(publicModel) ? gpt26Usage(normalized) : gpt25Models.has(publicModel) ? gpt25Usage(publicModel, normalized) : apimartUsage(normalized, publicModel) : null;
-  if (gpt26Models.has(publicModel)) return { taskId, taskData: body, state: { billing_usage: billingUsage, gpt26_requested_images: normalized.n } };
+  const normalized = publicModel === gpt26Ext || gpt26Models.has(publicModel) || publicModel === "seedream-5-0-pro-am" || nanoBananaModels.has(publicModel) || gpt25Models.has(publicModel) ? normalizeAPIMartModelRequest(publicModel, request) : null;
+  const billingUsage = normalized ? publicModel === gpt26Ext ? gpt26ExtUsage(normalized) : gpt26Models.has(publicModel) ? gpt26Usage(normalized) : gpt25Models.has(publicModel) ? gpt25Usage(publicModel, normalized) : apimartUsage(normalized, publicModel) : null;
+  if (gpt26Models.has(publicModel) || publicModel === gpt26Ext) return { taskId, taskData: body, state: { billing_usage: billingUsage, gpt26_requested_images: normalized.n } };
   return billingUsage
     ? { taskId: taskId, taskData: body, state: { billing_usage: billingUsage } }
     : { taskId: taskId, taskData: body };
@@ -1070,6 +1187,7 @@ export function extractUsage(ctx) {
   const request = ctx.requestBody || {};
   const publicModel = trimmed(ctx.model || request.model);
   const normalized = normalizeAPIMartModelRequest(publicModel, request);
+  if (publicModel === gpt26Ext) return gpt26ExtUsage(normalized);
   if (gpt26Models.has(publicModel)) return gpt26Usage(normalized);
   if (gpt25Models.has(publicModel)) return gpt25Usage(publicModel, normalized);
   const taskUsage = apimartUsage(normalized, publicModel);
@@ -1088,14 +1206,14 @@ export function extractUsage(ctx) {
 
 export function extractUsageOnComplete(ctx, _taskResult, body) {
   const publicModel = trimmed(ctx.model || (ctx.requestBody || {}).model);
-  if (gpt26Models.has(publicModel)) {
+  if (gpt26Models.has(publicModel) || publicModel === gpt26Ext) {
     if (body && body.code !== undefined && body.code !== 200) return null;
-    const data = body && body.data;
+    const data = publicModel === gpt26Ext && body && body.data === undefined ? body : body && body.data;
     if (!data || typeof data !== "object" || Array.isArray(data)) return null;
     const status = trimmed(data.status).toLowerCase();
     if (["failed", "failure", "cancelled", "canceled"].includes(status)) return { upstream_credits: 0 };
     if (!["completed", "success"].includes(status) || gpt26DeliveredCount(ctx, data) === null) return null;
-    const credits = gpt26ActualCredits(data);
+    const credits = publicModel === gpt26Ext ? gpt26ExtActualCredits(data) : gpt26ActualCredits(data);
     return credits === null ? null : { upstream_credits: credits };
   }
   if (gpt25Models.has(publicModel)) {
@@ -1134,14 +1252,15 @@ export function buildQueryRequest(ctx) {
 }
 
 export function parseTaskResult(ctx, body) {
-  const response = object(body, "invalid AM task response");
+  const raw = object(body, "invalid AM task response");
+  const response = ctx.model === gpt26Ext && raw.data === undefined && raw.status !== undefined ? { code: raw.code === undefined ? 200 : raw.code, message: raw.message, data: raw } : raw;
   if (Number(response.code) !== 200) {
     return { code: Number(response.code) || 0, status: "FAILURE", progress: "100%", reason: publicMessage(response.message) || "AM task query failed" };
   }
   const data = object(response.data, "AM task response is missing data");
-  if (gpt26Models.has(ctx.model) && ["completed", "success"].includes(trimmed(data.status).toLowerCase())) {
+  if ((gpt26Models.has(ctx.model) || ctx.model === gpt26Ext) && ["completed", "success"].includes(trimmed(data.status).toLowerCase())) {
     if (gpt26DeliveredCount(ctx, data) === null) return { status: "UNKNOWN", reason: "invalid delivered image count" };
-    if (gpt26ActualCredits(data) === null) return { status: "IN_PROGRESS", progress: "99%", reason: "" };
+    if ((ctx.model === gpt26Ext ? gpt26ExtActualCredits(data) : gpt26ActualCredits(data)) === null) return { status: "IN_PROGRESS", progress: "99%", reason: "" };
   }
   if (gpt25Models.has(ctx.model) && ["completed", "success"].includes(trimmed(data.status).toLowerCase())) {
     if (ctx.model !== gpt25Ext && gpt25ActualCredits(data) === null) return { status: "IN_PROGRESS", progress: "99%", reason: "" };
@@ -1194,7 +1313,7 @@ export const native = {
     const request = object(ctx.body.value, "request body must be an object");
     const model = trimmed(request.model);
     if (!isDeclaredModel(model)) throw new Error("unsupported AM image model");
-    if (gpt26Models.has(model) || gpt25Models.has(model) || nanoBananaModels.has(model) || ["seedream-5-0-lite-am", "seedream-5-0-pro-am", "z-image-turbo-am"].includes(model)) {
+    if (model === gpt26Ext || gpt26Models.has(model) || gpt25Models.has(model) || nanoBananaModels.has(model) || ["seedream-5-0-lite-am", "seedream-5-0-pro-am", "z-image-turbo-am"].includes(model)) {
       const normalized = normalizeAPIMartModelRequest(model, request);
       return { kind: "submit", model: model, action: "image_generation", requestBody: normalized };
     }

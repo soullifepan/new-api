@@ -1,6 +1,7 @@
 package plugins_test
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -153,6 +154,39 @@ func TestAPIMartMuseReferenceByteBoundaries(t *testing.T) {
 			body, ok := intent["requestBody"].(map[string]any)
 			require.True(t, ok)
 			assert.Equal(t, images, body["image_urls"])
+		})
+	}
+}
+
+// Keep large reference payloads out of the shared JSON fixture.
+func TestAPIMartGPT26ExtReferenceByteBoundaries(t *testing.T) {
+	source, err := os.ReadFile("local/apimart/plugin.js")
+	require.NoError(t, err)
+	plugin, err := jsplugin.NewRegistry().Register(string(source), jsplugin.Options{})
+	require.NoError(t, err)
+	const maxBytes = 20 * 1024 * 1024
+	for _, size := range []int{maxBytes, maxBytes + 1} {
+		t.Run(fmt.Sprint(size), func(t *testing.T) {
+			encoded := strings.Repeat("YWFh", size/3)
+			switch size % 3 {
+			case 1:
+				encoded += "YQ=="
+			case 2:
+				encoded += "YWE="
+			}
+			value, callErr := plugin.Engine.CallMember(t.Context(), "native", "decodeImageGeneration", map[string]any{
+				"body": map[string]any{"kind": "json", "value": map[string]any{
+					"model": "gpt-image-2.6-ext-am", "prompt": "test", "image_urls": []any{"data:image/png;base64," + encoded},
+				}},
+			})
+			if size > maxBytes {
+				require.ErrorContains(t, callErr, "each reference image must not exceed 20 MB")
+				return
+			}
+			require.NoError(t, callErr)
+			intent, ok := value.(map[string]any)
+			require.True(t, ok)
+			assert.Equal(t, "submit", intent["kind"])
 		})
 	}
 }
