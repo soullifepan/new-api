@@ -1,7 +1,6 @@
 // APIMart asynchronous video generation tasks.
 // Public models use an -am suffix; channel model mappings select the documented
-// APIMart model names. Sora is not declared here. Omni 1.2 EXT temporarily
-// reserves against the standard model estimates by explicit user policy.
+// APIMart model names. Sora is not declared here.
 
 const RATIOS = new Set(["16:9", "9:16", "1:1", "4:3", "3:4"]);
 const VIDEO_FIELDS = new Set([
@@ -20,9 +19,10 @@ const OMNI12_EXT_MODEL = "gemini-omni-1.2-flash-ext-am";
 // The page publishes these resolution-based per-second estimates separately;
 // use them only for reservation, never as measured tokens or the final bill.
 const OMNI12_ESTIMATE_CREDITS_PER_SECOND = { "360p": 0.2, "720p": 0.6, "1080p": 0.904, "4k": 1.808 };
-// User-approved temporary policy (2026-11-06): EXT uses the standard 1.2
-// resolution estimates and reservation rules until its own rates are published.
-// These are not official EXT prices; completion settles its actual data.cost.
+// APIMart official EXT price announcement supplied by the user (2026-11-07).
+// Keep the existing Gold baseline and reservation duration policy; completion
+// replaces the reservation with validated actual data.cost. One credit = USD 0.1.
+const OMNI12_EXT_CREDITS_PER_SECOND = { "360p": 0.16, "720p": 0.24, "1080p": 0.24, "4k": 0.56 };
 const OMNI12_FIELDS = ["model", "prompt", "duration", "resolution", "aspect_ratio", "image_urls", "first_frame_image", "last_frame_image", "image_with_roles", "video_urls", "omni_reference_task_type", "extend_from_task_id"];
 
 const MUSE_MODEL = "muse-video-ext-am";
@@ -309,8 +309,8 @@ examples["gemini-omni-1.1-flash-am"] = Object.entries(GEMINI_OMNI_CREDITS_PER_SE
 examples[OMNI12_MODEL] = Object.entries(OMNI12_ESTIMATE_CREDITS_PER_SECOND).map(function (entry) {
   return { label: entry[0].toUpperCase() + " · 10s reservation estimate", facts: { upstream_credits: entry[1] * 10 } };
 });
-examples[OMNI12_EXT_MODEL] = Object.entries(OMNI12_ESTIMATE_CREDITS_PER_SECOND).map(function (entry) {
-  return { label: entry[0].toUpperCase() + " · 10s temporary standard 1.2 estimate", facts: { upstream_credits: entry[1] * 10 } };
+examples[OMNI12_EXT_MODEL] = Object.entries(OMNI12_EXT_CREDITS_PER_SECOND).map(function (entry) {
+  return { label: entry[0].toUpperCase() + " · 10s reservation estimate", facts: { upstream_credits: entry[1] * 10 } };
 });
 
 export const meta = {
@@ -319,7 +319,7 @@ export const meta = {
   name: "AM Video",
   icon: "text:AV",
   description: { en: "Validated AM asynchronous video generation tasks.", zh: "经过逐模型校验的 AM 异步视频生成任务。" },
-  version: "0.5.18",
+  version: "0.5.19",
   author: { name: "Tapcomfy" },
   fetchMode: "per_task",
   allowedHosts: ["api.apib.ai", "api.apimart.ai", "upload.apimart.ai", "cdn.apimart.ai"],
@@ -1339,11 +1339,11 @@ export function extractUsage(ctx) {
   if (model === OMNI12_MODEL || model === OMNI12_EXT_MODEL) {
     const body = normalizeGeminiOmni12(model, request);
     const hasVideo = !!(body.video_urls || body.extend_from_task_id);
-    const rate = OMNI12_ESTIMATE_CREDITS_PER_SECOND[body.resolution];
-    // Standard's documented preauthorization uses max(10,duration), or the
-    // 15s input ceiling with uploaded video or a source task. By explicit user
-    // policy EXT temporarily uses this same reference reservation, including
-    // extension; actual EXT data.cost replaces it on successful completion.
+    const rates = model === OMNI12_EXT_MODEL ? OMNI12_EXT_CREDITS_PER_SECOND : OMNI12_ESTIMATE_CREDITS_PER_SECOND;
+    const rate = rates[body.resolution];
+    // Preserve max(10,duration), or the 15s input ceiling with uploaded video
+    // or a source task, for both models. Successful completion replaces this
+    // reservation with actual data.cost regardless of the resolution rate.
     const seconds = hasVideo ? 15 : Math.max(10, body.duration);
     return { upstream_credits: Math.round(rate * seconds * 1e8) / 1e8 };
   }
