@@ -18,6 +18,7 @@ func SetTapComfyExtensionRouter(router *gin.Engine) {
 	elevenLabsRouter.Use(middleware.TokenAuth())
 	elevenLabsRouter.Use(middleware.ModelRequestRateLimit())
 	{
+		elevenLabsRouter.POST("/sound-generation", tapcomfy.PrepareElevenLabsSound, middleware.Distribute(), controller.RelayElevenLabsSound)
 		elevenLabsRouter.POST("/audio/speech/with-timestamps", middleware.Distribute(), controller.RelayElevenLabsSpeechWithTimestamps)
 		elevenLabsRouter.POST("/music", tapcomfy.ElevenLabsMusicModel, middleware.Distribute(), controller.RelayElevenLabsMusic)
 		elevenLabsRouter.POST("/elevenlabs/voices", tapcomfy.ElevenLabsVoiceModel, middleware.Distribute(), controller.RelayElevenLabsVoiceClone)
