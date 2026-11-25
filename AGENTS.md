@@ -120,9 +120,15 @@ Inside `relaykit/`, use `kitutil.*` from `relaykit/relayconvert/kitutil/json.go`
 - Preserve explicit zero values in upstream relay request DTOs: absent client JSON fields must become `nil` and be omitted, while explicit `0`, `0.0`, or `false` values must remain non-`nil` and be sent upstream.
 - Avoid non-pointer scalars with `omitempty` for optional request parameters, because zero values will be silently dropped during marshal.
 
+**Multi-environment server deployment (mandatory):**
+
+- This `new-api` codebase serves two completely independent server environments; NEVER deploy or mutate either environment unless the caller explicitly names the target instance (confirm first if unspecified):
+  - **cines standalone server** (`llm.cines.ai`, `admin@54.169.139.235`, `/opt/cines/newapi`): use [cines-server-deployment](.agents/skills/cines-server-deployment/SKILL.md).
+  - **TapComfy test server** (`llm.tapcomfy.com`, `root@47.99.98.76`, `/opt/tapcomfy/newapi`): use [new-api-test-server-deployment](.agents/skills/new-api-test-server-deployment/SKILL.md).
+
 **JavaScript task plugins (mandatory):**
 
-- Local plugin workflow starts at [new-api-task-plugin-development](.agents/skills/new-api-task-plugin-development/SKILL.md); for authorized test-gateway publication continue with [new-api-test-server-deployment](.agents/skills/new-api-test-server-deployment/SKILL.md), which includes the existing controlled SQL path when no management API identity is available. Carry forward verified evidence; server checks and native-client MCP acceptance are separate stages, each within the current authorization scope.
+- Local plugin workflow starts at [new-api-task-plugin-development](.agents/skills/new-api-task-plugin-development/SKILL.md); for authorized gateway publication, route by explicitly confirmed target environment to [new-api-test-server-deployment](.agents/skills/new-api-test-server-deployment/SKILL.md) (TapComfy test server `llm.tapcomfy.com`, including the existing controlled SQL path when no management API identity is available) or [cines-server-deployment](.agents/skills/cines-server-deployment/SKILL.md) (cines standalone server `llm.cines.ai`). Carry forward verified evidence; server checks and native-client MCP acceptance are separate stages, each within the current authorization scope.
 
 - Before implementing, modifying, or reviewing JavaScript task plugins or their host API/runtime, MUST read [Task Plugin API v1](docs/plugin-api/v1.md), including its description writing and translation conventions. When changing the plugin contract, also check `docs/plugin-api/v1.schema.json` and `docs/plugin-api/v1.d.ts` for consistency.
 - For numeric billing fields in `usageSchema` and `usageProfiles[].schema`, `description` MUST name the **billing subject + unit price**, because it labels the price input in the UI. For example, `image_count` uses `Image generation unit price` / `图片生成单价`, not `Generated image count` / `生成图片张数`; `seconds` uses `Video generation unit price` / `视频生成单价`. The field value remains a usage quantity, not a price.

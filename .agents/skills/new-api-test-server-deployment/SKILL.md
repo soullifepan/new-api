@@ -5,6 +5,15 @@ description: 发布、更新或排查 Tapcomfy New API 测试服务器，包括 
 
 # New API 测试服务器发布
 
+## 多环境发布门禁
+
+本仓库同一份 `new-api` 代码服务两套完全独立的服务器环境，严禁混用：
+
+- **TapComfy 源测试服（本技能适用）**：`llm.tapcomfy.com`（`root@47.99.98.76`，`/opt/tapcomfy/newapi`），测试环境发布、插件激活与排查。
+- **cines 独立服（见 [cines-server-deployment](../cines-server-deployment/SKILL.md)）**：`llm.cines.ai`（`admin@54.169.139.235`，`/opt/cines/newapi`），本技能不得用于发布或修改该实例。
+
+**硬规则**：若调用方未显式指明目标实例（`TapComfy 测试服` / `llm.tapcomfy.com` 或 `cines` / `llm.cines.ai`），**禁止执行任何发布、配置修改、数据库变更或容器操作**，必须先向调用方确认目标环境后再继续。
+
 用于 Tapcomfy 的 New API 测试环境：`root@47.99.98.76`、服务域名 `llm.tapcomfy.com`、主容器 `tapcomfy-newapi-test`、Caddy 容器 `tapcomfy-newapi-caddy`、PostgreSQL 容器 `tapcomfy-newapi-postgres`。所有连接均不得在输出中泄露密钥。
 
 测试环境的统一访问与健康检查域名为 `https://llm.tapcomfy.com`；域名不带 `-test` 仍是上述测试环境。SSH 地址、容器名和部署目录保持不变。客户端为旧会话、任务恢复和素材缓存保留的历史域名兼容标识，不作为部署或请求目标。

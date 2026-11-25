@@ -73,6 +73,8 @@ export function Home() {
       return (
         <PublicLayout showMainContainer={false}>
           {/*
+            allow-downloads: trusted, admin-configured home pages may distribute installers.
+            Keep the remaining sandbox restrictions, including the opaque origin.
             allow-top-navigation-by-user-activation: the custom home page URL is
             admin-configured (trusted); this lets its target="_top" nav/menu links
             navigate the top-level window on user click. The default sandbox blocks
@@ -85,7 +87,7 @@ export function Home() {
             src={content}
             className='h-screen w-full border-none'
             title={t('Custom Home Page')}
-            sandbox='allow-forms allow-popups allow-popups-to-escape-sandbox allow-scripts allow-top-navigation-by-user-activation'
+            sandbox='allow-downloads allow-forms allow-popups allow-popups-to-escape-sandbox allow-scripts allow-top-navigation-by-user-activation'
             onLoad={syncIframePreferences}
           />
         </PublicLayout>

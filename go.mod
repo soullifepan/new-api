@@ -9,7 +9,7 @@ require (
 	github.com/andybalholm/brotli v1.2.0
 	github.com/anknown/ahocorasick v0.0.0-20190904063843-d75dbd5169c0
 	github.com/aws/aws-sdk-go-v2 v1.41.5
-	github.com/aws/aws-sdk-go-v2/credentials v1.19.10
+	github.com/aws/aws-sdk-go-v2/credentials v1.19.14
 	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.50.4
 	github.com/aws/smithy-go v1.24.2
 	github.com/bytedance/gopkg v0.1.3
@@ -70,6 +70,16 @@ require (
 
 require (
 	github.com/ClickHouse/ch-go v0.71.0 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.21 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.6 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.22 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.7 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.13 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.21 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.21 // indirect
+	github.com/aws/aws-sdk-go-v2/service/signin v1.0.9 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.30.15 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.19 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.6.1 // indirect
 	github.com/casbin/govaluate v1.10.0 // indirect
 	github.com/dlclark/regexp2/v2 v2.5.1 // indirect
@@ -180,6 +190,10 @@ require (
 	github.com/QuantumNous/new-api/tokenkit v0.0.0
 	github.com/aliyun/alibaba-cloud-sdk-go v1.63.107
 	github.com/aliyun/aliyun-oss-go-sdk v3.0.2+incompatible
+	github.com/aws/aws-sdk-go-v2/config v1.32.14
+	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.68.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.97.3
+	github.com/aws/aws-sdk-go-v2/service/sts v1.41.10
 	github.com/smartwalle/alipay/v3 v3.2.31
 )
 

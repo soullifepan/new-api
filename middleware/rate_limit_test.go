@@ -96,6 +96,21 @@ func TestRedisUserRateLimiterUsesSharedFixedWindow(t *testing.T) {
 	assert.Equal(t, 23*time.Second, redisServer.TTL(key))
 }
 
+func TestClientLogRateLimitRemainsEnabledWhenCriticalLimitIsOff(t *testing.T) {
+	redisServer, _ := useRateLimitMiniRedis(t)
+	previous := common.CriticalRateLimitEnable
+	common.CriticalRateLimitEnable = false
+	t.Cleanup(func() { common.CriticalRateLimitEnable = previous })
+	router := gin.New()
+	router.GET("/logs", func(c *gin.Context) { c.Set("id", 42) }, UserClientLogRateLimit(), func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	for range 30 {
+		require.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/logs", "192.0.2.20:12345").Code)
+	}
+	assert.Equal(t, http.StatusTooManyRequests, performRateLimitRequest(router, "/logs", "198.51.100.20:12345").Code)
+	redisServer.FastForward(60 * time.Second)
+	assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/logs", "192.0.2.20:12345").Code)
+}
+
 func TestRedisEmailVerificationRateLimiterPreservesResponseAndTTL(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	redisServer, _ := useRateLimitMiniRedis(t)

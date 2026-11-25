@@ -26,10 +26,10 @@ export const meta = {
   key: "el-tools",
   name: "ElevenLabs tools",
   icon: "text:EL",
-  description: { en: "ElevenLabs dubbing via azopenai", zh: "通过 azopenai 调用 ElevenLabs 配音" },
-  version: "0.1.1",
+  description: { en: "ElevenLabs dubbing", zh: "ElevenLabs 配音" },
+  version: "0.2.0",
   author: { name: "QuantumNous" },
-  baseUrl: "https://llm.azopenai.com",
+  baseUrl: "https://api.elevenlabs.io",
   models: [MODEL],
   fetchMode: "per_task",
   auth: "api_key",
@@ -122,10 +122,10 @@ function projectURL(baseURL, projectID) {
   return projectID ? path + "/" + encodeURIComponent(projectID) : path;
 }
 
-function authorization(ctx) {
+function apiKey(ctx) {
   const credential = trimmed(ctx.apiKey);
   if (!credential) throw new Error("ElevenLabs tools channel credential is required");
-  return "Bearer " + credential;
+  return credential;
 }
 
 function dubbingState(value) {
@@ -215,7 +215,7 @@ export function buildSubmitRequest(ctx) {
     method: "POST",
     headers: {
       Accept: "application/json",
-      Authorization: authorization(ctx),
+      "xi-api-key": apiKey(ctx),
       "Content-Type": "multipart/form-data; boundary=" + FORM_BOUNDARY,
     },
     body: formBody(parts),
@@ -257,7 +257,7 @@ export function buildQueryRequest(ctx) {
       ? projectURL(ctx.baseUrl, projectID) + "/language/" + encodeURIComponent(state.language_id)
       : projectURL(ctx.baseUrl, projectID),
     method: "GET",
-    headers: { Accept: "application/json", Authorization: authorization(ctx) },
+    headers: { Accept: "application/json", "xi-api-key": apiKey(ctx) },
   };
 }
 
@@ -336,7 +336,7 @@ export function buildContentRequest(ctx) {
     try {
       const response = utils.fetch({
         url: projectURL(ctx.baseUrl, projectID) + "/language/" + encodeURIComponent(state.language_id),
-        headers: { Accept: "application/json", Authorization: authorization(ctx) },
+        headers: { Accept: "application/json", "xi-api-key": apiKey(ctx) },
       });
       const fresh = response.status === 200 ? outputEntries(response.body)[index] : null;
       if (fresh) url = fresh.url;

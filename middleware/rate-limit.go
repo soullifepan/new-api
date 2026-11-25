@@ -211,6 +211,12 @@ func UserPollingRateLimit(scope string) func(c *gin.Context) {
 	return userRateLimitFactory(30, 60, "UP:"+scope)
 }
 
+// Client diagnostics have an independent always-on per-user budget. Disabling
+// critical-operation limits must not permit unlimited CloudWatch ingestion.
+func UserClientLogRateLimit() func(c *gin.Context) {
+	return userRateLimitFactory(30, 60, "client-logs")
+}
+
 func DownloadRateLimit() func(c *gin.Context) {
 	return rateLimitFactory(common.DownloadRateLimitNum, common.DownloadRateLimitDuration, "DW")
 }

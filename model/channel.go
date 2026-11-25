@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"net/http"
 	"slices"
 	"strings"
 	"sync"
@@ -210,6 +211,12 @@ func (channel *Channel) GetKeys() []string {
 }
 
 func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
+	// Isolated gateway copies can retain their channel/model configuration
+	// while replacing upstream credentials with an explicitly reserved value.
+	// Reject it before relay setup or a scheduled channel probe can use it.
+	if placeholder := common.GetEnvOrDefaultString("CHANNEL_KEY_PLACEHOLDER", ""); placeholder != "" && strings.TrimSpace(channel.Key) == placeholder {
+		return "", 0, types.NewErrorWithStatusCode(errors.New("channel credentials are not configured"), types.ErrorCodeChannelNoAvailableKey, http.StatusServiceUnavailable, types.ErrOptionWithSkipRetry())
+	}
 	// If not in multi-key mode, return the original key string directly.
 	if !channel.ChannelInfo.IsMultiKey {
 		return channel.Key, 0, nil

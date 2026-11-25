@@ -38,6 +38,8 @@ export const CHANNEL_TYPE_VLLM = 62
 
 export const CHANNEL_TYPE_SGLANG = 63
 
+export const CHANNEL_TYPE_ELEVENLABS = 64
+
 export const CHANNEL_TYPES = {
   0: 'Unknown',
   1: 'OpenAI',
@@ -99,6 +101,7 @@ export const CHANNEL_TYPES = {
   61: 'Task Plugin',
   62: 'vLLM',
   63: 'SGLang',
+  64: 'ElevenLabs',
 } as const
 
 export type ChannelProviderPresentation = {

@@ -223,7 +223,7 @@
       "args": [
         {
           "model": "elevenlabs/dubbing",
-          "baseUrl": "https://llm.azopenai.com/",
+          "baseUrl": "https://api.elevenlabs.io/",
           "apiKey": "key",
           "publicTaskId": "task_pub",
           "requestBody": {
@@ -236,11 +236,11 @@
         }
       ],
       "expected": {
-        "url": "https://llm.azopenai.com/v1/dubbing/project",
+        "url": "https://api.elevenlabs.io/v1/dubbing/project",
         "method": "POST",
         "headers": {
           "Accept": "application/json",
-          "Authorization": "Bearer key",
+          "xi-api-key": "key",
           "Content-Type": "multipart/form-data; boundary=el-tools-dubbing-form-boundary"
         },
         "body": "--el-tools-dubbing-form-boundary\r\nContent-Disposition: form-data; name=\"model_id\"\r\n\r\ndubbing_v1\r\n--el-tools-dubbing-form-boundary\r\nContent-Disposition: form-data; name=\"source_url\"\r\n\r\nhttps://media.example/clip.mp4\r\n--el-tools-dubbing-form-boundary\r\nContent-Disposition: form-data; name=\"target_language\"\r\n\r\nzh\r\n--el-tools-dubbing-form-boundary\r\nContent-Disposition: form-data; name=\"source_language\"\r\n\r\nja\r\n--el-tools-dubbing-form-boundary\r\nContent-Disposition: form-data; name=\"reference\"\r\n\r\ntask_pub\r\n--el-tools-dubbing-form-boundary--\r\n",
@@ -253,7 +253,7 @@
       "args": [
         {
           "model": "elevenlabs/dubbing",
-          "baseUrl": "https://llm.azopenai.com",
+          "baseUrl": "https://api.elevenlabs.io",
           "requestBody": {
             "mediaUrl": "https://media.example/clip.mp4",
             "target_language": "zh",
@@ -361,7 +361,7 @@
       "args": [
         {
           "taskId": "elp_1",
-          "baseUrl": "https://llm.azopenai.com",
+          "baseUrl": "https://api.elevenlabs.io",
           "apiKey": "key",
           "state": {
             "language_id": "ell_1",
@@ -370,11 +370,11 @@
         }
       ],
       "expected": {
-        "url": "https://llm.azopenai.com/v1/dubbing/project/elp_1",
+        "url": "https://api.elevenlabs.io/v1/dubbing/project/elp_1",
         "method": "GET",
         "headers": {
           "Accept": "application/json",
-          "Authorization": "Bearer key"
+          "xi-api-key": "key"
         }
       }
     },
@@ -384,7 +384,7 @@
       "args": [
         {
           "taskId": "elp_1",
-          "baseUrl": "https://llm.azopenai.com",
+          "baseUrl": "https://api.elevenlabs.io",
           "apiKey": "key",
           "state": {
             "language_id": "ell_1",
@@ -394,11 +394,11 @@
         }
       ],
       "expected": {
-        "url": "https://llm.azopenai.com/v1/dubbing/project/elp_1/language/ell_1",
+        "url": "https://api.elevenlabs.io/v1/dubbing/project/elp_1/language/ell_1",
         "method": "GET",
         "headers": {
           "Accept": "application/json",
-          "Authorization": "Bearer key"
+          "xi-api-key": "key"
         }
       }
     },
@@ -408,7 +408,7 @@
       "args": [
         {
           "taskId": "elp_1",
-          "baseUrl": "https://llm.azopenai.com",
+          "baseUrl": "https://api.elevenlabs.io",
           "apiKey": "key",
           "state": {
             "language_id": "ell_1",
@@ -417,11 +417,11 @@
         }
       ],
       "expected": {
-        "url": "https://llm.azopenai.com/v1/dubbing/project/elp_1/language/ell_1",
+        "url": "https://api.elevenlabs.io/v1/dubbing/project/elp_1/language/ell_1",
         "method": "GET",
         "headers": {
           "Accept": "application/json",
-          "Authorization": "Bearer key"
+          "xi-api-key": "key"
         }
       }
     },
@@ -841,7 +841,7 @@
         {
           "status": "SUCCESS",
           "artifactKey": "output-1",
-          "baseUrl": "https://llm.azopenai.com",
+          "baseUrl": "https://api.elevenlabs.io",
           "apiKey": "key",
           "upstreamTaskId": "elp_1",
           "state": {

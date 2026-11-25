@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	filterdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,6 +18,35 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
+
+func TestChannelPlaceholderFailsBeforeKeyUseWithoutChangingCapabilities(t *testing.T) {
+	t.Setenv("CHANNEL_KEY_PLACEHOLDER", "1")
+	channel := Channel{Id: 42, Key: "1", Status: common.ChannelStatusEnabled, Models: "model-a,model-b"}
+	key, _, apiErr := channel.GetNextEnabledKey()
+	require.NotNil(t, apiErr)
+	assert.Empty(t, key)
+	assert.Equal(t, 503, apiErr.StatusCode)
+	assert.True(t, types.IsSkipRetryError(apiErr))
+	assert.Equal(t, common.ChannelStatusEnabled, channel.Status)
+	assert.Equal(t, "model-a,model-b", channel.Models)
+	channel.ChannelInfo.IsMultiKey = true
+	channel.ChannelInfo.MultiKeyMode = constant.MultiKeyModePolling
+	channel.Keys = []string{"stale-test-key"}
+	key, _, apiErr = channel.GetNextEnabledKey()
+	require.NotNil(t, apiErr)
+	assert.Empty(t, key, "the placeholder also rejects stale rotation caches")
+	assert.True(t, types.IsSkipRetryError(apiErr))
+	channel.ChannelInfo.IsMultiKey = false
+	channel.Key = "configured-test-key"
+	key, _, apiErr = channel.GetNextEnabledKey()
+	require.Nil(t, apiErr)
+	assert.Equal(t, channel.Key, key)
+	t.Setenv("CHANNEL_KEY_PLACEHOLDER", "")
+	channel.Key = "1"
+	key, _, apiErr = channel.GetNextEnabledKey()
+	require.Nil(t, apiErr)
+	assert.Equal(t, "1", key, "unconfigured deployments preserve their original key semantics")
+}
 
 func TestChannelValidateSettingsRejectsInvalidHTTPTransport(t *testing.T) {
 	tests := []struct {

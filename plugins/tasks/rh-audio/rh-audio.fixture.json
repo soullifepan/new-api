@@ -7,7 +7,7 @@
         {
           "model": "qwen3-tts-flash",
           "upstreamModel": "qwen3-tts-flash",
-          "baseUrl": "https://www.runninghub.cn",
+          "baseUrl": "https://www.runninghub.ai",
           "apiKey": "fixture-channel-key",
           "requestBody": {
             "text": "Hello from the fixture",
@@ -17,7 +17,7 @@
         }
       ],
       "expected": {
-        "url": "https://www.runninghub.cn/openapi/v2/alibaba/qwen3-tts-flash",
+        "url": "https://www.runninghub.ai/openapi/v2/alibaba/qwen3-tts-flash",
         "method": "POST",
         "headers": {
           "Accept": "application/json",
@@ -39,7 +39,7 @@
         {
           "model": "minimax/speech-2.8-hd",
           "upstreamModel": "minimax/speech-2.8-hd",
-          "baseUrl": "https://www.runninghub.cn",
+          "baseUrl": "https://www.runninghub.ai",
           "apiKey": "fixture-channel-key",
           "requestBody": {
             "text": "Hello from the fixture",
@@ -55,7 +55,7 @@
         }
       ],
       "expected": {
-        "url": "https://www.runninghub.cn/openapi/v2/rhart-audio/text-to-audio/speech-2.8-hd",
+        "url": "https://www.runninghub.ai/openapi/v2/rhart-audio/text-to-audio/speech-2.8-hd",
         "method": "POST",
         "headers": {
           "Accept": "application/json",
@@ -147,7 +147,7 @@
         {
           "model": "bytedance/doubao-seed-tts-2.0",
           "upstreamModel": "bytedance/doubao-seed-tts-2.0",
-          "baseUrl": "https://www.runninghub.cn",
+          "baseUrl": "https://www.runninghub.ai",
           "apiKey": "fixture-channel-key",
           "requestBody": {
             "text": "你好",
@@ -162,7 +162,7 @@
         }
       ],
       "expected": {
-        "url": "https://www.runninghub.cn/openapi/v2/bytedance/doubao-seed-tts-2.0",
+        "url": "https://www.runninghub.ai/openapi/v2/bytedance/doubao-seed-tts-2.0",
         "method": "POST",
         "headers": {
           "Accept": "application/json",
@@ -776,7 +776,7 @@
         {
           "model": "bytedance/doubao-seed-audio-1.0",
           "upstreamModel": "bytedance/doubao-seed-audio-1.0",
-          "baseUrl": "https://www.runninghub.cn",
+          "baseUrl": "https://www.runninghub.ai",
           "apiKey": "fixture-channel-key",
           "requestBody": {
             "text_prompt": "孩子，进来坐坐吧，蛋糕我们一起吃。",
@@ -787,7 +787,7 @@
         }
       ],
       "expected": {
-        "url": "https://www.runninghub.cn/openapi/v2/bytedance/doubao-seed-audio-1.0",
+        "url": "https://www.runninghub.ai/openapi/v2/bytedance/doubao-seed-audio-1.0",
         "method": "POST",
         "headers": {
           "Accept": "application/json",
@@ -810,7 +810,7 @@
         {
           "model": "bytedance/doubao-seed-audio-1.0",
           "upstreamModel": "bytedance/doubao-seed-audio-1.0",
-          "baseUrl": "https://www.runninghub.cn",
+          "baseUrl": "https://www.runninghub.ai",
           "apiKey": "fixture-channel-key",
           "requestBody": {
             "text_prompt": "孩子，进来坐坐吧，蛋糕我们一起吃。",
@@ -820,7 +820,7 @@
         }
       ],
       "expected": {
-        "url": "https://www.runninghub.cn/openapi/v2/bytedance/doubao-seed-audio-1.0",
+        "url": "https://www.runninghub.ai/openapi/v2/bytedance/doubao-seed-audio-1.0",
         "method": "POST",
         "headers": {
           "Accept": "application/json",
@@ -842,7 +842,7 @@
         {
           "model": "bytedance/doubao-seed-audio-1.0",
           "upstreamModel": "bytedance/doubao-seed-audio-1.0",
-          "baseUrl": "https://www.runninghub.cn",
+          "baseUrl": "https://www.runninghub.ai",
           "apiKey": "fixture-channel-key",
           "requestBody": {
             "text_prompt": "hello",
@@ -852,7 +852,7 @@
         }
       ],
       "expected": {
-        "url": "https://www.runninghub.cn/openapi/v2/bytedance/doubao-seed-audio-1.0",
+        "url": "https://www.runninghub.ai/openapi/v2/bytedance/doubao-seed-audio-1.0",
         "method": "POST",
         "headers": {
           "Accept": "application/json",
@@ -1167,7 +1167,7 @@
         {
           "model": "bytedance/doubao-seed-tts-2.0",
           "upstreamModel": "bytedance/doubao-seed-tts-2.0",
-          "baseUrl": "https://www.runninghub.cn",
+          "baseUrl": "https://www.runninghub.ai",
           "apiKey": "fixture-channel-key",
           "requestBody": {
             "text": "Hello",
@@ -1184,7 +1184,7 @@
         }
       ],
       "expected": {
-        "url": "https://www.runninghub.cn/openapi/v2/bytedance/doubao-seed-tts-2.0",
+        "url": "https://www.runninghub.ai/openapi/v2/bytedance/doubao-seed-tts-2.0",
         "method": "POST",
         "headers": {
           "Accept": "application/json",
@@ -1213,7 +1213,7 @@
         {
           "model": "bytedance/doubao-seed-tts-2.0",
           "upstreamModel": "bytedance/doubao-seed-tts-2.0",
-          "baseUrl": "https://www.runninghub.cn",
+          "baseUrl": "https://www.runninghub.ai",
           "apiKey": "fixture-channel-key",
           "requestBody": {
             "text": "Hello",
@@ -1223,7 +1223,7 @@
         }
       ],
       "expected": {
-        "url": "https://www.runninghub.cn/openapi/v2/bytedance/doubao-seed-tts-2.0",
+        "url": "https://www.runninghub.ai/openapi/v2/bytedance/doubao-seed-tts-2.0",
         "method": "POST",
         "headers": {
           "Accept": "application/json",
@@ -1425,7 +1425,7 @@
         {
           "model": "mureka-ai/mureka-v9",
           "upstreamModel": "mureka-ai/mureka-v9",
-          "baseUrl": "https://www.runninghub.cn",
+          "baseUrl": "https://www.runninghub.ai",
           "apiKey": "fixture-channel-key",
           "requestBody": {
             "mode": "song",
@@ -1436,7 +1436,7 @@
         }
       ],
       "expected": {
-        "url": "https://www.runninghub.cn/openapi/v2/mureka-ai/mureka-v9/generate-song",
+        "url": "https://www.runninghub.ai/openapi/v2/mureka-ai/mureka-v9/generate-song",
         "method": "POST",
         "headers": {
           "Accept": "application/json",
@@ -1458,7 +1458,7 @@
         {
           "model": "mureka-ai/mureka-v9",
           "upstreamModel": "mureka-ai/mureka-v9",
-          "baseUrl": "https://www.runninghub.cn",
+          "baseUrl": "https://www.runninghub.ai",
           "apiKey": "fixture-channel-key",
           "requestBody": {
             "mode": "instrumental",
@@ -1467,7 +1467,7 @@
         }
       ],
       "expected": {
-        "url": "https://www.runninghub.cn/openapi/v2/mureka-ai/mureka-v9/generate-bgm",
+        "url": "https://www.runninghub.ai/openapi/v2/mureka-ai/mureka-v9/generate-bgm",
         "method": "POST",
         "headers": {
           "Accept": "application/json",
@@ -1488,7 +1488,7 @@
         {
           "model": "mureka-ai/mureka-v9",
           "upstreamModel": "mureka-ai/mureka-v9",
-          "baseUrl": "https://www.runninghub.cn",
+          "baseUrl": "https://www.runninghub.ai",
           "apiKey": "fixture-channel-key",
           "requestBody": {
             "mode": "lyrics",
@@ -1497,7 +1497,7 @@
         }
       ],
       "expected": {
-        "url": "https://www.runninghub.cn/openapi/v2/mureka-ai/generate-lyrics",
+        "url": "https://www.runninghub.ai/openapi/v2/mureka-ai/generate-lyrics",
         "method": "POST",
         "headers": {
           "Accept": "application/json",
@@ -2582,8 +2582,8 @@
     {
       "name": "constructs MiniMax voice clone request",
       "hook": "buildSubmitRequest",
-      "args": [{"model":"minimax/voice-clone","upstreamModel":"minimax/voice-clone","baseUrl":"https://www.runninghub.cn","apiKey":"fixture-channel-key","requestBody":{"audio_url":"https://media.example/reference.wav","voice_id":"VoiceDemo_01","reference_text":"reference transcript","accuracy":0.7,"noise_reduction":false,"volume_normalization":false,"clone_model":"speech-02-hd"}}],
-      "expected": {"url":"https://www.runninghub.cn/openapi/v2/rhart-audio/text-to-audio/voice-clone","method":"POST","headers":{"Accept":"application/json","Content-Type":"application/json","Authorization":"Bearer fixture-channel-key"},"body":{"audio":"https://media.example/reference.wav","custom_voice_id":"VoiceDemo_01","text":"reference transcript","accuracy":0.7,"need_noise_reduction":false,"need_volume_normalization":false,"model":"speech-02-hd"},"action":"audio_generation"}
+      "args": [{"model":"minimax/voice-clone","upstreamModel":"minimax/voice-clone","baseUrl":"https://www.runninghub.ai","apiKey":"fixture-channel-key","requestBody":{"audio_url":"https://media.example/reference.wav","voice_id":"VoiceDemo_01","reference_text":"reference transcript","accuracy":0.7,"noise_reduction":false,"volume_normalization":false,"clone_model":"speech-02-hd"}}],
+      "expected": {"url":"https://www.runninghub.ai/openapi/v2/rhart-audio/text-to-audio/voice-clone","method":"POST","headers":{"Accept":"application/json","Content-Type":"application/json","Authorization":"Bearer fixture-channel-key"},"body":{"audio":"https://media.example/reference.wav","custom_voice_id":"VoiceDemo_01","text":"reference transcript","accuracy":0.7,"need_noise_reduction":false,"need_volume_normalization":false,"model":"speech-02-hd"},"action":"audio_generation"}
     },
     {
       "name": "rejects invalid clone voice ID",
