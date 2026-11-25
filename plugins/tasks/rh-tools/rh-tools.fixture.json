@@ -6,7 +6,7 @@
       "args": [
         {
           "model": "volc-subtitle-erase/video",
-          "baseUrl": "https://www.runninghub.ai",
+          "baseUrl": "https://www.runninghub.cn",
           "apiKey": "key",
           "requestBody": {
             "videoUrl": "https://media.example/a.mp4",
@@ -15,7 +15,7 @@
         }
       ],
       "expected": {
-        "url": "https://www.runninghub.ai/openapi/v2/volc-subtitle-erase/video",
+        "url": "https://www.runninghub.cn/openapi/v2/volc-subtitle-erase/video",
         "method": "POST",
         "headers": {
           "Accept": "application/json",
@@ -34,7 +34,7 @@
       "args": [
         {
           "model": "volc-subtitle-erase-pro/video",
-          "baseUrl": "https://www.runninghub.ai",
+          "baseUrl": "https://www.runninghub.cn",
           "apiKey": "key",
           "requestBody": {
             "videoUrl": "https://media.example/a.mp4",
@@ -45,7 +45,7 @@
         }
       ],
       "expected": {
-        "url": "https://www.runninghub.ai/openapi/v2/volc-subtitle-erase-pro/video",
+        "url": "https://www.runninghub.cn/openapi/v2/volc-subtitle-erase-pro/video",
         "method": "POST",
         "headers": {
           "Accept": "application/json",
@@ -66,7 +66,7 @@
       "args": [
         {
           "model": "mureka-ai/stem-song",
-          "baseUrl": "https://www.runninghub.ai",
+          "baseUrl": "https://www.runninghub.cn",
           "apiKey": "key",
           "requestBody": {
             "url": "https://media.example/a.mp3",
@@ -75,7 +75,7 @@
         }
       ],
       "expected": {
-        "url": "https://www.runninghub.ai/openapi/v2/mureka-ai/stem-song",
+        "url": "https://www.runninghub.cn/openapi/v2/mureka-ai/stem-song",
         "method": "POST",
         "headers": {
           "Accept": "application/json",
@@ -95,7 +95,7 @@
       "args": [
         {
           "model": "rhart-video/video-upscaler",
-          "baseUrl": "https://www.runninghub.ai",
+          "baseUrl": "https://www.runninghub.cn",
           "apiKey": "key",
           "requestBody": {
             "videoUrl": "https://media.example/a.mp4",
@@ -105,7 +105,7 @@
         }
       ],
       "expected": {
-        "url": "https://www.runninghub.ai/openapi/v2/rhart-video/video-upscaler",
+        "url": "https://www.runninghub.cn/openapi/v2/rhart-video/video-upscaler",
         "method": "POST",
         "headers": {
           "Accept": "application/json",
@@ -843,7 +843,7 @@
       "args": [
         {
           "model": "rhart-video/video-fps-increaser",
-          "baseUrl": "https://www.runninghub.ai",
+          "baseUrl": "https://www.runninghub.cn",
           "apiKey": "key",
           "requestBody": {
             "videoUrl": "https://media.example/a.mp4",
@@ -852,7 +852,7 @@
         }
       ],
       "expected": {
-        "url": "https://www.runninghub.ai/openapi/v2/rhart-video/video-fps-increaser",
+        "url": "https://www.runninghub.cn/openapi/v2/rhart-video/video-fps-increaser",
         "method": "POST",
         "headers": {
           "Accept": "application/json",

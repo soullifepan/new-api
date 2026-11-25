@@ -54,7 +54,7 @@ export const meta = {
   description: { en: "RunningHub tools", zh: "RunningHub 工具" },
   version: "0.1.0",
   author: { name: "QuantumNous" },
-  baseUrl: "https://www.runninghub.ai",
+  baseUrl: "https://www.runninghub.cn",
   models: Object.keys(TOOLS),
   fetchMode: "per_task",
   auth: "api_key",

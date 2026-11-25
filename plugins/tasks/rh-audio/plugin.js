@@ -73,7 +73,7 @@ export const meta = {
   },
   version: "0.9.0",
   author: { name: "QuantumNous" },
-  baseUrl: "https://www.runninghub.ai",
+  baseUrl: "https://www.runninghub.cn",
   models: Object.keys(PROFILES),
   fetchMode: "per_task",
   auth: "api_key",
