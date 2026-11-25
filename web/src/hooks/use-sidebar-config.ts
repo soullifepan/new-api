@@ -117,7 +117,7 @@ const URL_TO_CONFIG_MAP: Record<string, { section: string; module: string }> = {
   '/models': { section: 'admin', module: 'models' },
   '/models/metadata': { section: 'admin', module: 'models' },
   '/models/deployments': { section: 'admin', module: 'models' },
-  '/tapcomfy-models': { section: 'admin', module: 'models' },
+  '/studio-models': { section: 'admin', module: 'models' },
   '/partners': { section: 'admin', module: 'user' },
   '/users': { section: 'admin', module: 'user' },
   '/redemption-codes': { section: 'admin', module: 'redemption' },

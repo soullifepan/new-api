@@ -65,8 +65,7 @@ export function PartnerSettings(props: { config: PartnerConfig }) {
           汇率、展示单位及充值售价沿用系统现有设置。修改规则只影响之后的充值，不重算历史佣金。合作伙伴由管理员在线下沟通后开通，不接受在线申请。
         </p>
         <p className='text-muted-foreground text-sm'>
-          佣金转余额按 TapComfy
-          当前充值价格兑换，包含用户分组倍率。后台调整充值价格后自动同步，无需在此单独设置。
+          佣金转余额按当前充值价格兑换，包含用户分组倍率。后台调整充值价格后自动同步，无需在此单独设置。
         </p>
         <div className='grid gap-4 sm:grid-cols-2'>
           {fields.map(([name, label]) => (

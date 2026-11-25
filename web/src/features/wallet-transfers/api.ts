@@ -65,7 +65,7 @@ type ApiResponse<T> = {
 
 export async function getWalletTransferSummary(): Promise<WalletTransferSummary> {
   const response = await api.get<ApiResponse<WalletTransferSummary>>(
-    '/api/tapcomfy/v1/wallet'
+    '/api/studio/v1/wallet'
   )
   if (!response.data.success) {
     throw createServerError(response.data, 'Unable to load wallet balance')
@@ -77,7 +77,7 @@ export async function getWalletTransfers(
   page: number
 ): Promise<WalletTransferPage> {
   const response = await api.get<ApiResponse<WalletTransferPage>>(
-    '/api/tapcomfy/v1/wallet/transfers',
+    '/api/studio/v1/wallet/transfers',
     { params: { page } }
   )
   if (!response.data.success) {
@@ -91,8 +91,8 @@ export async function createWalletTransfer(
   admin: boolean
 ): Promise<WalletTransfer> {
   const path = admin
-    ? '/api/tapcomfy/v1/admin/wallet/transfers'
-    : '/api/tapcomfy/v1/wallet/transfers'
+    ? '/api/studio/v1/admin/wallet/transfers'
+    : '/api/studio/v1/wallet/transfers'
   const response = await api.post<ApiResponse<WalletTransfer>>(path, request)
   if (!response.data.success) {
     throw createServerError(response.data, 'Unable to transfer balance')

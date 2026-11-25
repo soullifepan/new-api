@@ -1,4 +1,4 @@
-package tapcomfy
+package studio
 
 import (
 	"context"
@@ -144,7 +144,7 @@ func (c Config) CopyLegacyAsset(ctx context.Context, assetType, sourceURL string
 	if response.ContentLength <= 0 || response.ContentLength > maxSize {
 		return nil, 0, ErrInvalidAsset
 	}
-	temporary, err := os.CreateTemp("", "tapcomfy-legacy-asset-*")
+	temporary, err := os.CreateTemp("", "studio-legacy-asset-*")
 	if err != nil {
 		return nil, 0, err
 	}
@@ -221,7 +221,7 @@ func ImportLegacyModels(ctx context.Context, db *gorm.DB, rows []LegacyModel, up
 		if err := validateLegacyModel(row); err != nil {
 			return result, err
 		}
-		var existing model.TapComfyModel
+		var existing model.StudioModel
 		err := db.Where("id = ?", row.ID).First(&existing).Error
 		if err == nil {
 			result.Skipped++
@@ -254,7 +254,7 @@ func ImportLegacyModels(ctx context.Context, db *gorm.DB, rows []LegacyModel, up
 			}
 			createdAt = parsed
 		}
-		item := model.TapComfyModel{
+		item := model.StudioModel{
 			ID:                 row.ID,
 			Name:               strings.TrimSpace(row.Name),
 			Category:           strings.TrimSpace(row.Category),
@@ -265,7 +265,7 @@ func ImportLegacyModels(ctx context.Context, db *gorm.DB, rows []LegacyModel, up
 			Format:             strings.TrimPrefix(strings.ToLower(path.Ext(asset.ObjectKey)), "."),
 			FileSize:           size,
 			Sort:               row.Sort,
-			Status:             model.TapComfyModelStatusPublished,
+			Status:             model.StudioModelStatusPublished,
 			CreatedAt:          createdAt,
 			UpdatedAt:          time.Now(),
 		}

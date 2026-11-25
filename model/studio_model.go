@@ -3,13 +3,13 @@ package model
 import "time"
 
 const (
-	TapComfyModelStatusPublished = "published"
-	TapComfyModelStatusHidden    = "hidden"
+	StudioModelStatusPublished = "published"
+	StudioModelStatusHidden    = "hidden"
 )
 
-// TapComfyModel is the public 3D preset catalogue. Object keys are retained so
+// StudioModel is the public 3D preset catalogue. Object keys are retained so
 // administrative changes never infer ownership from a mutable public URL.
-type TapComfyModel struct {
+type StudioModel struct {
 	ID                 string    `json:"id" gorm:"type:varchar(64);primaryKey"`
 	Name               string    `json:"name" gorm:"type:varchar(128);not null;index"`
 	Category           string    `json:"category" gorm:"type:varchar(32);not null;index"`
@@ -23,4 +23,8 @@ type TapComfyModel struct {
 	Status             string    `json:"status" gorm:"type:varchar(16);not null;index"`
 	CreatedAt          time.Time `json:"created_at"`
 	UpdatedAt          time.Time `json:"updated_at"`
+}
+
+func (StudioModel) TableName() string {
+	return "tap_comfy_models"
 }

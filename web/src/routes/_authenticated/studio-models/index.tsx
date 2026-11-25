@@ -8,16 +8,16 @@ License, or (at your option) any later version.
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
-import { TapComfyModels } from '@/features/tapcomfy-models'
+import { StudioModels } from '@/features/studio-models'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
-export const Route = createFileRoute('/_authenticated/tapcomfy-models/')({
+export const Route = createFileRoute('/_authenticated/studio-models/')({
   beforeLoad: () => {
     const { auth } = useAuthStore.getState()
     if (!auth.user || auth.user.role < ROLE.ADMIN) {
       throw redirect({ to: '/403' })
     }
   },
-  component: TapComfyModels,
+  component: StudioModels,
 })

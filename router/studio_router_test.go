@@ -23,18 +23,19 @@ import (
 	"gorm.io/gorm/schema"
 )
 
-func TestTapComfyRoutesRequireNewAPIAuthentication(t *testing.T) {
+func TestStudioRoutesRequireNewAPIAuthentication(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	SetApiRouter(engine)
 	for _, testCase := range []struct{ method, path string }{
-		{http.MethodGet, "/api/tapcomfy/v1/storage/sts"},
-		{http.MethodPost, "/api/tapcomfy/v1/admin/assets"},
-		{http.MethodGet, "/api/tapcomfy/v1/wallet"},
-		{http.MethodGet, "/api/tapcomfy/v1/invitations"},
-		{http.MethodGet, "/api/tapcomfy/v1/wallet/transfers"},
-		{http.MethodPost, "/api/tapcomfy/v1/wallet/transfers"},
-		{http.MethodPost, "/api/tapcomfy/v1/admin/wallet/transfers"},
+		{http.MethodGet, "/api/studio/v1/storage/sts"},
+		{http.MethodPost, "/api/studio/v1/client-logs"},
+		{http.MethodPost, "/api/studio/v1/admin/assets"},
+		{http.MethodGet, "/api/studio/v1/wallet"},
+		{http.MethodGet, "/api/studio/v1/invitations"},
+		{http.MethodGet, "/api/studio/v1/wallet/transfers"},
+		{http.MethodPost, "/api/studio/v1/wallet/transfers"},
+		{http.MethodPost, "/api/studio/v1/admin/wallet/transfers"},
 	} {
 		recorder := httptest.NewRecorder()
 		engine.ServeHTTP(recorder, httptest.NewRequest(testCase.method, testCase.path, nil))
@@ -42,33 +43,37 @@ func TestTapComfyRoutesRequireNewAPIAuthentication(t *testing.T) {
 	}
 }
 
-func TestTapComfyCatalogRoutesRegister(t *testing.T) {
+func TestStudioCatalogRoutesRegister(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	SetApiRouter(engine)
+	SetStudioExtensionRouter(engine)
 	registered := map[string]bool{}
 	for _, route := range engine.Routes() {
 		registered[route.Method+" "+route.Path] = true
 	}
-	for _, route := range []string{"GET /api/tapcomfy/v1/models", "GET /api/tapcomfy/v1/admin/models", "POST /api/tapcomfy/v1/admin/models", "PUT /api/tapcomfy/v1/admin/models/:id", "DELETE /api/tapcomfy/v1/admin/models/:id", "GET /api/tapcomfy/v1/wallet", "GET /api/tapcomfy/v1/invitations", "GET /api/tapcomfy/v1/wallet/transfers", "POST /api/tapcomfy/v1/wallet/transfers", "POST /api/tapcomfy/v1/admin/wallet/transfers"} {
+	for _, route := range []string{"GET /api/studio/v1/models", "GET /api/studio/v1/admin/models", "POST /api/studio/v1/admin/models", "PUT /api/studio/v1/admin/models/:id", "DELETE /api/studio/v1/admin/models/:id", "GET /api/studio/v1/wallet", "GET /api/studio/v1/invitations", "GET /api/studio/v1/wallet/transfers", "POST /api/studio/v1/wallet/transfers", "POST /api/studio/v1/admin/wallet/transfers", "POST /v1/extensions/studio/voices/clone"} {
 		assert.True(t, registered[route], route)
 	}
+	assert.False(t, registered["GET /api/tapcomfy/v1/models"])
+	assert.False(t, registered["POST /v1/extensions/tapcomfy/voices/clone"])
 }
 
-func TestTapComfyAccessTokenRouteScopes(t *testing.T) {
+func TestStudioAccessTokenRouteScopes(t *testing.T) {
 	for _, testCase := range []struct {
 		key, kind, scope string
 	}{
-		{"GET /api/tapcomfy/v1/storage/sts", "scope", "storage:read"},
-		{"GET /api/tapcomfy/v1/wallet", "scope", "wallet:read"},
-		{"POST /api/tapcomfy/v1/wallet/transfers", "scope", "wallet:write"},
-		{"GET /api/tapcomfy/v1/invitations", "scope", "wallet:read"},
-		{"GET /api/tapcomfy/v1/partner", "scope", "partner:read"},
-		{"POST /api/tapcomfy/v1/partner/payouts", "scope", "partner:write"},
-		{"GET /api/tapcomfy/v1/admin/partners", "scope", "billing:read"},
-		{"POST /api/tapcomfy/v1/admin/wallet/transfers", "scope", "billing:write"},
-		{"POST /api/tapcomfy/v1/admin/assets", "scope", "model:write"},
-		{"GET /api/tapcomfy/v1/admin/models", "scope", "model:read"},
+		{"GET /api/studio/v1/storage/sts", "scope", "storage:read"},
+		{"POST /api/studio/v1/client-logs", "scope", "storage:read"},
+		{"GET /api/studio/v1/wallet", "scope", "wallet:read"},
+		{"POST /api/studio/v1/wallet/transfers", "scope", "wallet:write"},
+		{"GET /api/studio/v1/invitations", "scope", "wallet:read"},
+		{"GET /api/studio/v1/partner", "scope", "partner:read"},
+		{"POST /api/studio/v1/partner/payouts", "scope", "partner:write"},
+		{"GET /api/studio/v1/admin/partners", "scope", "billing:read"},
+		{"POST /api/studio/v1/admin/wallet/transfers", "scope", "billing:write"},
+		{"POST /api/studio/v1/admin/assets", "scope", "model:write"},
+		{"GET /api/studio/v1/admin/models", "scope", "model:read"},
 	} {
 		t.Run(testCase.key, func(t *testing.T) {
 			rule, ok := middleware.AccessTokenRouteRule(testCase.key)
@@ -79,7 +84,7 @@ func TestTapComfyAccessTokenRouteScopes(t *testing.T) {
 	}
 }
 
-func TestTapComfyInvitationsReturnOnlyCurrentUsersInvitees(t *testing.T) {
+func TestStudioInvitationsReturnOnlyCurrentUsersInvitees(t *testing.T) {
 	for _, database := range []struct {
 		name, env string
 		open      func(string) gorm.Dialector
@@ -126,10 +131,10 @@ func TestTapComfyInvitationsReturnOnlyCurrentUsersInvitees(t *testing.T) {
 				name, token, path, first string
 				count, total             int
 			}{
-				{name: "first page", token: ownerToken, path: "/api/tapcomfy/v1/invitations", first: "invited-20", count: 20, total: 21},
-				{name: "second page", token: ownerToken, path: "/api/tapcomfy/v1/invitations?page=2", first: "invited-00", count: 1, total: 21},
-				{name: "empty page", token: ownerToken, path: "/api/tapcomfy/v1/invitations?page=3", count: 0, total: 21},
-				{name: "another inviter", token: otherToken, path: "/api/tapcomfy/v1/invitations?user_id=1", first: "other-invitee", count: 1, total: 1},
+				{name: "first page", token: ownerToken, path: "/api/studio/v1/invitations", first: "invited-20", count: 20, total: 21},
+				{name: "second page", token: ownerToken, path: "/api/studio/v1/invitations?page=2", first: "invited-00", count: 1, total: 21},
+				{name: "empty page", token: ownerToken, path: "/api/studio/v1/invitations?page=3", count: 0, total: 21},
+				{name: "another inviter", token: otherToken, path: "/api/studio/v1/invitations?user_id=1", first: "other-invitee", count: 1, total: 1},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
 					request := httptest.NewRequest(http.MethodGet, tc.path, nil)
@@ -155,7 +160,7 @@ func TestTapComfyInvitationsReturnOnlyCurrentUsersInvitees(t *testing.T) {
 					}
 				})
 			}
-			request := httptest.NewRequest(http.MethodGet, "/api/tapcomfy/v1/invitations?page=0", nil)
+			request := httptest.NewRequest(http.MethodGet, "/api/studio/v1/invitations?page=0", nil)
 			request.Header.Set("Authorization", "Bearer "+ownerToken)
 			recorder := httptest.NewRecorder()
 			engine.ServeHTTP(recorder, request)
@@ -164,7 +169,7 @@ func TestTapComfyInvitationsReturnOnlyCurrentUsersInvitees(t *testing.T) {
 	}
 }
 
-func TestTapComfyWalletTransferWithPAT(t *testing.T) {
+func TestStudioWalletTransferWithPAT(t *testing.T) {
 	previousDB, previousLogDB, previousRedis := model.DB, model.LOG_DB, common.RedisEnabled
 	previousBatch, previousUnit := common.BatchUpdateEnabled, common.QuotaPerUnit
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -185,20 +190,20 @@ func TestTapComfyWalletTransferWithPAT(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	SetApiRouter(engine)
-	request := httptest.NewRequest(http.MethodGet, "/api/tapcomfy/v1/wallet", nil)
+	request := httptest.NewRequest(http.MethodGet, "/api/studio/v1/wallet", nil)
 	request.Header.Set("Authorization", "Bearer "+userToken)
 	recorder := httptest.NewRecorder()
 	engine.ServeHTTP(recorder, request)
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	assert.Contains(t, recorder.Body.String(), `"reserve_quota":10000000`)
 
-	request = httptest.NewRequest(http.MethodPost, "/api/tapcomfy/v1/admin/wallet/transfers", strings.NewReader(`{"source_username":"wallet-sender","recipient":"wallet-admin","amount":"1","currency":"USD","exchange_rate":"1","request_id":"wallet-pat-001"}`))
+	request = httptest.NewRequest(http.MethodPost, "/api/studio/v1/admin/wallet/transfers", strings.NewReader(`{"source_username":"wallet-sender","recipient":"wallet-admin","amount":"1","currency":"USD","exchange_rate":"1","request_id":"wallet-pat-001"}`))
 	request.Header.Set("Authorization", "Bearer "+userToken)
 	recorder = httptest.NewRecorder()
 	engine.ServeHTTP(recorder, request)
 	assert.Equal(t, http.StatusForbidden, recorder.Code)
 
-	request = httptest.NewRequest(http.MethodPost, "/api/tapcomfy/v1/wallet/transfers", strings.NewReader(`{"recipient":"wallet-admin","amount":"1","currency":"USD","exchange_rate":"1","request_id":"wallet-pat-002"}`))
+	request = httptest.NewRequest(http.MethodPost, "/api/studio/v1/wallet/transfers", strings.NewReader(`{"recipient":"wallet-admin","amount":"1","currency":"USD","exchange_rate":"1","request_id":"wallet-pat-002"}`))
 	request.Header.Set("Authorization", "Bearer "+userToken)
 	recorder = httptest.NewRecorder()
 	engine.ServeHTTP(recorder, request)
@@ -208,13 +213,13 @@ func TestTapComfyWalletTransferWithPAT(t *testing.T) {
 	require.NoError(t, db.First(&credit, admin.Id).Error)
 	assert.Equal(t, 99500000, debit.Quota)
 	assert.Equal(t, 500000, credit.Quota)
-	request = httptest.NewRequest(http.MethodPost, "/api/tapcomfy/v1/admin/wallet/transfers", strings.NewReader(`{"source_username":"wallet-sender","recipient":"wallet-admin","amount":"1","currency":"USD","exchange_rate":"1","request_id":"wallet-pat-003"}`))
+	request = httptest.NewRequest(http.MethodPost, "/api/studio/v1/admin/wallet/transfers", strings.NewReader(`{"source_username":"wallet-sender","recipient":"wallet-admin","amount":"1","currency":"USD","exchange_rate":"1","request_id":"wallet-pat-003"}`))
 	request.Header.Set("Authorization", "Bearer "+adminToken)
 	recorder = httptest.NewRecorder()
 	engine.ServeHTTP(recorder, request)
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 
-	request = httptest.NewRequest(http.MethodGet, "/api/tapcomfy/v1/wallet/transfers", nil)
+	request = httptest.NewRequest(http.MethodGet, "/api/studio/v1/wallet/transfers", nil)
 	request.Header.Set("Authorization", "Bearer "+adminToken)
 	recorder = httptest.NewRecorder()
 	engine.ServeHTTP(recorder, request)
@@ -227,79 +232,80 @@ func TestTapComfyWalletTransferWithPAT(t *testing.T) {
 	t.Cleanup(func() {
 		operation_setting.GetGeneralSetting().QuotaDisplayType, operation_setting.USDExchangeRate = previousDisplayType, previousRate
 	})
-	request = httptest.NewRequest(http.MethodGet, "/api/tapcomfy/v1/wallet", nil)
+	request = httptest.NewRequest(http.MethodGet, "/api/studio/v1/wallet", nil)
 	request.Header.Set("Authorization", "Bearer "+userToken)
 	recorder = httptest.NewRecorder()
 	engine.ServeHTTP(recorder, request)
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	assert.Contains(t, recorder.Body.String(), `"reserve_quota":10000000`)
-	request = httptest.NewRequest(http.MethodPost, "/api/tapcomfy/v1/wallet/transfers", strings.NewReader(`{"recipient":"wallet-admin","amount":"7","currency":"CNY","exchange_rate":"7","request_id":"wallet-pat-004"}`))
+	request = httptest.NewRequest(http.MethodPost, "/api/studio/v1/wallet/transfers", strings.NewReader(`{"recipient":"wallet-admin","amount":"7","currency":"CNY","exchange_rate":"7","request_id":"wallet-pat-004"}`))
 	request.Header.Set("Authorization", "Bearer "+userToken)
 	recorder = httptest.NewRecorder()
 	engine.ServeHTTP(recorder, request)
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
-	request = httptest.NewRequest(http.MethodPost, "/api/tapcomfy/v1/wallet/transfers", strings.NewReader(`{"recipient":"wallet-admin","amount":"3.5","currency":"CNY","exchange_rate":"7","request_id":"wallet-pat-005"}`))
+	request = httptest.NewRequest(http.MethodPost, "/api/studio/v1/wallet/transfers", strings.NewReader(`{"recipient":"wallet-admin","amount":"3.5","currency":"CNY","exchange_rate":"7","request_id":"wallet-pat-005"}`))
 	request.Header.Set("Authorization", "Bearer "+userToken)
 	recorder = httptest.NewRecorder()
 	engine.ServeHTTP(recorder, request)
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	require.NoError(t, db.First(&debit, sender.Id).Error)
 	assert.Equal(t, 98250000, debit.Quota)
-	request = httptest.NewRequest(http.MethodPost, "/api/tapcomfy/v1/wallet/transfers", strings.NewReader(`{"recipient":"wallet-admin","amount":"1","currency":"USD","exchange_rate":"1","request_id":"wallet-pat-006"}`))
+	request = httptest.NewRequest(http.MethodPost, "/api/studio/v1/wallet/transfers", strings.NewReader(`{"recipient":"wallet-admin","amount":"1","currency":"USD","exchange_rate":"1","request_id":"wallet-pat-006"}`))
 	request.Header.Set("Authorization", "Bearer "+userToken)
 	recorder = httptest.NewRecorder()
 	engine.ServeHTTP(recorder, request)
 	assert.Equal(t, http.StatusBadRequest, recorder.Code)
-	request = httptest.NewRequest(http.MethodPost, "/api/tapcomfy/v1/wallet/transfers", strings.NewReader(`{"recipient":"wallet-admin","amount":"1","currency":"CNY","exchange_rate":"6","request_id":"wallet-pat-007"}`))
+	request = httptest.NewRequest(http.MethodPost, "/api/studio/v1/wallet/transfers", strings.NewReader(`{"recipient":"wallet-admin","amount":"1","currency":"CNY","exchange_rate":"6","request_id":"wallet-pat-007"}`))
 	request.Header.Set("Authorization", "Bearer "+userToken)
 	recorder = httptest.NewRecorder()
 	engine.ServeHTTP(recorder, request)
 	assert.Equal(t, http.StatusBadRequest, recorder.Code)
 
 	common.BatchUpdateEnabled = true
-	request = httptest.NewRequest(http.MethodPost, "/api/tapcomfy/v1/wallet/transfers", strings.NewReader(`{"recipient":"wallet-admin","amount":"1","currency":"CNY","exchange_rate":"7","request_id":"wallet-pat-batch-001"}`))
+	request = httptest.NewRequest(http.MethodPost, "/api/studio/v1/wallet/transfers", strings.NewReader(`{"recipient":"wallet-admin","amount":"1","currency":"CNY","exchange_rate":"7","request_id":"wallet-pat-batch-001"}`))
 	request.Header.Set("Authorization", "Bearer "+userToken)
 	recorder = httptest.NewRecorder()
 	engine.ServeHTTP(recorder, request)
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 }
 
-func TestTapComfyRouteRolesReachOnlyAuthorizedHandlers(t *testing.T) {
+func TestStudioRouteRolesReachOnlyAuthorizedHandlers(t *testing.T) {
 	previousDB, previousLogDB, previousRedis := model.DB, model.LOG_DB, common.RedisEnabled
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.AuditLog{}, &model.Option{}, &model.TapComfyModel{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.AuditLog{}, &model.Option{}, &model.StudioModel{}))
 	model.DB, model.LOG_DB, common.RedisEnabled = db, db, false
 	require.NoError(t, model.EnsureLegacyAccessTokenRetireAt(time.Now().Unix()))
 	t.Cleanup(func() { model.DB, model.LOG_DB, common.RedisEnabled = previousDB, previousLogDB, previousRedis })
+	t.Setenv("STUDIO_OSS_ENDPOINT", "")
 	t.Setenv("TAPCOMFY_OSS_ENDPOINT", "")
-	commonToken, adminToken := "tapcomfy-common-token", "tapcomfy-admin-token"
-	require.NoError(t, db.Create(&model.User{Username: "tapcomfy-common", Password: "placeholder", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, Group: "default", AccessToken: &commonToken, AuthVersion: 1, AffCode: "tapcomfy-common-aff"}).Error)
-	require.NoError(t, db.Create(&model.User{Username: "tapcomfy-admin", Password: "placeholder", Role: common.RoleAdminUser, Status: common.UserStatusEnabled, Group: "default", AccessToken: &adminToken, AuthVersion: 1, AffCode: "tapcomfy-admin-aff"}).Error)
+	commonToken, adminToken := "studio-common-token", "studio-admin-token"
+	require.NoError(t, db.Create(&model.User{Username: "studio-common", Password: "placeholder", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, Group: "default", AccessToken: &commonToken, AuthVersion: 1, AffCode: "studio-common-aff"}).Error)
+	require.NoError(t, db.Create(&model.User{Username: "studio-admin", Password: "placeholder", Role: common.RoleAdminUser, Status: common.UserStatusEnabled, Group: "default", AccessToken: &adminToken, AuthVersion: 1, AffCode: "studio-admin-aff"}).Error)
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	SetApiRouter(engine)
 
 	sts := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodGet, "/api/tapcomfy/v1/storage/sts", nil)
+	request := httptest.NewRequest(http.MethodGet, "/api/studio/v1/storage/sts", nil)
 	request.Header.Set("Authorization", "Bearer "+commonToken)
 	engine.ServeHTTP(sts, request)
 	assert.Equal(t, http.StatusServiceUnavailable, sts.Code, "ordinary authenticated user reached STS handler")
 
 	upload := httptest.NewRecorder()
-	request = httptest.NewRequest(http.MethodPost, "/api/tapcomfy/v1/admin/assets", nil)
+	request = httptest.NewRequest(http.MethodPost, "/api/studio/v1/admin/assets", nil)
 	request.Header.Set("Authorization", "Bearer "+commonToken)
 	engine.ServeHTTP(upload, request)
 	assert.Equal(t, http.StatusForbidden, upload.Code)
 
 	adminModel := httptest.NewRecorder()
-	request = httptest.NewRequest(http.MethodPost, "/api/tapcomfy/v1/admin/models", nil)
+	request = httptest.NewRequest(http.MethodPost, "/api/studio/v1/admin/models", nil)
 	request.Header.Set("Authorization", "Bearer "+commonToken)
 	engine.ServeHTTP(adminModel, request)
 	assert.Equal(t, http.StatusForbidden, adminModel.Code)
 
 	adminUpload := httptest.NewRecorder()
-	request = httptest.NewRequest(http.MethodPost, "/api/tapcomfy/v1/admin/assets", nil)
+	request = httptest.NewRequest(http.MethodPost, "/api/studio/v1/admin/assets", nil)
 	request.Header.Set("Authorization", "Bearer "+adminToken)
 	engine.ServeHTTP(adminUpload, request)
 	assert.Equal(t, http.StatusBadRequest, adminUpload.Code, "administrator reached upload handler")
@@ -360,33 +366,33 @@ func TestPartnerAPIContractAndOwnerIsolation(t *testing.T) {
 				status              int
 				contains            string
 			}{
-				{"GET", "/api/tapcomfy/v1/admin/partners", ownerToken, 403, ""},
-				{"GET", "/api/tapcomfy/v1/admin/partners?status=approved", adminToken, 200, `"username":"partner-owner"`},
-				{"GET", "/api/tapcomfy/v1/admin/partners?size=1&page=2", adminToken, 200, `"items":[]`},
+				{"GET", "/api/studio/v1/admin/partners", ownerToken, 403, ""},
+				{"GET", "/api/studio/v1/admin/partners?status=approved", adminToken, 200, `"username":"partner-owner"`},
+				{"GET", "/api/studio/v1/admin/partners?size=1&page=2", adminToken, 200, `"items":[]`},
 				{"GET", "/api/user/aff", ownerToken, 200, `"data":"owner"`},
 				{"GET", "/api/user/aff", otherToken, 409, "partner_state"},
-				{"GET", "/api/tapcomfy/v1/partner/access", otherToken, 200, `"can_access":false`},
-				{"GET", "/api/tapcomfy/v1/partner/access", ownerToken, 200, `"can_access":true`},
-				{"GET", "/api/tapcomfy/v1/partner/access", "", 401, ""},
-				{"GET", "/api/tapcomfy/v1/partner", otherToken, 403, "partner_required"},
-				{"POST", "/api/tapcomfy/v1/partner/application", otherToken, 403, "partner_invite_only"},
-				{"POST", "/api/tapcomfy/v1/partner/payouts", otherToken, 403, "partner_required"},
-				{"POST", "/api/tapcomfy/v1/admin/partners", ownerToken, 403, ""},
-				{"GET", "/api/tapcomfy/v1/partner", ownerToken, 200, `"referral_code":"owner"`},
-				{"GET", "/api/tapcomfy/v1/partner/invitees", ownerToken, 200, `"topup_count":1`},
-				{"GET", "/api/tapcomfy/v1/partner/invitees?user_id=1", otherToken, 403, "partner_required"},
-				{"GET", "/api/tapcomfy/v1/partner/commissions?user_id=1", otherToken, 403, "partner_required"},
-				{"GET", "/api/tapcomfy/v1/partner/payouts?user_id=1", otherToken, 403, "partner_required"},
-				{"GET", "/api/tapcomfy/v1/admin/partners/payouts", ownerToken, 403, ""},
-				{"PUT", "/api/tapcomfy/v1/admin/partners/payouts/1", ownerToken, 403, ""},
-				{"PUT", "/api/tapcomfy/v1/admin/partners/config", ownerToken, 403, ""},
-				{"GET", "/api/tapcomfy/v1/admin/partners/payouts", adminToken, 200, "private-payee"},
-				{"GET", "/api/tapcomfy/v1/admin/partners/payouts?size=101", adminToken, 400, "partner_invalid"},
-				{"GET", "/api/tapcomfy/v1/admin/partners/payouts?size=1&page=2", adminToken, 200, `"items":[]`},
-				{"GET", "/api/tapcomfy/v1/partner/payouts?page=-1", ownerToken, 400, "partner_invalid"},
-				{"POST", "/api/tapcomfy/v1/partner/payouts", ownerToken, 400, "partner_invalid"},
-				{"GET", "/api/tapcomfy/v1/partner", "", 401, ""},
-				{"POST", "/api/tapcomfy/v1/partner/application", "", 401, ""},
+				{"GET", "/api/studio/v1/partner/access", otherToken, 200, `"can_access":false`},
+				{"GET", "/api/studio/v1/partner/access", ownerToken, 200, `"can_access":true`},
+				{"GET", "/api/studio/v1/partner/access", "", 401, ""},
+				{"GET", "/api/studio/v1/partner", otherToken, 403, "partner_required"},
+				{"POST", "/api/studio/v1/partner/application", otherToken, 403, "partner_invite_only"},
+				{"POST", "/api/studio/v1/partner/payouts", otherToken, 403, "partner_required"},
+				{"POST", "/api/studio/v1/admin/partners", ownerToken, 403, ""},
+				{"GET", "/api/studio/v1/partner", ownerToken, 200, `"referral_code":"owner"`},
+				{"GET", "/api/studio/v1/partner/invitees", ownerToken, 200, `"topup_count":1`},
+				{"GET", "/api/studio/v1/partner/invitees?user_id=1", otherToken, 403, "partner_required"},
+				{"GET", "/api/studio/v1/partner/commissions?user_id=1", otherToken, 403, "partner_required"},
+				{"GET", "/api/studio/v1/partner/payouts?user_id=1", otherToken, 403, "partner_required"},
+				{"GET", "/api/studio/v1/admin/partners/payouts", ownerToken, 403, ""},
+				{"PUT", "/api/studio/v1/admin/partners/payouts/1", ownerToken, 403, ""},
+				{"PUT", "/api/studio/v1/admin/partners/config", ownerToken, 403, ""},
+				{"GET", "/api/studio/v1/admin/partners/payouts", adminToken, 200, "private-payee"},
+				{"GET", "/api/studio/v1/admin/partners/payouts?size=101", adminToken, 400, "partner_invalid"},
+				{"GET", "/api/studio/v1/admin/partners/payouts?size=1&page=2", adminToken, 200, `"items":[]`},
+				{"GET", "/api/studio/v1/partner/payouts?page=-1", ownerToken, 400, "partner_invalid"},
+				{"POST", "/api/studio/v1/partner/payouts", ownerToken, 400, "partner_invalid"},
+				{"GET", "/api/studio/v1/partner", "", 401, ""},
+				{"POST", "/api/studio/v1/partner/application", "", 401, ""},
 			} {
 				t.Run(tc.method+tc.path+tc.token, func(t *testing.T) {
 					req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(`{}`))
@@ -400,7 +406,7 @@ func TestPartnerAPIContractAndOwnerIsolation(t *testing.T) {
 					if tc.contains != "" {
 						assert.Contains(t, rec.Body.String(), tc.contains)
 					}
-					if tc.path == "/api/tapcomfy/v1/admin/partners?status=approved" {
+					if tc.path == "/api/studio/v1/admin/partners?status=approved" {
 						assert.NotContains(t, rec.Body.String(), "access_token")
 						assert.NotContains(t, rec.Body.String(), "password")
 						assert.NotContains(t, rec.Body.String(), "partner-buyer")
@@ -421,7 +427,7 @@ func TestPartnerAPIContractAndOwnerIsolation(t *testing.T) {
 				{`{"user_id":0}`, 400}, {`{"user_id":999}`, 404},
 				{`{"user_id":2,"notes":"线下合作","channels":"视频号","links":"https://example.com/account","plan":"直播","contact":"微信","evidence":"https://example.com/proof","review_note":"已沟通"}`, 200}, {`{"user_id":2,"notes":"重试"}`, 200},
 			} {
-				req := httptest.NewRequest(http.MethodPost, "/api/tapcomfy/v1/admin/partners", strings.NewReader(tc.body))
+				req := httptest.NewRequest(http.MethodPost, "/api/studio/v1/admin/partners", strings.NewReader(tc.body))
 				req.Header.Set("Authorization", "Bearer "+adminToken)
 				req.Header.Set("Content-Type", "application/json")
 				rec := httptest.NewRecorder()
@@ -468,14 +474,14 @@ func TestPartnerAPIContractAndOwnerIsolation(t *testing.T) {
 				{"both terms", adminToken, `{"commission_bps":1500,"duration_days":30}`, 200, 1500, 30},
 			} {
 				t.Run("commission_"+tc.name, func(t *testing.T) {
-					req := httptest.NewRequest(http.MethodPut, "/api/tapcomfy/v1/admin/partners/1/commission", strings.NewReader(tc.body))
+					req := httptest.NewRequest(http.MethodPut, "/api/studio/v1/admin/partners/1/commission", strings.NewReader(tc.body))
 					req.Header.Set("Authorization", "Bearer "+tc.token)
 					req.Header.Set("Content-Type", "application/json")
 					rec := httptest.NewRecorder()
 					engine.ServeHTTP(rec, req)
 					require.Equal(t, tc.code, rec.Code, rec.Body.String())
 					for _, token := range []string{ownerToken, otherToken} {
-						req = httptest.NewRequest(http.MethodGet, "/api/tapcomfy/v1/partner", nil)
+						req = httptest.NewRequest(http.MethodGet, "/api/studio/v1/partner", nil)
 						req.Header.Set("Authorization", "Bearer "+token)
 						rec = httptest.NewRecorder()
 						engine.ServeHTTP(rec, req)
@@ -501,7 +507,7 @@ func TestPartnerAPIContractAndOwnerIsolation(t *testing.T) {
 			}
 
 			require.NoError(t, db.Model(&model.Partner{}).Where("user_id = ?", 1).Update("approved_at", 0).Error)
-			for _, path := range []string{"/api/tapcomfy/v1/partner/access", "/api/tapcomfy/v1/partner"} {
+			for _, path := range []string{"/api/studio/v1/partner/access", "/api/studio/v1/partner"} {
 				req := httptest.NewRequest(http.MethodGet, path, nil)
 				req.Header.Set("Authorization", "Bearer "+ownerToken)
 				rec := httptest.NewRecorder()
@@ -521,13 +527,13 @@ func TestPartnerAPIContractAndOwnerIsolation(t *testing.T) {
 					if status == "approved" {
 						common.OptionMap["PartnerProgram"] = `{"enabled":false,"min_payout_cents":1}`
 					}
-					for _, path := range []string{"/api/user/aff", "/api/tapcomfy/v1/partner", "/api/tapcomfy/v1/partner/payouts", "/api/tapcomfy/v1/partner/access"} {
+					for _, path := range []string{"/api/user/aff", "/api/studio/v1/partner", "/api/studio/v1/partner/payouts", "/api/studio/v1/partner/access"} {
 						req := httptest.NewRequest(http.MethodGet, path, nil)
 						req.Header.Set("Authorization", "Bearer "+ownerToken)
 						rec := httptest.NewRecorder()
 						engine.ServeHTTP(rec, req)
 						switch path {
-						case "/api/tapcomfy/v1/partner/access":
+						case "/api/studio/v1/partner/access":
 							assert.Equal(t, 200, rec.Code)
 							var access struct {
 								Data struct {
@@ -544,7 +550,7 @@ func TestPartnerAPIContractAndOwnerIsolation(t *testing.T) {
 								assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 								assert.Contains(t, rec.Body.String(), "partner_state")
 							}
-						case "/api/tapcomfy/v1/partner":
+						case "/api/studio/v1/partner":
 							if status != "approved" && status != "suspended" {
 								assert.Equal(t, 403, rec.Code)
 								assert.Contains(t, rec.Body.String(), "partner_required")

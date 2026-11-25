@@ -1,4 +1,4 @@
-package tapcomfy
+package studio
 
 import (
 	"bytes"
@@ -116,19 +116,34 @@ func ParseElevenLabsVoiceRequest(operation ElevenLabsVoiceOperation, contentType
 
 func RelayElevenLabsVoice(c *gin.Context, info *relaycommon.RelayInfo, request *ElevenLabsVoiceRequest) *types.NewAPIError {
 	info.InitChannelMeta(c)
-	if info.ChannelType != constant.ChannelTypeOpenAI {
+	if info.ChannelType != constant.ChannelTypeOpenAI && info.ChannelType != constant.ChannelTypeElevenLabs {
 		return types.NewError(fmt.Errorf("channel does not support %s", c.Request.URL.Path), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
 	if err := helper.ModelMappedHelper(c, info, request); err != nil {
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
 
-	info.RequestURLPath = "/v1/elevenlabs/voices"
-	if request.voiceID != "" {
-		info.RequestURLPath += "/" + url.PathEscape(request.voiceID)
-	}
-	if request.Operation == ElevenLabsVoiceEdit {
-		info.RequestURLPath += "/edit"
+	if info.ChannelType == constant.ChannelTypeElevenLabs {
+		switch request.Operation {
+		case ElevenLabsVoiceClone:
+			info.RequestURLPath = "/v1/voices/add"
+		case ElevenLabsVoiceList:
+			info.RequestURLPath = "/v1/voices"
+		case ElevenLabsVoiceGet, ElevenLabsVoiceDelete:
+			info.RequestURLPath = "/v1/voices/" + url.PathEscape(request.voiceID)
+		case ElevenLabsVoiceEdit:
+			info.RequestURLPath = "/v1/voices/" + url.PathEscape(request.voiceID) + "/edit"
+		default:
+			return types.NewError(errors.New("unsupported ElevenLabs voice operation"), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+		}
+	} else {
+		info.RequestURLPath = "/v1/elevenlabs/voices"
+		if request.voiceID != "" {
+			info.RequestURLPath += "/" + url.PathEscape(request.voiceID)
+		}
+		if request.Operation == ElevenLabsVoiceEdit {
+			info.RequestURLPath += "/edit"
+		}
 	}
 	if c.Request.URL.RawQuery != "" {
 		info.RequestURLPath += "?" + c.Request.URL.RawQuery

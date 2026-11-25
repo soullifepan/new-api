@@ -214,7 +214,7 @@ export async function requestWaffoPancakePayment(
 export async function getPartnerAccess(): Promise<
   ApiResponse<{ can_access: boolean; status: string }>
 > {
-  const res = await api.get('/api/tapcomfy/v1/partner/access')
+  const res = await api.get('/api/studio/v1/partner/access')
   return res.data
 }
 

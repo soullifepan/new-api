@@ -145,7 +145,7 @@ type PartnerMoney struct {
 }
 
 func PartnerMoneyForGroup(group string) (PartnerMoney, error) {
-	// Match the current TapComfy checkout unit price and group pricing.
+	// Match the current Studio checkout unit price and group pricing.
 	price := setting.AlipayNativeUnitPrice
 	ratio := common.GetTopupGroupRatio(group)
 	if ratio == 0 {

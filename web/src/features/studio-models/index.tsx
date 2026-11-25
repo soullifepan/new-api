@@ -40,14 +40,14 @@ import {
 import { handleServerError } from '@/lib/handle-server-error'
 
 import {
-  createTapComfyModel,
-  deleteTapComfyModel,
-  listTapComfyModels,
-  updateTapComfyModel,
-  uploadTapComfyAsset,
+  createStudioModel,
+  deleteStudioModel,
+  listStudioModels,
+  updateStudioModel,
+  uploadStudioAsset,
 } from './api'
 import { modelFormSchema, type ModelFormValues } from './form-schema'
-import type { TapComfyModel, UploadedTapComfyAsset } from './types'
+import type { StudioModel, UploadedStudioAsset } from './types'
 
 const modelExtensions = new Set(['glb', 'gltf', 'fbx', 'obj'])
 const imageExtensions = new Set(['png', 'jpg', 'jpeg', 'webp'])
@@ -71,7 +71,7 @@ function fileExtension(file: File) {
 
 function validateUpload(
   file: File,
-  assetType: UploadedTapComfyAsset['assetType']
+  assetType: UploadedStudioAsset['assetType']
 ) {
   const extensions =
     assetType === '3d-model' ? modelExtensions : imageExtensions
@@ -84,16 +84,16 @@ function validateUpload(
   )
 }
 
-export function TapComfyModels() {
+export function StudioModels() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [editing, setEditing] = useState<TapComfyModel | null>(null)
+  const [editing, setEditing] = useState<StudioModel | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<TapComfyModel | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<StudioModel | null>(null)
   const [uploading, setUploading] = useState({ model: false, thumbnail: false })
   const modelsQuery = useQuery({
-    queryKey: ['tapcomfy-models'],
-    queryFn: listTapComfyModels,
+    queryKey: ['studio-models'],
+    queryFn: listStudioModels,
   })
   const form = useForm<ModelFormValues>({
     resolver: zodResolver(modelFormSchema),
@@ -102,27 +102,27 @@ export function TapComfyModels() {
   const saveMutation = useMutation({
     mutationFn: (values: ModelFormValues) =>
       editing
-        ? updateTapComfyModel(editing.id, values)
-        : createTapComfyModel(values),
+        ? updateStudioModel(editing.id, values)
+        : createStudioModel(values),
     onSuccess: () => {
-      toast.success('TapComfy 3D 模型已保存')
-      queryClient.invalidateQueries({ queryKey: ['tapcomfy-models'] })
+      toast.success('3D 模型已保存')
+      queryClient.invalidateQueries({ queryKey: ['studio-models'] })
       setDialogOpen(false)
     },
-    onError: (error) => handleServerError(error, '无法保存 TapComfy 3D 模型'),
+    onError: (error) => handleServerError(error, '无法保存 3D 模型'),
   })
   const deleteMutation = useMutation({
-    mutationFn: deleteTapComfyModel,
+    mutationFn: deleteStudioModel,
     onSuccess: () => {
-      toast.success('TapComfy 3D 模型已删除')
-      queryClient.invalidateQueries({ queryKey: ['tapcomfy-models'] })
+      toast.success('3D 模型已删除')
+      queryClient.invalidateQueries({ queryKey: ['studio-models'] })
       setDeleteTarget(null)
     },
-    onError: (error) => handleServerError(error, '无法删除 TapComfy 3D 模型'),
+    onError: (error) => handleServerError(error, '无法删除 3D 模型'),
   })
 
   const openForm = useCallback(
-    (item?: TapComfyModel) => {
+    (item?: StudioModel) => {
       setEditing(item ?? null)
       setUploading({ model: false, thumbnail: false })
       form.reset(
@@ -145,7 +145,7 @@ export function TapComfyModels() {
     },
     [form]
   )
-  const columns = useMemo<ColumnDef<TapComfyModel>[]>(
+  const columns = useMemo<ColumnDef<StudioModel>[]>(
     () => [
       { accessorKey: 'name', header: t('Name') },
       { accessorKey: 'category', header: t('Category') },
@@ -199,7 +199,7 @@ export function TapComfyModels() {
 
   const upload = async (
     event: ChangeEvent<HTMLInputElement>,
-    assetType: UploadedTapComfyAsset['assetType']
+    assetType: UploadedStudioAsset['assetType']
   ) => {
     const file = event.target.files?.[0]
     if (!file) return
@@ -213,7 +213,7 @@ export function TapComfyModels() {
     const uploadKey = assetType === '3d-model' ? 'model' : 'thumbnail'
     setUploading((current) => ({ ...current, [uploadKey]: true }))
     try {
-      const asset = await uploadTapComfyAsset(file, assetType)
+      const asset = await uploadStudioAsset(file, assetType)
       if (assetType === '3d-model') {
         form.setValue('model_url', asset.url, { shouldValidate: true })
         form.setValue('model_object_key', asset.objectKey, {
@@ -233,7 +233,7 @@ export function TapComfyModels() {
         form.clearErrors('thumbnail_url')
       }
     } catch (error) {
-      handleServerError(error, '无法上传 TapComfy 素材')
+      handleServerError(error, '无法上传 3D 模型素材')
     } finally {
       setUploading((current) => ({ ...current, [uploadKey]: false }))
       event.target.value = ''
@@ -243,7 +243,7 @@ export function TapComfyModels() {
   return (
     <>
       <SectionPageLayout fixedContent>
-        <SectionPageLayout.Title>TapComfy 3D 模型</SectionPageLayout.Title>
+        <SectionPageLayout.Title>3D 模型</SectionPageLayout.Title>
         <SectionPageLayout.Actions>
           <Button onClick={() => openForm()}>
             <Plus />
@@ -256,9 +256,9 @@ export function TapComfyModels() {
             columns={columns}
             isLoading={modelsQuery.isLoading}
             isFetching={modelsQuery.isFetching}
-            emptyTitle='没有 TapComfy 3D 模型'
-            emptyDescription='创建 3D 模型预设以供 TapComfy 使用。'
-            skeletonKeyPrefix='tapcomfy-models'
+            emptyTitle='没有 3D 模型'
+            emptyDescription='创建 3D 模型预设以供 Studio 使用。'
+            skeletonKeyPrefix='studio-models'
           />
         </SectionPageLayout.Content>
       </SectionPageLayout>
@@ -268,10 +268,10 @@ export function TapComfyModels() {
           setDialogOpen(open)
           if (!open) setUploading({ model: false, thumbnail: false })
         }}
-        title={editing ? '编辑 TapComfy 3D 模型' : '新建 TapComfy 3D 模型'}
+        title={editing ? '编辑 3D 模型' : '新建 3D 模型'}
         footer={
           <Button
-            form='tapcomfy-model-form'
+            form='studio-model-form'
             type='submit'
             disabled={
               saveMutation.isPending || uploading.model || uploading.thumbnail
@@ -283,7 +283,7 @@ export function TapComfyModels() {
       >
         <Form {...form}>
           <form
-            id='tapcomfy-model-form'
+            id='studio-model-form'
             className='grid gap-3 sm:grid-cols-2'
             onSubmit={form.handleSubmit((values) =>
               saveMutation.mutate(values)
@@ -351,9 +351,9 @@ export function TapComfyModels() {
               )}
             />
             <FormItem>
-              <FormLabel htmlFor='tapcomfy-model-file'>3D 模型文件</FormLabel>
+              <FormLabel htmlFor='studio-model-file'>3D 模型文件</FormLabel>
               <Input
-                id='tapcomfy-model-file'
+                id='studio-model-file'
                 type='file'
                 accept='.glb,.gltf,.fbx,.obj'
                 disabled={uploading.model}
@@ -366,9 +366,9 @@ export function TapComfyModels() {
               ) : null}
             </FormItem>
             <FormItem>
-              <FormLabel htmlFor='tapcomfy-thumbnail-file'>缩略图</FormLabel>
+              <FormLabel htmlFor='studio-thumbnail-file'>缩略图</FormLabel>
               <Input
-                id='tapcomfy-thumbnail-file'
+                id='studio-thumbnail-file'
                 type='file'
                 accept='.png,.jpg,.jpeg,.webp'
                 disabled={uploading.thumbnail}
@@ -387,7 +387,7 @@ export function TapComfyModels() {
         destructive
         open={deleteTarget !== null}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
-        title='删除 TapComfy 3D 模型？'
+        title='删除 3D 模型？'
         desc='这只会删除目录元数据，不会删除已上传的文件。'
         confirmText={t('Delete')}
         isLoading={deleteMutation.isPending}

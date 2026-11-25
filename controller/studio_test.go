@@ -20,7 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
-	"github.com/QuantumNous/new-api/tapcomfy"
+	"github.com/QuantumNous/new-api/studio"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -28,12 +28,13 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestTapComfyStorageHandlersReturnExpectedErrors(t *testing.T) {
+func TestStudioStorageHandlersReturnExpectedErrors(t *testing.T) {
+	t.Setenv("STUDIO_OSS_ENDPOINT", "")
 	t.Setenv("TAPCOMFY_OSS_ENDPOINT", "")
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
-	engine.GET("/storage/sts", GetTapComfyStorageSTS)
-	engine.POST("/admin/assets", UploadTapComfyAsset)
+	engine.GET("/storage/sts", GetStudioStorageSTS)
+	engine.POST("/admin/assets", UploadStudioAsset)
 
 	sts := httptest.NewRecorder()
 	engine.ServeHTTP(sts, httptest.NewRequest(http.MethodGet, "/storage/sts", nil))
@@ -44,27 +45,51 @@ func TestTapComfyStorageHandlersReturnExpectedErrors(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, upload.Code)
 }
 
-func TestTapComfyCatalogHandlersFilterAndValidateAssets(t *testing.T) {
+func TestStudioClientLogRequestBoundary(t *testing.T) {
+	t.Setenv("STUDIO_CLIENT_LOG_GROUP", "")
+	t.Setenv("TAPCOMFY_CLIENT_LOG_GROUP", "")
+	gin.SetMode(gin.TestMode)
+	for _, test := range []struct {
+		name, body     string
+		userID, status int
+	}{
+		{"no identity", `{}`, 0, http.StatusUnauthorized},
+		{"bad source", `{"source":"other","operation":"upload","errorType":"network","message":"failed"}`, 42, http.StatusBadRequest},
+		{"multiple JSON values", `{} {}`, 42, http.StatusBadRequest},
+		{"body limit includes trailing padding", `{"source":"backend","operation":"upload","errorType":"network","message":"failed"}` + strings.Repeat(" ", 16<<10), 42, http.StatusRequestEntityTooLarge},
+		{"valid request with no configured destination", `{"source":"backend","operation":"upload","errorType":"network","message":"failed","user_id":999}`, 42, http.StatusServiceUnavailable},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			router := gin.New()
+			router.POST("/client-logs", func(c *gin.Context) { c.Set("id", test.userID); c.Next() }, ReportStudioClientLog)
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/client-logs", strings.NewReader(test.body)))
+			assert.Equal(t, test.status, response.Code)
+		})
+	}
+}
+
+func TestStudioCatalogHandlersFilterAndValidateAssets(t *testing.T) {
 	previousDB := model.DB
-	db, err := gorm.Open(sqlite.Open("file:tapcomfy_controller?mode=memory&cache=shared"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open("file:studio_controller?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.TapComfyModel{}))
+	require.NoError(t, db.AutoMigrate(&model.StudioModel{}))
 	model.DB = db
 	t.Cleanup(func() { model.DB = previousDB })
-	for key, value := range map[string]string{"TAPCOMFY_OSS_ENDPOINT": "https://oss.example.com", "TAPCOMFY_OSS_BUCKET": "bucket", "TAPCOMFY_OSS_REGION": "region", "TAPCOMFY_OSS_ACCESS_KEY_ID": "id", "TAPCOMFY_OSS_ACCESS_KEY_SECRET": "secret"} {
+	for key, value := range map[string]string{"STUDIO_OSS_ENDPOINT": "https://oss.example.com", "STUDIO_OSS_BUCKET": "bucket", "STUDIO_OSS_REGION": "region", "STUDIO_OSS_ACCESS_KEY_ID": "id", "STUDIO_OSS_ACCESS_KEY_SECRET": "secret"} {
 		t.Setenv(key, value)
 	}
-	require.NoError(t, db.Create(&model.TapComfyModel{ID: "published", Name: "Published", Category: "JC", ThumbnailURL: "https://bucket.oss.example.com/3d_models/thumbnails/a.png", ThumbnailObjectKey: "3d_models/thumbnails/a.png", ModelURL: "https://bucket.oss.example.com/3d_models/models/a.glb", ModelObjectKey: "3d_models/models/a.glb", Format: "glb", FileSize: 1, Status: model.TapComfyModelStatusPublished}).Error)
-	require.NoError(t, db.Create(&model.TapComfyModel{ID: "hidden", Name: "Hidden", Category: "SS", ThumbnailURL: "x", ThumbnailObjectKey: "x", ModelURL: "x", ModelObjectKey: "x", Format: "glb", FileSize: 1, Status: model.TapComfyModelStatusHidden}).Error)
+	require.NoError(t, db.Create(&model.StudioModel{ID: "published", Name: "Published", Category: "JC", ThumbnailURL: "https://bucket.oss.example.com/3d_models/thumbnails/a.png", ThumbnailObjectKey: "3d_models/thumbnails/a.png", ModelURL: "https://bucket.oss.example.com/3d_models/models/a.glb", ModelObjectKey: "3d_models/models/a.glb", Format: "glb", FileSize: 1, Status: model.StudioModelStatusPublished}).Error)
+	require.NoError(t, db.Create(&model.StudioModel{ID: "hidden", Name: "Hidden", Category: "SS", ThumbnailURL: "x", ThumbnailObjectKey: "x", ModelURL: "x", ModelObjectKey: "x", Format: "glb", FileSize: 1, Status: model.StudioModelStatusHidden}).Error)
 	var count int64
-	require.NoError(t, model.DB.Model(&model.TapComfyModel{}).Where("status = ?", model.TapComfyModelStatusPublished).Count(&count).Error)
+	require.NoError(t, model.DB.Model(&model.StudioModel{}).Where("status = ?", model.StudioModelStatusPublished).Count(&count).Error)
 	require.Equal(t, int64(1), count)
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.GET("/models", GetTapComfyModels)
-	router.POST("/models", CreateTapComfyModel)
-	router.PUT("/models/:id", UpdateTapComfyModel)
-	router.DELETE("/models/:id", DeleteTapComfyModel)
+	router.GET("/models", GetStudioModels)
+	router.POST("/models", CreateStudioModel)
+	router.PUT("/models/:id", UpdateStudioModel)
+	router.DELETE("/models/:id", DeleteStudioModel)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/models?limit=999&category=JC", nil))
 	assert.Equal(t, http.StatusOK, recorder.Code)
@@ -81,7 +106,7 @@ func TestTapComfyCatalogHandlersFilterAndValidateAssets(t *testing.T) {
 	recorder = httptest.NewRecorder()
 	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/models", bytes.NewBufferString(valid)))
 	require.Equal(t, http.StatusCreated, recorder.Code)
-	var created model.TapComfyModel
+	var created model.StudioModel
 	require.NoError(t, db.Where("name = ?", "New").First(&created).Error)
 	assert.Equal(t, "glb", created.Format)
 
@@ -91,9 +116,9 @@ func TestTapComfyCatalogHandlersFilterAndValidateAssets(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.NoError(t, db.Where("id = ?", created.ID).First(&created).Error)
 	assert.Equal(t, "glb", created.Format)
-	assert.Equal(t, model.TapComfyModelStatusHidden, created.Status)
+	assert.Equal(t, model.StudioModelStatusHidden, created.Status)
 
-	require.NoError(t, db.Create(&model.TapComfyModel{ID: "legacy", Name: "Legacy", Category: "JC", ThumbnailURL: "https://legacy.example/3d_models/a.png", ThumbnailObjectKey: "3d_models/a.png", ModelURL: "https://legacy.example/3d_models/a.glb", ModelObjectKey: "3d_models/a.glb", Format: "glb", FileSize: 1, Status: model.TapComfyModelStatusPublished}).Error)
+	require.NoError(t, db.Create(&model.StudioModel{ID: "legacy", Name: "Legacy", Category: "JC", ThumbnailURL: "https://legacy.example/3d_models/a.png", ThumbnailObjectKey: "3d_models/a.png", ModelURL: "https://legacy.example/3d_models/a.glb", ModelObjectKey: "3d_models/a.glb", Format: "glb", FileSize: 1, Status: model.StudioModelStatusPublished}).Error)
 	legacyUpdate := `{"name":"Legacy","category":"JC","thumbnail_url":"https://legacy.example/3d_models/a.png","thumbnail_object_key":"3d_models/a.png","model_url":"https://legacy.example/3d_models/a.glb","model_object_key":"3d_models/a.glb","format":"glb","file_size":1,"status":"hidden"}`
 	recorder = httptest.NewRecorder()
 	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodPut, "/models/legacy", bytes.NewBufferString(legacyUpdate)))
@@ -131,7 +156,7 @@ func TestElevenLabsSoundControllerBillingEndToEnd(t *testing.T) {
 		require.NoError(t, ratio_setting.UpdateGroupGroupRatioByJSONString(specialRatios))
 		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(groups))
 	})
-	audio, err := os.ReadFile("../tapcomfy/testdata/sound-lame-44101-samples.mp3")
+	audio, err := os.ReadFile("../studio/testdata/sound-lame-44101-samples.mp3")
 	require.NoError(t, err)
 	type observation struct {
 		userQuota, tokenQuota, tokenUsed int
@@ -176,13 +201,13 @@ func TestElevenLabsSoundControllerBillingEndToEnd(t *testing.T) {
 	}))
 	defer upstream.Close()
 	mapping := `{"elevenlabs-sound":"must-not-override-version","eleven_text_to_sound_v3":"fixture-v3"}`
-	channel := model.Channel{Name: "sound-fixture", Type: 1, Key: "fixture-provider", Status: common.ChannelStatusEnabled, Models: tapcomfy.ElevenLabsSoundModel, Group: "default", BaseURL: &upstream.URL, ModelMapping: &mapping, AutoBan: common.GetPointer(0)}
+	channel := model.Channel{Name: "sound-fixture", Type: 1, Key: "fixture-provider", Status: common.ChannelStatusEnabled, Models: studio.ElevenLabsSoundModel, Group: "default", BaseURL: &upstream.URL, ModelMapping: &mapping, AutoBan: common.GetPointer(0)}
 	require.NoError(t, db.Create(&channel).Error)
 	require.NoError(t, channel.AddAbilities(db))
 	engine := gin.New()
 	engine.Use(middleware.RequestId())
 	route := engine.Group("/v1", middleware.RouteTag("relay"), middleware.SystemPerformanceCheck(), middleware.TokenAuth(), middleware.ModelRequestRateLimit())
-	route.POST("/sound-generation", tapcomfy.PrepareElevenLabsSound, middleware.Distribute(), RelayElevenLabsSound)
+	route.POST("/sound-generation", studio.PrepareElevenLabsSound, middleware.Distribute(), RelayElevenLabsSound)
 	for index, tc := range []struct {
 		name, version, expectedVersion                             string
 		fail, truncated, noAuth, forbidden, insufficient, tokenLow bool
@@ -205,7 +230,7 @@ func TestElevenLabsSoundControllerBillingEndToEnd(t *testing.T) {
 			}
 			user := model.User{Username: fmt.Sprintf("sound-%d", index), AffCode: fmt.Sprintf("sound-aff-%d", index), Password: "test-only", Status: common.UserStatusEnabled, Group: "default", Quota: initial, Setting: `{"billing_preference":"wallet_only"}`}
 			require.NoError(t, db.Create(&user).Error)
-			limits := tapcomfy.ElevenLabsSoundModel
+			limits := studio.ElevenLabsSoundModel
 			if tc.forbidden {
 				limits = "eleven_text_to_sound_v3"
 			}
@@ -273,7 +298,7 @@ func TestElevenLabsSoundControllerBillingEndToEnd(t *testing.T) {
 				assert.Equal(t, audio, response.Body.Bytes())
 				assert.Equal(t, "2", response.Header().Get("X-Sound-Billable-Seconds"))
 				require.Len(t, logs, 1)
-				assert.Equal(t, tapcomfy.ElevenLabsSoundModel, logs[0].ModelName)
+				assert.Equal(t, studio.ElevenLabsSoundModel, logs[0].ModelName)
 				assert.Equal(t, 1250, logs[0].Quota)
 				assert.Equal(t, 0, logs[0].PromptTokens)
 				var other map[string]any

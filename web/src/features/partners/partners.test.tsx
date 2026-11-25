@@ -174,7 +174,7 @@ test('administrator enters percentages and yuan while the API receives exact bas
   expect(screen.queryByLabelText('仅客户首次充值返佣')).not.toBeInTheDocument()
   expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
   expect(
-    screen.getByText(/佣金转余额按 TapComfy 当前充值价格兑换/)
+    screen.getByText(/佣金转余额按当前充值价格兑换/)
   ).toBeInTheDocument()
   expect(screen.getByText(/客户每次充值均按设定比例返佣/)).toBeInTheDocument()
   await user.clear(rate)

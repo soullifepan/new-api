@@ -52,7 +52,7 @@ function renderTransfers(
     },
   })
   vi.mocked(api.get).mockImplementation(async (url) => {
-    if (url === '/api/tapcomfy/v1/wallet') {
+    if (url === '/api/studio/v1/wallet') {
       return {
         data: {
           success: true,
@@ -123,7 +123,7 @@ it('requires confirmation and sends one transfer request with an idempotency key
   await user.click(within(dialog).getByRole('button', { name: 'Transfer' }))
   await waitFor(() => expect(post).toHaveBeenCalledOnce())
   expect(post).toHaveBeenCalledWith(
-    '/api/tapcomfy/v1/wallet/transfers',
+    '/api/studio/v1/wallet/transfers',
     expect.objectContaining({
       recipient: 'bob',
       amount: '1.25',
@@ -171,7 +171,7 @@ it('sends an administrator transfer from the selected source account', async () 
 
   await waitFor(() => expect(post).toHaveBeenCalledOnce())
   expect(post).toHaveBeenCalledWith(
-    '/api/tapcomfy/v1/admin/wallet/transfers',
+    '/api/studio/v1/admin/wallet/transfers',
     expect.objectContaining({
       source_username: 'alice',
       recipient: 'bob',
@@ -200,7 +200,7 @@ it('uses the configured CNY amount for a client transfer', async () => {
   await user.click(within(dialog).getByRole('button', { name: 'Transfer' }))
   await waitFor(() => expect(post).toHaveBeenCalledOnce())
   expect(post).toHaveBeenCalledWith(
-    '/api/tapcomfy/v1/wallet/transfers',
+    '/api/studio/v1/wallet/transfers',
     expect.objectContaining({
       recipient: 'bob',
       amount: '7',

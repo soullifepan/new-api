@@ -1,4 +1,4 @@
-package tapcomfy
+package studio
 
 import (
 	"bytes"

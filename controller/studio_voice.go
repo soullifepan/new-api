@@ -12,21 +12,21 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/tapcomfy"
+	"github.com/QuantumNous/new-api/studio"
 	"github.com/gin-gonic/gin"
 )
 
 func RelayElevenLabsVoiceClone(c *gin.Context) {
-	relayElevenLabsVoice(c, tapcomfy.ElevenLabsVoiceClone)
+	relayElevenLabsVoice(c, studio.ElevenLabsVoiceClone)
 }
-func RelayElevenLabsVoiceList(c *gin.Context) { relayElevenLabsVoice(c, tapcomfy.ElevenLabsVoiceList) }
-func RelayElevenLabsVoiceGet(c *gin.Context)  { relayElevenLabsVoice(c, tapcomfy.ElevenLabsVoiceGet) }
-func RelayElevenLabsVoiceEdit(c *gin.Context) { relayElevenLabsVoice(c, tapcomfy.ElevenLabsVoiceEdit) }
+func RelayElevenLabsVoiceList(c *gin.Context) { relayElevenLabsVoice(c, studio.ElevenLabsVoiceList) }
+func RelayElevenLabsVoiceGet(c *gin.Context)  { relayElevenLabsVoice(c, studio.ElevenLabsVoiceGet) }
+func RelayElevenLabsVoiceEdit(c *gin.Context) { relayElevenLabsVoice(c, studio.ElevenLabsVoiceEdit) }
 func RelayElevenLabsVoiceDelete(c *gin.Context) {
-	relayElevenLabsVoice(c, tapcomfy.ElevenLabsVoiceDelete)
+	relayElevenLabsVoice(c, studio.ElevenLabsVoiceDelete)
 }
 
-func relayElevenLabsVoice(c *gin.Context, operation tapcomfy.ElevenLabsVoiceOperation) {
+func relayElevenLabsVoice(c *gin.Context, operation studio.ElevenLabsVoiceOperation) {
 	var newAPIError *types.NewAPIError
 	defer func() {
 		if newAPIError == nil {
@@ -39,7 +39,7 @@ func relayElevenLabsVoice(c *gin.Context, operation tapcomfy.ElevenLabsVoiceOper
 	}()
 
 	var body []byte
-	if operation == tapcomfy.ElevenLabsVoiceClone || operation == tapcomfy.ElevenLabsVoiceEdit {
+	if operation == studio.ElevenLabsVoiceClone || operation == studio.ElevenLabsVoiceEdit {
 		storage, err := common.GetBodyStorage(c)
 		if err == nil {
 			body, err = storage.Bytes()
@@ -53,7 +53,7 @@ func relayElevenLabsVoice(c *gin.Context, operation tapcomfy.ElevenLabsVoiceOper
 			return
 		}
 	}
-	request, newAPIError := tapcomfy.ParseElevenLabsVoiceRequest(operation, c.GetHeader("Content-Type"), body, c.Param("voice_id"))
+	request, newAPIError := studio.ParseElevenLabsVoiceRequest(operation, c.GetHeader("Content-Type"), body, c.Param("voice_id"))
 	if newAPIError != nil {
 		return
 	}
@@ -91,7 +91,7 @@ func relayElevenLabsVoice(c *gin.Context, operation tapcomfy.ElevenLabsVoiceOper
 			return
 		}
 	}
-	newAPIError = tapcomfy.RelayElevenLabsVoice(c, info, request)
+	newAPIError = studio.RelayElevenLabsVoice(c, info, request)
 	if newAPIError == nil {
 		service.MarkRequestPolicySuccess(c, nil)
 		return

@@ -1,4 +1,4 @@
-package tapcomfy
+package studio
 
 import (
 	"context"
@@ -61,9 +61,9 @@ func TestLoadLegacyModelsFileRejectsAnEmptyCatalogue(t *testing.T) {
 }
 
 func TestImportLegacyModelsCopiesPublishedMetadataAndIsIdempotent(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open("file:tapcomfy-import?mode=memory&cache=shared"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open("file:studio-import?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.TapComfyModel{}))
+	require.NoError(t, db.AutoMigrate(&model.StudioModel{}))
 
 	rows := []LegacyModel{
 		{
@@ -92,12 +92,12 @@ func TestImportLegacyModelsCopiesPublishedMetadataAndIsIdempotent(t *testing.T) 
 	assert.Equal(t, LegacyImportResult{Created: 1}, result)
 	assert.Equal(t, 2, uploads)
 
-	var imported model.TapComfyModel
+	var imported model.StudioModel
 	require.NoError(t, db.First(&imported, "id = ?", "legacy-chair").Error)
 	assert.Equal(t, "Chair", imported.Name)
 	assert.Equal(t, "glb", imported.Format)
 	assert.Equal(t, int64(34), imported.FileSize)
-	assert.Equal(t, model.TapComfyModelStatusPublished, imported.Status)
+	assert.Equal(t, model.StudioModelStatusPublished, imported.Status)
 	assert.Equal(t, "3d_models/models/chair.glb", imported.ModelObjectKey)
 
 	result, err = ImportLegacyModels(context.Background(), db, rows, upload)
@@ -107,9 +107,9 @@ func TestImportLegacyModelsCopiesPublishedMetadataAndIsIdempotent(t *testing.T) 
 }
 
 func TestImportLegacyModelsRejectsInvalidRowsWithoutWritingMetadata(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open("file:tapcomfy-import-invalid?mode=memory&cache=shared"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open("file:studio-import-invalid?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.TapComfyModel{}))
+	require.NoError(t, db.AutoMigrate(&model.StudioModel{}))
 
 	_, err = ImportLegacyModels(context.Background(), db, []LegacyModel{{
 		ID:       "bad",
@@ -123,7 +123,7 @@ func TestImportLegacyModelsRejectsInvalidRowsWithoutWritingMetadata(t *testing.T
 	require.Error(t, err)
 
 	var count int64
-	require.NoError(t, db.Model(&model.TapComfyModel{}).Count(&count).Error)
+	require.NoError(t, db.Model(&model.StudioModel{}).Count(&count).Error)
 	assert.Zero(t, count)
 }
 

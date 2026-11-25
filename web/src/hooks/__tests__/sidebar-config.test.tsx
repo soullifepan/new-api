@@ -202,20 +202,20 @@ describe('audit log sidebar entry', () => {
   })
 })
 
-describe('TapComfy sidebar group', () => {
+describe('Studio sidebar group', () => {
   it.each([undefined, { admin: { enabled: true, models: true, user: true } }])(
-    'shows 3D models and partners under TapComfy with default or saved settings (%j)',
+    'shows 3D models and partners under Studio with default or saved settings (%j)',
     (admin) => {
       const { result } = sidebarFor(admin)
       const adminItems =
         result.current.find((group) => group.id === 'admin')?.items ?? []
       expect(adminItems).toContainEqual(
         expect.objectContaining({
-          title: 'TapComfy',
+          title: 'Studio',
           items: [
             expect.objectContaining({
               title: '3D 模型',
-              url: '/tapcomfy-models',
+              url: '/studio-models',
             }),
             expect.objectContaining({
               title: '合作伙伴',

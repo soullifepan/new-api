@@ -6,9 +6,9 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-export type TapComfyModelStatus = 'published' | 'hidden'
+export type StudioModelStatus = 'published' | 'hidden'
 
-export type TapComfyModel = {
+export type StudioModel = {
   id: string
   name: string
   category: string
@@ -19,17 +19,17 @@ export type TapComfyModel = {
   format: string
   file_size: number
   sort: number
-  status: TapComfyModelStatus
+  status: StudioModelStatus
   created_at: string
   updated_at: string
 }
 
-export type TapComfyModelInput = Omit<
-  TapComfyModel,
+export type StudioModelInput = Omit<
+  StudioModel,
   'id' | 'created_at' | 'updated_at'
 >
 
-export type UploadedTapComfyAsset = {
+export type UploadedStudioAsset = {
   url: string
   objectKey: string
   assetType: '3d-model' | '3d-thumbnail'

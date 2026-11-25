@@ -1,4 +1,4 @@
-package tapcomfy
+package studio
 
 import (
 	"bytes"
@@ -84,7 +84,7 @@ func SoundQuota(info *relaycommon.RelayInfo, seconds float64) (int, error) {
 // binary success. No generation retry is performed, including on local errors.
 func RelayElevenLabsSound(c *gin.Context, info *relaycommon.RelayInfo, request *ElevenLabsSoundRequest) *types.NewAPIError {
 	info.InitChannelMeta(c)
-	if info.ChannelType != constant.ChannelTypeOpenAI {
+	if info.ChannelType != constant.ChannelTypeOpenAI && info.ChannelType != constant.ChannelTypeElevenLabs {
 		return types.NewErrorWithStatusCode(errors.New("channel does not support sound generation"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
 	// Apply the existing mapping algorithm to the selected internal version only.

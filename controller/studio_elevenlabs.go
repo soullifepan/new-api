@@ -12,16 +12,16 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/tapcomfy"
+	"github.com/QuantumNous/new-api/studio"
 	"github.com/gin-gonic/gin"
 )
 
 func RelayElevenLabsSpeechWithTimestamps(c *gin.Context) {
-	relayElevenLabs(c, tapcomfy.ElevenLabsSpeechWithTimestamps)
+	relayElevenLabs(c, studio.ElevenLabsSpeechWithTimestamps)
 }
 
 func RelayElevenLabsMusic(c *gin.Context) {
-	relayElevenLabs(c, tapcomfy.ElevenLabsMusic)
+	relayElevenLabs(c, studio.ElevenLabsMusic)
 }
 
 func RelayElevenLabsSound(c *gin.Context) {
@@ -35,7 +35,7 @@ func RelayElevenLabsSound(c *gin.Context) {
 		}
 	}()
 	value, exists := c.Get("elevenlabs_sound_request")
-	request, ok := value.(*tapcomfy.ElevenLabsSoundRequest)
+	request, ok := value.(*studio.ElevenLabsSoundRequest)
 	if !exists || !ok {
 		apiErr = types.NewErrorWithStatusCode(errors.New("sound request was not validated"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		return
@@ -58,10 +58,10 @@ func RelayElevenLabsSound(c *gin.Context) {
 			info.Billing.Refund(c)
 		}
 	}()
-	if apiErr = tapcomfy.PrepareSoundPrice(c, info, request); apiErr != nil {
+	if apiErr = studio.PrepareSoundPrice(c, info, request); apiErr != nil {
 		return
 	}
-	apiErr = tapcomfy.RelayElevenLabsSound(c, info, request)
+	apiErr = studio.RelayElevenLabsSound(c, info, request)
 	if apiErr == nil {
 		service.MarkRequestPolicySuccess(c, nil)
 		return
@@ -72,7 +72,7 @@ func RelayElevenLabsSound(c *gin.Context) {
 
 // relayElevenLabs follows Relay for one channel attempt: the upstream bills
 // every accepted generation, so a failure is never sent again.
-func relayElevenLabs(c *gin.Context, operation tapcomfy.ElevenLabsOperation) {
+func relayElevenLabs(c *gin.Context, operation studio.ElevenLabsOperation) {
 	var newAPIError *types.NewAPIError
 	defer func() {
 		if newAPIError == nil {
@@ -97,7 +97,7 @@ func relayElevenLabs(c *gin.Context, operation tapcomfy.ElevenLabsOperation) {
 		newAPIError = types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, status, types.ErrOptionWithSkipRetry())
 		return
 	}
-	request, newAPIError := tapcomfy.ParseElevenLabsRequest(operation, body)
+	request, newAPIError := studio.ParseElevenLabsRequest(operation, body)
 	if newAPIError != nil {
 		return
 	}
@@ -138,7 +138,7 @@ func relayElevenLabs(c *gin.Context, operation tapcomfy.ElevenLabsOperation) {
 		return
 	}
 
-	newAPIError = tapcomfy.RelayElevenLabs(c, info, request)
+	newAPIError = studio.RelayElevenLabs(c, info, request)
 	if newAPIError == nil {
 		service.MarkRequestPolicySuccess(c, nil)
 		return

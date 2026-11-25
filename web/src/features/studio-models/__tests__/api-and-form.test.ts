@@ -27,8 +27,8 @@ vi.mock('@/lib/api', () => ({
   },
 }))
 
-import { TapComfyModels } from '..'
-import { listTapComfyModels, uploadTapComfyAsset } from '../api'
+import { StudioModels } from '..'
+import { listStudioModels, uploadStudioAsset } from '../api'
 import { modelFormSchema } from '../form-schema'
 
 afterEach(() => {
@@ -38,7 +38,7 @@ afterEach(() => {
   mocks.remove.mockReset()
 })
 
-describe('TapComfy model form', () => {
+describe('Studio model form', () => {
   it('rejects a model whose uploaded asset references are missing', () => {
     const result = modelFormSchema.safeParse({
       name: 'Chair',
@@ -57,13 +57,13 @@ describe('TapComfy model form', () => {
   })
 })
 
-describe('TapComfy model uploads', () => {
+describe('Studio model uploads', () => {
   const renderPage = () =>
     render(
       createElement(
         QueryClientProvider,
         { client: new QueryClient() },
-        createElement(TapComfyModels)
+        createElement(StudioModels)
       )
     )
 
@@ -108,7 +108,7 @@ describe('TapComfy model uploads', () => {
   })
 })
 
-describe('TapComfy model API', () => {
+describe('Studio model API', () => {
   it('maps the admin catalogue and multipart upload endpoints', async () => {
     mocks.get.mockResolvedValueOnce({ data: { data: [{ id: 'chair' }] } })
     mocks.post.mockResolvedValueOnce({
@@ -119,11 +119,11 @@ describe('TapComfy model API', () => {
       },
     })
 
-    await expect(listTapComfyModels()).resolves.toEqual([{ id: 'chair' }])
-    await uploadTapComfyAsset(new File(['glTF'], 'model.glb'), '3d-model')
+    await expect(listStudioModels()).resolves.toEqual([{ id: 'chair' }])
+    await uploadStudioAsset(new File(['glTF'], 'model.glb'), '3d-model')
 
-    expect(mocks.get).toHaveBeenCalledWith('/api/tapcomfy/v1/admin/models')
-    expect(mocks.post.mock.calls[0][0]).toBe('/api/tapcomfy/v1/admin/assets')
+    expect(mocks.get).toHaveBeenCalledWith('/api/studio/v1/admin/models')
+    expect(mocks.post.mock.calls[0][0]).toBe('/api/studio/v1/admin/assets')
     expect(mocks.post.mock.calls[0][1]).toBeInstanceOf(FormData)
   })
 })

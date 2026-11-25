@@ -1,4 +1,4 @@
-package tapcomfy
+package studio
 
 import (
 	"bytes"
@@ -120,41 +120,60 @@ func TestRelayElevenLabs(t *testing.T) {
 	const timestamps = `{"audio_base64":"QUJD","alignment":null,"normalized_alignment":null}`
 	tests := []struct {
 		name, body, mapping              string
+		channelType                      int
 		operation                        ElevenLabsOperation
 		status                           int
 		response, contentType, songID    string
 		wantPath, wantBody, wantResponse string
+		wantAuthHeader, wantXIAPIKey     string
 		settled                          []int
 	}{
-		{name: "timestamp speech", operation: ElevenLabsSpeechWithTimestamps,
+		{name: "timestamp speech", channelType: constant.ChannelTypeOpenAI, operation: ElevenLabsSpeechWithTimestamps,
 			body:   `{"model":"eleven_v4","input":"这是一条测试","voice":"v","speed":1.1}`,
 			status: http.StatusOK, response: "\n " + timestamps, contentType: "application/json",
 			wantPath: "/v1/audio/speech/with-timestamps", wantBody: `{"model":"eleven_v4","input":"这是一条测试","voice":"v","speed":1.1}`,
-			wantResponse: `{"format":"mp3","audio_base64":"QUJD","alignment":null,"normalized_alignment":null}`, settled: []int{264}},
-		{name: "timestamp speech in wav asks for raw PCM", operation: ElevenLabsSpeechWithTimestamps, mapping: `{"eleven_v4":"eleven_v4_upstream"}`,
+			wantResponse: `{"format":"mp3","audio_base64":"QUJD","alignment":null,"normalized_alignment":null}`, wantAuthHeader: "Bearer sk-test", settled: []int{264}},
+		{name: "timestamp speech in wav asks for raw PCM", channelType: constant.ChannelTypeOpenAI, operation: ElevenLabsSpeechWithTimestamps, mapping: `{"eleven_v4":"eleven_v4_upstream"}`,
 			body:   `{"model":"eleven_v4","input":"hi","voice":"v","response_format":"wav"}`,
 			status: http.StatusOK, response: `{}`, contentType: "application/json",
 			wantPath: "/v1/audio/speech/with-timestamps", wantBody: `{"model":"eleven_v4_upstream","input":"hi","voice":"v","response_format":"pcm_24000"}`,
-			wantResponse: `{"format":"pcm_24000"}`, settled: []int{88}},
-		{name: "music", operation: ElevenLabsMusic,
+			wantResponse: `{"format":"pcm_24000"}`, wantAuthHeader: "Bearer sk-test", settled: []int{88}},
+		{name: "timestamp speech direct elevenlabs", channelType: constant.ChannelTypeElevenLabs, operation: ElevenLabsSpeechWithTimestamps,
+			body:   `{"model":"eleven_v4","input":"这是一条测试","voice":"voice_123","speed":1.1}`,
+			status: http.StatusOK, response: "\n " + timestamps, contentType: "application/json",
+			wantPath: "/v1/text-to-speech/voice_123/with-timestamps?output_format=mp3_44100_128", wantBody: `{"model_id":"eleven_v4","text":"这是一条测试","voice_settings":{"speed":1.1}}`,
+			wantResponse: `{"format":"mp3","audio_base64":"QUJD","alignment":null,"normalized_alignment":null}`, wantXIAPIKey: "sk-test", settled: []int{264}},
+		{name: "timestamp speech direct elevenlabs wav asks for pcm_24000", channelType: constant.ChannelTypeElevenLabs, operation: ElevenLabsSpeechWithTimestamps,
+			body:   `{"model":"eleven_v4","input":"hi","voice":"voice_123","response_format":"wav"}`,
+			status: http.StatusOK, response: `{}`, contentType: "application/json",
+			wantPath: "/v1/text-to-speech/voice_123/with-timestamps?output_format=pcm_24000", wantBody: `{"model_id":"eleven_v4","text":"hi"}`,
+			wantResponse: `{"format":"pcm_24000"}`, wantXIAPIKey: "sk-test", settled: []int{88}},
+		{name: "music", channelType: constant.ChannelTypeOpenAI, operation: ElevenLabsMusic,
 			body:   `{"model":"music_v2_5","prompt":"piano","music_length_ms":10001}`,
 			status: http.StatusOK, response: "ID3-audio", contentType: "audio/mpeg", songID: "elm_1",
 			wantPath: "/v1/music?output_format=mp3_44100_128", wantBody: `{"prompt":"piano","music_length_ms":10001,"model_id":"music_v2_5"}`,
-			wantResponse: "ID3-audio", settled: []int{15125}},
-		{name: "rejected music prompt keeps its status", operation: ElevenLabsMusic,
+			wantResponse: "ID3-audio", wantAuthHeader: "Bearer sk-test", settled: []int{15125}},
+		{name: "music direct elevenlabs", channelType: constant.ChannelTypeElevenLabs, operation: ElevenLabsMusic,
+			body:   `{"model":"music_v2_5","prompt":"piano","music_length_ms":10001}`,
+			status: http.StatusOK, response: "ID3-audio", contentType: "audio/mpeg", songID: "elm_2",
+			wantPath: "/v1/music?output_format=mp3_44100_128", wantBody: `{"prompt":"piano","music_length_ms":10001,"model_id":"music_v2_5"}`,
+			wantResponse: "ID3-audio", wantXIAPIKey: "sk-test", settled: []int{15125}},
+		{name: "rejected music prompt keeps its status", channelType: constant.ChannelTypeOpenAI, operation: ElevenLabsMusic,
 			body:   `{"prompt":"in the style of a real singer","music_length_ms":10000}`,
 			status: http.StatusBadRequest, response: `{"detail":{"status":"media_request_failed","upstream_status":"bad_prompt"}}`, contentType: "application/json",
-			wantPath: "/v1/music?output_format=mp3_44100_128", wantBody: `{"prompt":"in the style of a real singer","music_length_ms":10000,"model_id":"music_v2_5"}`},
-		{name: "music without audio", operation: ElevenLabsMusic,
+			wantPath: "/v1/music?output_format=mp3_44100_128", wantBody: `{"prompt":"in the style of a real singer","music_length_ms":10000,"model_id":"music_v2_5"}`, wantAuthHeader: "Bearer sk-test"},
+		{name: "music without audio", channelType: constant.ChannelTypeOpenAI, operation: ElevenLabsMusic,
 			body:   `{"prompt":"piano","music_length_ms":10000}`,
 			status: http.StatusOK, contentType: "audio/mpeg",
-			wantPath: "/v1/music?output_format=mp3_44100_128", wantBody: `{"prompt":"piano","music_length_ms":10000,"model_id":"music_v2_5"}`},
+			wantPath: "/v1/music?output_format=mp3_44100_128", wantBody: `{"prompt":"piano","music_length_ms":10000,"model_id":"music_v2_5"}`, wantAuthHeader: "Bearer sk-test"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			var gotPath, gotBody string
+			var gotPath, gotBody, gotAuth, gotXIAPIKey string
 			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				gotPath = r.URL.RequestURI()
+				gotAuth = r.Header.Get("Authorization")
+				gotXIAPIKey = r.Header.Get("xi-api-key")
 				body, _ := io.ReadAll(r.Body)
 				gotBody = string(body)
 				w.Header().Set("Content-Type", tc.contentType)
@@ -175,7 +194,7 @@ func TestRelayElevenLabs(t *testing.T) {
 			common.SetContextKey(c, constant.ContextKeyOriginalModel, request.Model)
 			common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
 			common.SetContextKey(c, constant.ContextKeyUserGroup, "default")
-			common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
+			common.SetContextKey(c, constant.ContextKeyChannelType, tc.channelType)
 			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, upstream.URL)
 			common.SetContextKey(c, constant.ContextKeyChannelKey, "sk-test")
 			if tc.mapping != "" {
@@ -190,7 +209,9 @@ func TestRelayElevenLabs(t *testing.T) {
 
 			apiErr = RelayElevenLabs(c, info, request)
 			assert.Equal(t, tc.wantPath, gotPath)
-			assert.Equal(t, tc.wantBody, gotBody)
+			assert.JSONEq(t, tc.wantBody, gotBody)
+			assert.Equal(t, tc.wantAuthHeader, gotAuth)
+			assert.Equal(t, tc.wantXIAPIKey, gotXIAPIKey)
 			assert.Equal(t, tc.settled, settlement.settled)
 			if tc.settled == nil {
 				require.NotNil(t, apiErr)
@@ -382,6 +403,7 @@ func TestRelaySoundBinaryAndFailureContract(t *testing.T) {
 	require.NoError(t, err)
 	for _, tc := range []struct {
 		name                         string
+		channelType                  int
 		status                       int
 		audio                        []byte
 		contentLength                int
@@ -389,25 +411,31 @@ func TestRelaySoundBinaryAndFailureContract(t *testing.T) {
 		deliveryFail                 bool
 		wantStatus                   int
 	}{
-		{name: "complete binary", status: 200, audio: audio},
-		{name: "real v3 Lavf binary", status: 200, audio: lavfAudio},
-		{name: "upstream JSON error", status: 422, audio: []byte(`{"error":{"message":"bad prompt","type":"invalid_request_error"}}`), wantStatus: 422},
-		{name: "JSON masquerading as success", status: 200, audio: []byte(`{"error":"failed"}`), wantStatus: 502},
-		{name: "empty", status: 200, wantStatus: 502},
-		{name: "truncated frame", status: 200, audio: audio[:len(audio)-1], wantStatus: 502},
-		{name: "truncated declared length", status: 200, audio: audio, contentLength: len(audio) + 1, wantStatus: 502},
-		{name: "declared over limit", status: 200, audio: audio, contentLength: soundMaxResponseBytes + 1, wantStatus: 502},
-		{name: "chunked over limit", status: 200, audio: bytes.Repeat([]byte{'x'}, soundMaxResponseBytes+1), wantStatus: 502},
-		{name: "client cancellation", status: 200, audio: audio, cancel: true, wantStatus: 502},
-		{name: "expired deadline", status: 200, audio: audio, deadline: true, wantStatus: 504},
-		{name: "local settlement failure", status: 200, audio: audio, settleFail: true, wantStatus: 500},
-		{name: "disconnect after completed generation", status: 200, audio: audio, deliveryFail: true},
+		{name: "complete binary", channelType: constant.ChannelTypeOpenAI, status: 200, audio: audio},
+		{name: "direct elevenlabs binary", channelType: constant.ChannelTypeElevenLabs, status: 200, audio: lavfAudio},
+		{name: "real v3 Lavf binary", channelType: constant.ChannelTypeOpenAI, status: 200, audio: lavfAudio},
+		{name: "upstream JSON error", channelType: constant.ChannelTypeOpenAI, status: 422, audio: []byte(`{"error":{"message":"bad prompt","type":"invalid_request_error"}}`), wantStatus: 422},
+		{name: "JSON masquerading as success", channelType: constant.ChannelTypeOpenAI, status: 200, audio: []byte(`{"error":"failed"}`), wantStatus: 502},
+		{name: "empty", channelType: constant.ChannelTypeOpenAI, status: 200, wantStatus: 502},
+		{name: "truncated frame", channelType: constant.ChannelTypeOpenAI, status: 200, audio: audio[:len(audio)-1], wantStatus: 502},
+		{name: "truncated declared length", channelType: constant.ChannelTypeOpenAI, status: 200, audio: audio, contentLength: len(audio) + 1, wantStatus: 502},
+		{name: "declared over limit", channelType: constant.ChannelTypeOpenAI, status: 200, audio: audio, contentLength: soundMaxResponseBytes + 1, wantStatus: 502},
+		{name: "chunked over limit", channelType: constant.ChannelTypeOpenAI, status: 200, audio: bytes.Repeat([]byte{'x'}, soundMaxResponseBytes+1), wantStatus: 502},
+		{name: "client cancellation", channelType: constant.ChannelTypeOpenAI, status: 200, audio: audio, cancel: true, wantStatus: 502},
+		{name: "expired deadline", channelType: constant.ChannelTypeOpenAI, status: 200, audio: audio, deadline: true, wantStatus: 504},
+		{name: "local settlement failure", channelType: constant.ChannelTypeOpenAI, status: 200, audio: audio, settleFail: true, wantStatus: 500},
+		{name: "disconnect after completed generation", channelType: constant.ChannelTypeOpenAI, status: 200, audio: audio, deliveryFail: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			calls := 0
 			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				calls++
-				assert.Equal(t, "Bearer sk-test", r.Header.Get("Authorization"))
+				if tc.channelType == constant.ChannelTypeElevenLabs {
+					assert.Equal(t, "sk-test", r.Header.Get("xi-api-key"))
+					assert.Empty(t, r.Header.Get("Authorization"))
+				} else {
+					assert.Equal(t, "Bearer sk-test", r.Header.Get("Authorization"))
+				}
 				assert.Equal(t, "/v1/sound-generation?enable_logging=false&output_format=mp3_44100_128", r.URL.RequestURI())
 				body, readErr := io.ReadAll(r.Body)
 				require.NoError(t, readErr)
@@ -444,7 +472,7 @@ func TestRelaySoundBinaryAndFailureContract(t *testing.T) {
 			common.SetContextKey(c, constant.ContextKeyOriginalModel, ElevenLabsSoundModel)
 			common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
 			common.SetContextKey(c, constant.ContextKeyUserGroup, "default")
-			common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
+			common.SetContextKey(c, constant.ContextKeyChannelType, tc.channelType)
 			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, upstream.URL)
 			common.SetContextKey(c, constant.ContextKeyChannelKey, "sk-test")
 			c.Set("model_mapping", `{"eleven_text_to_sound_v3":"supplier_v3"}`)

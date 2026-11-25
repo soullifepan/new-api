@@ -8,12 +8,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type tapComfyInvitedUser struct {
+type studioInvitedUser struct {
 	Username  string `json:"username"`
 	CreatedAt int64  `json:"created_at"`
 }
 
-func GetTapComfyInvitedUsers(c *gin.Context) {
+func GetStudioInvitedUsers(c *gin.Context) {
 	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
 	if err != nil || page < 1 || page > 1_000_000 {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Invalid page"})
@@ -26,7 +26,7 @@ func GetTapComfyInvitedUsers(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Unable to load invitations"})
 		return
 	}
-	items := make([]tapComfyInvitedUser, 0)
+	items := make([]studioInvitedUser, 0)
 	if err := query.Select("username", "created_at").Order("id DESC").Limit(pageSize).Offset((page - 1) * pageSize).Find(&items).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Unable to load invitations"})
 		return

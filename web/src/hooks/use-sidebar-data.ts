@@ -149,12 +149,12 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
             icon: Box,
           },
           {
-            title: 'TapComfy',
+            title: 'Studio',
             icon: Box,
             items: [
               {
                 title: '3D 模型',
-                url: '/tapcomfy-models',
+                url: '/studio-models',
                 icon: Box,
               },
               { title: '合作伙伴', url: '/partners', icon: Users },

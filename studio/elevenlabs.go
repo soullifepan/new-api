@@ -1,4 +1,4 @@
-package tapcomfy
+package studio
 
 import (
 	"bufio"
@@ -6,16 +6,20 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay"
+	"github.com/QuantumNous/new-api/relay/channel/elevenlabs"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -190,19 +194,36 @@ func ParseElevenLabsRequest(operation ElevenLabsOperation, body []byte) (*Eleven
 // for the caller to refund.
 func RelayElevenLabs(c *gin.Context, info *relaycommon.RelayInfo, request *ElevenLabsRequest) *types.NewAPIError {
 	info.InitChannelMeta(c)
-	if info.ChannelType != constant.ChannelTypeOpenAI {
+	if info.ChannelType != constant.ChannelTypeOpenAI && info.ChannelType != constant.ChannelTypeElevenLabs {
 		return types.NewError(fmt.Errorf("channel does not support %s", c.Request.URL.Path), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
 	if err := helper.ModelMappedHelper(c, info, request); err != nil {
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
-	body, err := request.upstreamBody()
-	if err != nil {
-		return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
-	}
-	info.RequestURLPath = "/v1/audio/speech/with-timestamps"
-	if request.Operation == ElevenLabsMusic {
-		info.RequestURLPath = "/v1/music?output_format=" + elevenLabsMusicOutputFormat
+	var body []byte
+	var err error
+	if request.Operation == ElevenLabsSpeechWithTimestamps && info.ChannelType == constant.ChannelTypeElevenLabs {
+		voiceID := strings.TrimSpace(gjson.GetBytes(request.body, "voice").String())
+		if voiceID == "" {
+			return types.NewError(errors.New("voice is required"), types.ErrorCodeInvalidRequest, types.ErrOptionWithStatusCode(http.StatusBadRequest), types.ErrOptionWithSkipRetry())
+		}
+		body, err = request.elevenLabsSpeechBody()
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		}
+		info.RequestURLPath = fmt.Sprintf("/v1/text-to-speech/%s/with-timestamps?output_format=%s",
+			url.PathEscape(voiceID),
+			url.QueryEscape(elevenlabs.MapOutputFormat(request.speechFormat)),
+		)
+	} else {
+		body, err = request.upstreamBody()
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		}
+		info.RequestURLPath = "/v1/audio/speech/with-timestamps"
+		if request.Operation == ElevenLabsMusic {
+			info.RequestURLPath = "/v1/music?output_format=" + elevenLabsMusicOutputFormat
+		}
 	}
 
 	adaptor := relay.GetAdaptor(info.ApiType)
@@ -259,6 +280,37 @@ func (r *ElevenLabsRequest) upstreamBody() ([]byte, error) {
 		return nil, err
 	}
 	return sjson.SetBytes(body, "model_id", r.upstreamModel)
+}
+
+func (r *ElevenLabsRequest) elevenLabsSpeechBody() ([]byte, error) {
+	var raw map[string]any
+	if err := common.Unmarshal(r.body, &raw); err != nil {
+		return nil, err
+	}
+	payload := map[string]any{
+		"text":     gjson.GetBytes(r.body, "input").String(),
+		"model_id": r.upstreamModel,
+	}
+	var voiceSettings map[string]any
+	if vs, ok := raw["voice_settings"].(map[string]any); ok && len(vs) > 0 {
+		voiceSettings = make(map[string]any, len(vs)+1)
+		maps.Copy(voiceSettings, vs)
+	}
+	if speed, ok := raw["speed"]; ok && speed != nil {
+		if voiceSettings == nil {
+			voiceSettings = make(map[string]any, 1)
+		}
+		if _, exists := voiceSettings["speed"]; !exists {
+			voiceSettings["speed"] = speed
+		}
+	}
+	if len(voiceSettings) > 0 {
+		payload["voice_settings"] = voiceSettings
+	}
+	if lang, ok := raw["language_code"].(string); ok && strings.TrimSpace(lang) != "" {
+		payload["language_code"] = strings.TrimSpace(lang)
+	}
+	return common.Marshal(payload)
 }
 
 // writeElevenLabsTimestampHead starts the client response with the upstream

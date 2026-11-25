@@ -83,7 +83,7 @@ export type Commission = {
   created_at: number
 }
 export type Page<T> = { items: T[]; total: number; page: number }
-const base = '/api/tapcomfy/v1/admin/partners'
+const base = '/api/studio/v1/admin/partners'
 export async function getPartnerConfig() {
   return requireServerSuccess(
     (await api.get<{ success: boolean; data: PartnerConfig }>(`${base}/config`))
